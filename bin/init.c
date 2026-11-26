@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* init: pid 1. Starts the desktop and keeps the system alive.
- * It tries, in order: the window manager, a full-screen terminal on the bare
+/* init: pid 1. Starts the sound server (audiod), then the desktop, and keeps the
+ * system alive. For the desktop it tries, in order: the window manager, a full-screen terminal on the bare
  * framebuffer, and finally a shell on the kernel console. If the thing it
  * started exits, it starts it again, a few times, then falls to the next. */
 #include <stdio.h>
@@ -32,6 +32,11 @@ int main(int argc, char **argv) {
     int st = run(argv + 1);
     return st < 0 ? 127 : WEXITSTATUS(st);
   }
+  /* The sound server runs beside everything else; init does not wait for it. Idle, it
+   * sleeps in poll() and holds no sound stream. */
+  char *sound[] = {"/bin/audiod", 0};
+  struct stat st;
+  if (stat(sound[0], &st) == 0) spawn(sound[0], sound, env, 0);
   char *wm[] = {"/bin/wm", 0};
   char *term[] = {"/bin/term", "--fb", 0};
   char *sh[] = {"/bin/sh", 0};

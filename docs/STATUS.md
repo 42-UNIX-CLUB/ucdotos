@@ -5,8 +5,8 @@ update it whenever you finish, break or start something.
 
 ## 1. What works today
 
-One image (`make B=... dist`, 83 programs, 10.3 MB of which 5.8 MB is fonts; 4.4 MB as the
-`initrd.tar.gz` the page loads when it is there; measured on `35050ca`) boots
+One image (`make B=... dist`, 87 programs, 10.4 MB of which 5.8 MB is fonts; 4.4 MB as the
+`initrd.tar.gz` the page loads when it is there) boots
 in Chromium to a tiling desktop.
 
 | Area | State | Evidence |
@@ -24,6 +24,7 @@ in Chromium to a tiling desktop.
 | C compiler and linker (`cc`, `ld`) | compile and link C inside UC.OS (`cc hello.c -o hello`); same object format and ABI as clang, so clang's `libc.a` links as is, and objects from the two compilers mix. Measured on `main` with the compiler (2026-11-26, Node): with ktest, libctest, sh, cat, echo, ls, wc, grep and sort built by cc and linked by our ld, ktest 109/109, libctest 290/290, sh-tests 238/238 (the other tools clang-built); inside the OS `cc h.c -o h && ./h` compiles and runs a program. Reported by the compiler's author on the tree before the kernel hardening merge, not repeated since: every program in `bin/` compiles and links with cc, Doom included; sh-tests 238/238 with all 30 tools built by cc; libctest 290/290 with the libc itself compiled by cc; the desktop script with wm, bar, launcher, term, vi, htop, fetch and tools built by cc; Doom's timedemo replays identically (5026 tics); inside UC.OS cc compiles itself and the second and third generations are byte-identical (178,869 bytes, 125 to 293 ms per build). Speed of the generated code: not measured yet. Not run in a real browser | `bin/cc/tests/run.sh`: 36 (18 programs against clang, 3 mixed, 15 diagnostics); random expressions against clang: 0 differences in 6,750 |
 | make (`bin/make/`) | runs makefiles written for GNU Make 4.4: rules of every kind, implicit rule search with chains, all functions, conditionals, `include` and remaking makefiles, `-j N`, recursive make, MAKEFLAGS. Reported by its author on 2026-11-26: run natively on the host, it gives the same `make -n` output as GNU Make for this repository's Makefile and builds zlib 1.3.1, lua 5.4.7, kilo and lz4 1.10.0 byte-identically to GNU Make; inside UC.OS there is no C compiler in that test, so in-OS cases use the tools in the image | `node bin/make/tests/run.mjs`: 367 of 367 (13 files) against GNU Make 4.4.1; `sh bin/make/tests/os/run.sh`: 32 of 32 inside UC.OS. Both run by the author and repeated on `main` with make on 2026-11-26, the last time on `628dab5`, with the same result; the real-project builds and the timings are the author's only |
 | Club content | the intro deck as files in `~/unix_club`, `man unix-club`, commented dotfiles | |
+| Sound | `/dev/dsp` (OSS-shaped, one stream per open, mixed on the browser's audio thread), the sound server `audiod` (started at boot), `play`, Doom's sound effects, and Doom's music on our own OPL2 synthesizer (`oplplay`, through audiod). In headless Chromium Doom's frame rate is the same with and without sound and music, with 0 gaps (PERFORMANCE.md section 12) | `audiotest`: 37 of 37, part of `make test`, including the recorded output checked sample by sample |
 | Licence | GPL-2.0-or-later: `LICENSE`, `README.md`, SPDX tags | |
 | Linux programs (`lx`, `bin/lx/`) | runs Linux riscv64 (RV64GC) programs as an ordinary UC.OS program: decoder, interpreter, IEEE 754 soft-float, ELF loader (static, static-PIE, dynamic through the guest's own `ld.so`), Linux system call layer on this kernel, signals raised by the guest, green threads. Started explicitly: `lx PROGRAM ARGS`. Seen inside UC.OS under Node on 2026-11-26: Debian's bash 5.2.37 runs a loop piped into Debian's `sort`; Debian's `ls` lists the guest root; Debian's `dpkg --version` prints 1.22.22 (riscv64); busybox `uname` and `sha256sum` give correct output. Reported by its author: interactive bash in the terminal, busybox `vi`; natively also `apt-get --version`, `python3.13 -c`, and a guest root's own `dpkg` installing 7 packages with their maintainer scripts. Speed: 250 to 380 million guest instructions per second on integer code and 45 million on floating point under Node, 7 to 56 times slower than native; Chromium 2.5 to 3.5 times slower than Node (all on a loaded machine; `docs/LINUX-BINARIES.md` section 5) | native: `sh bin/lx/tests/run.sh` with `LX_SCRATCH`, 23 of 23 (includes Debian's `apt-get --version`, `perl -e`, `python3 -c` and python threading); in UC.OS with the small Debian root from `mkimage-debian.sh`: busybox script 37 of 37, dynamic programs 10 of 10. Both repeated on `main` with the engine on 2026-11-26, and again on `main` at `628dab5`, the first run on the kernel of the performance pass. The author's only: interactive bash 6 of 6, busybox vi 3 of 3, Chromium, the guest root's own dpkg installing packages |
 
@@ -42,7 +43,8 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 | Ctrl-C in a non-interactive script is untested | The code path exists (exit status 130); the test runners cannot send Ctrl-C to it. Also untested: Ctrl-C while the `read` builtin waits. |
 | Speed figures in a browser are noisier and higher than under Node | Reading the clock costs about 120 ns in Chrome (330 ns before the performance pass) and it ticks every 0.1 ms. sysbench reports the resolution, shows `n/a` for the cold column there, and times rows on the process CPU clock. Run-to-run spread in Chromium is about 20%. See PERFORMANCE.md. |
 | Doom has no game data in the image | The launcher entry starts it and it exits with "No IWAD file was found". Waits for an owner decision. |
-| Doom has no sound | No audio device in the kernel. |
+| Music reacts slowly to pause and stop | About 0.4 s: it goes through audiod's buffer (DECISIONS.md 21). Doom started as the first process (no audiod) plays no music. |
+| The browser is silent until the first click or key press | A browser rule. Sound written before it is late or, for Doom, skipped. |
 | Process start is slow | About 72 to 80 microseconds warm under Node (125 to 190 in Chromium), over 1 ms cold: every start instantiates a module and allocates its memory through the browser (PERFORMANCE.md section 4; the ideas tried there did not help in Chromium). |
 | `clock_gettime` costs about 90 to 100 ns under Node and 190 to 220 ns in Chromium | The time comes from JavaScript (it was 100 to 160 and 350 to 450 ns before the performance pass). |
 | `malloc`/`free` are slow under churn | About 55 times slower than glibc in `ubench` (first-fit list, every `free` walks it). See PERFORMANCE.md section 3. |
@@ -76,7 +78,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
   Worker) and measurements is in `docs/WORKER-PROCESSES.md`; nothing is integrated, and the
   choice is waiting for the owners.
 - `fork`, signals, threads, shared memory.
-- Persistence, networking, sound.
+- Persistence, networking. Sound input (recording), a volume control, OPL3 (SOUND.md section 5).
 - `/proc` contents, users and permissions, time zones, a clipboard.
 - The minishell port (waiting for the repo from an owner).
 - Linux programs for amd64 or arm64, Ubuntu's riscv64 programs (vector instructions), and automatic start of ELF files (see the `lx` rows above).
@@ -85,7 +87,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 ## 4. Waiting for an owner
 
 See DECISIONS.md section 3: Doom game data, Doom A/D keys, hosting, persistence,
-networking, when to build the Worker path, sound, the minishell repo, a linking
+networking, when to build the Worker path, the terminal bell, the minishell repo, a linking
 exception for the libraries, the copyright holder line, the brand theme's placeholder
 colours, clearing public use of the 42 glyphs, and the browser floor.
 

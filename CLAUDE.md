@@ -15,8 +15,9 @@ It is not a Linux port and not an emulator. The kernel is one WebAssembly module
 program is its own WebAssembly module with its own memory. A system call is a direct
 wasm-to-wasm call from the program into the kernel. The window manager, terminal
 emulator, font rasterizer, shell and tools are ordinary C programs written for this
-kernel. The only JavaScript is `boot/` (about 400 lines), which plays the role of
-firmware: it loads the kernel, starts programs, and copies the framebuffer to a canvas.
+kernel. The only JavaScript is `boot/` (about 600 lines), which plays the role of
+firmware: it loads the kernel, starts programs, copies the framebuffer to a canvas, and
+hands sound to the browser's audio thread.
 
 ## Rules of engagement (these come from the project owners)
 
@@ -67,7 +68,8 @@ browser page (boot/page.mjs)        canvas, keyboard, mouse; shows the kernel's 
 - One thread. Preemption happens only at system call boundaries (8 ms time slice). A
   program that loops without making any system call still freezes the tab.
 - No fork (only `spawn`), no signals delivered to programs (kill terminates), no
-  setjmp/longjmp, no threads, no shared memory, no persistence, no network, no sound.
+  setjmp/longjmp, no threads, no shared memory, no persistence, no network. Sound plays
+  through `/dev/dsp`, mixed on the browser's audio thread (`docs/SOUND.md`).
 - System call numbers and structures are Linux's generic ("asm-generic") ones, in
   `abi/abi.h`, plus four private calls (spawn, getargs, procinfo, intr).
 
@@ -82,20 +84,21 @@ Chromium is needed only for `tools/browser.mjs`.
 make B=build-NAME                 # kernel, libc, every program, initrd. ALWAYS pass your own B=
 make B=build-NAME PROGS="sh ls"   # only these programs go in the image (others may be mid-edit)
 make B=build-NAME dist            # build-NAME/dist: static folder for any web server
-make B=build-NAME test            # kernel, C library and shell suites; fails if any check fails
+make B=build-NAME test            # kernel, C library, shell and sound suites; fails if any check fails
 
 node tools/run.mjs  --build=build-NAME --init=/bin/ktest            # console only, for tests
 node tools/shot.mjs --build=build-NAME --script=tools/tests/desktop.mjs   # headless, PNG screenshots
 node tools/browser.mjs --build=build-NAME --script=tools/tests/browser-desktop.mjs  # real Chromium
 ```
 
-The four suites that must stay green (counts as of 2026-11-26):
+The five suites that must stay green (counts as of 2026-11-26):
 
 | Suite | Command (add `--build=...`) | Result |
 |---|---|---|
 | Kernel | `node tools/run.mjs --init=/bin/ktest` | 109 checks, 0 failed |
 | C library | `node tools/run.mjs --init=/bin/libctest` | 298 checks, 0 failed |
 | Shell and tools | `node tools/run.mjs --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | 238 passed |
+| Sound | `node tools/tests/audio.mjs` | 37 checks, 0 failed |
 | Desktop | `node tools/shot.mjs --script=tools/tests/desktop.mjs` | look at the 6 screenshots |
 
 Component suites (terminal, window manager, editor, htop, fetch, Doom) are listed in
@@ -106,8 +109,8 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | Path | What | Lines (approx.) |
 |---|---|---|
 | `abi/abi.h` | syscall numbers, errno, structs shared by kernel and programs | 230 |
-| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c` | 2,000 |
-| `boot/` | `host.mjs` (the machine), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 420 |
+| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c audio.c` | 2,200 |
+| `boot/` | `host.mjs` (the machine), `audio.mjs` + `audio-worklet.js` (sound), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 610 |
 | `lib/` | `string.c`, `fmt.c` (vsnprintf): shared by kernel and libc; `mem.s` (kernel) and `umem.s` (libc): memcpy, memmove, memset | 530 |
 | `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 3,980 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
@@ -142,6 +145,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `docs/DEVELOPMENT.md` | you build, test, add a program, add a syscall, debug, or run several agents |
 | `docs/DECISIONS.md` | before proposing anything: what the owners decided, what was assumed, what is still open |
 | `docs/STATUS.md` | to know what works today, what is broken, what is not built, and what is in flight |
+| `docs/SOUND.md` | you touch sound: `/dev/dsp`, `audiod`, the audio thread |
 | `docs/PERFORMANCE.md` | you measure or quote speed |
 | `docs/WORKER-PROCESSES.md` | you work on running processes off the main thread (study and prototypes; no design chosen) |
 | `docs/BRAND.md` | you write any user-visible text or touch the look: palettes, fonts, voice, logo rules |

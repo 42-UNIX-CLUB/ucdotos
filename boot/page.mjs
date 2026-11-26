@@ -50,7 +50,18 @@ async function main() {
   let dirty = false, frames = 0;
   const s = size();
   canvas.width = s.width; canvas.height = s.height;
+  // Sound: one AudioContext at the device's own rate (the kernel reports it to programs),
+  // so samples are resampled once, by the program. Browsers keep it silent until the
+  // first click or key press on the page, so it is resumed then.
+  let audioCtx = null;
+  try { audioCtx = new AudioContext({ latencyHint: 'interactive' }); } catch { /* no Web Audio: the host plays silently, in real time */ }
+  if (audioCtx) {
+    const unlock = () => { audioCtx.resume(); removeEventListener('pointerdown', unlock, true); removeEventListener('keydown', unlock, true); };
+    addEventListener('pointerdown', unlock, true);
+    addEventListener('keydown', unlock, true);
+  }
   const sys = await boot({
+    sound: { context: audioCtx, expose: (s) => { window.ucosAudio = s; } },
     kernel, initrd,
     cmdline: params.get('cmdline') || '',
     screen: s,

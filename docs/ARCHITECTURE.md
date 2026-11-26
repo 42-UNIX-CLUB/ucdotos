@@ -6,7 +6,7 @@ How the system works, layer by layer. Everything here describes the code as it i
 Contents: 1 the big picture, 2 the host, 3 the system call path, 4 blocking and
 scheduling, 5 processes, 6 memory, 7 files and devices, 8 terminals, 9 sockets,
 10 screen and input, 11 the desktop stack, 12 the C library, 13 the toolchain,
-14 limits and what does not exist.
+14 limits and what does not exist, 15 sound.
 
 ## 1. The big picture
 
@@ -62,6 +62,7 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `random()` | 32 random bits |
    | `memory()` | bytes of memory the device reports (default 4 GiB) |
    | `fb_dirty()` | the framebuffer was written since the host last took the damage box (`fb_damage`); show it on the next animation frame. Called once per frame, not per write |
+   | `audio_rate audio_open audio_write audio_close audio_volume audio_reset` | the host half of `/dev/dsp` (`boot/audio.mjs`): samples go to the mixer on the browser's audio thread, or to a real-time stand-in under Node. See section 15 |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
    kernel export `boot_alloc`, calls `fb_resize(w, h)` if there is a screen, then
@@ -71,7 +72,7 @@ Kernel command line: `init=/path/to/program -- arg1 arg2`. Default init is `/bin
 
 Kernel exports the host uses: `kmain boot_alloc syscall_pid proc_attach proc_state
 proc_crashed proc_account proc_resumed block_timeout console_input input_event fb_resize
-fb_addr fb_damage fb_width fb_height memory __indirect_function_table`. (`set_current` still exists and is
+fb_addr fb_damage fb_width fb_height audio_played audio_underrun memory __indirect_function_table`. (`set_current` still exists and is
 harmless; the kernel no longer depends on it.)
 
 The object `boot()` returns: `k` (kernel exports), `memory`, `procs`, `frame()`,
@@ -658,14 +659,71 @@ How it maps onto UC.OS:
 | one `malloc` in a program | 0x7fffffff bytes | `MALLOC_MAX` in `libc/src/malloc.c` |
 | ptys | 16 | `NPTY` |
 | pipe buffer / socket buffer | 64 KiB / 512 KiB per direction | |
+| sound streams (`/dev/dsp` opens) / buffer per stream | 8 / 512 bytes to 256 KiB (default 16 KiB) | `NSTREAM`, `BUF_MAX` in `audio.c` |
 | window manager clients | 24 | |
 | time slice | 8 ms | `SLICE_MS` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
-`fork`, signals, threads, shared memory, persistence, networking, sound, `/proc`
+`fork`, signals, threads, shared memory, persistence, networking, sound input (recording), `/proc`
 contents, users and permissions, time zones, a clipboard, dynamic linking for UC.OS
 programs. Unmodified Linux binaries run through an ordinary program,
 `bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
 on top of this kernel); its design is in `docs/LINUX-BINARIES.md`. It needs nothing from
 the kernel that other programs do not have, and lists what it would like in section 7.3
 of that file.
+
+## 15. Sound (`kernel/audio.c`, `boot/audio.mjs`, `boot/audio-worklet.js`, `bin/audiod.c`)
+
+DECISIONS.md 20; what works and what is missing is SOUND.md.
+
+**`/dev/dsp`**, in the shape of OSS. Each open descriptor is one stream (8 at most). One
+format: 16-bit little-endian stereo at the host's rate. Calls: `write` (blocking, or
+`EAGAIN` with `O_NONBLOCK`), `poll` (writable when a fragment is free), and the ioctls
+`SPEED SETFMT GETFMTS CHANNELS STEREO SETFRAGMENT GETBLKSIZE GETOSPACE GETODELAY
+SETPLAYVOL GETERROR RESET SYNC`, with Linux's numbers. `SPEED`, `SETFMT` and `CHANNELS`
+answer with what the device does, as OSS drivers may. No reading (recording), no `mmap`.
+
+The kernel does not mix. `write` copies the samples out of the process into a static
+16 KiB buffer and calls `host.audio_write` for each piece; the host copies them at once.
+Per stream the kernel keeps only `queued`, the bytes written and not yet played; the
+stream's buffer size (`SETFRAGMENT`: fragments of 256 B to 64 KiB, 256 KiB in all) caps
+it, so it is also the stream's delay. The host calls `audio_played(id, frames)` as sound
+plays, which lowers `queued` and wakes writers and `poll`; `audio_underrun(id)` counts a
+gap.
+
+**The host.** In a browser, `boot/audio.mjs` posts each write to an AudioWorklet node
+(`boot/audio-worklet.js`) with the buffer transferred. The worklet, on the audio thread,
+sums every stream with its volume into the output (float), every 4 render quanta
+(~11 ms) posts how many frames of each stream played, and reports a stream that ran dry
+while it was being fed: more data arriving within 0.5 s of running out. The page creates
+the AudioContext at boot and resumes it on the first click or key press (the browser's
+rule). Under Node, or without Web Audio, a stand-in consumes each stream in real time on a
+10 ms timer, only while something is queued, and can write the integer mix to a file
+(`--audio-capture=FILE` in `tools/run.mjs` and `tools/shot.mjs`).
+
+**audiod**, the sound server for everything but games, a user program started by `init`.
+It listens on `/run/audiod.sock`. A client sends a 20-byte header (`"UCAU"`, rate, channels,
+bits, volume 0 to 100, total bytes or 0) and samples: 8-bit unsigned or 16-bit, mono or
+stereo, 4 to 192 kHz. Each client is converted with linear interpolation in integers
+(16.16 positions, 15-bit fractions; a client at the device rate skips interpolation),
+mixed with a 32-bit sum and clamped, in 20 ms chunks into audiod's own `/dev/dsp` stream
+(16 x 4 KiB, ~340 ms). It reads a client only while that client's 64 KiB buffer has room,
+so a fast client waits in `write`. When a client's `total` bytes are mixed it gets one
+byte back and the connection is closed. With no clients, audiod closes `/dev/dsp`.
+
+**oplplay** (`bin/oplplay/`), Doom's music (DECISIONS.md 21). `opl.c` is our OPL2
+synthesizer: 9 two-operator channels, the chip's registers, computed like the chip in the
+log domain (a 256-entry log-sine table and a 256-entry exponential table: output =
+exp(logsin(phase) + attenuation)), a 9-bit envelope with the chip's rate scheme, four
+waveforms, feedback, FM and additive connection, key scaling, tremolo and vibrato.
+Rendered at 48 kHz directly (phase and envelope steps scaled from the chip's 49716 Hz);
+a channel whose voices have finished is skipped. `main.c` reads the GENMIDI instruments
+(a file or straight from a WAD), a MUS or MIDI song (format 0 or 1, tempo map; events
+sorted stably), and drives the 9 voices as Doom's music driver did: percussion on MIDI
+channel 10 from instruments 128 to 174 at fixed pitches, double-voice instruments with
+their fine detune, the oldest voice stolen when all are busy, volume and expression and
+pan per channel, pitch bend of 2 semitones. It sends 16-bit stereo to audiod, rendering
+at most ~60 ms ahead of real time; with `-c` it takes `pause`, `resume`, `volume N` and
+`stop` on stdin. Doom's music module (`bin/doom/i_ucossound.c`) writes the song and
+GENMIDI to `/tmp/doom/` and runs it.
+

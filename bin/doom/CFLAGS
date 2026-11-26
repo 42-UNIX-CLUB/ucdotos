@@ -1,1 +1,1 @@
--w -DUCOS -DCMAP256 -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 -DNORMALUNIX -DLINUX -D_DEFAULT_SOURCE -Wl,-u,ui_open -Wl,-u,ui_close -Wl,-u,ui_set_title -Wl,-u,ui_pixels -Wl,-u,ui_width -Wl,-u,ui_height -Wl,-u,ui_present -Wl,-u,ui_poll_event
+-w -DUCOS -DFEATURE_SOUND -DCMAP256 -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 -DNORMALUNIX -DLINUX -D_DEFAULT_SOURCE -Wl,-u,ui_open -Wl,-u,ui_close -Wl,-u,ui_set_title -Wl,-u,ui_pixels -Wl,-u,ui_width -Wl,-u,ui_height -Wl,-u,ui_present -Wl,-u,ui_poll_event
