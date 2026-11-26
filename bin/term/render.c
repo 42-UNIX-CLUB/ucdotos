@@ -79,23 +79,41 @@ static int draw_block(gfx_surface *s, int x, int y, int w, int h, uint32_t c, un
 }
 
 /* which cache draws code point c: the regular/bold one, or the fallback if the glyph is missing */
+static void load_fallback(render *r) {
+  const ttf_font *(*load)(void) = r->load_fallback;
+  r->load_fallback = NULL; /* only ever once */
+  const ttf_font *f = load();
+  if (f && (r->cache[2] = ttf_cache_new(f, r->px, 256))) r->font[2] = f;
+}
 static ttf_cache *pick(render *r, uint32_t c, int bold) {
   ttf_cache *main = r->cache[bold ? 1 : 0];
-  if (c < 0x80 || !r->cache[2]) return main;
+  if (c < 0x80 || (!r->cache[2] && !r->load_fallback)) return main;
   int st = 0;
   if (c < 0x10000) st = (r->missing[c >> 2] >> ((c & 3) * 2)) & 3;
   if (!st) {
-    st = ttf_glyph_index(r->font[0], c) ? 1 : ttf_glyph_index(r->font[2], c) ? 2 : 1;
+    if (ttf_glyph_index(r->font[0], c)) st = 1;
+    else {
+      if (r->load_fallback) load_fallback(r);
+      st = r->font[2] && ttf_glyph_index(r->font[2], c) ? 2 : 1;
+    }
     if (c < 0x10000) r->missing[c >> 2] |= (uint8_t)(st << ((c & 3) * 2));
   }
   return st == 2 ? r->cache[2] : main;
 }
 
-/* cursor marker stored in the shadow cell: 0 none, else 1 + focused * 8 + style */
+/* Marks stored in the shadow cell's pad: the low byte is the cursor (0 none, else
+ * 1 + focused * 8 + style), PAD_SEL a selected cell. */
+#define PAD_SEL 0x100
+static int selected(const render *r, int x, int y) {
+  if (!r->sel_on || y < r->sel_y0 || y > r->sel_y1) return 0;
+  if (y == r->sel_y0 && x < r->sel_x0) return 0;
+  if (y == r->sel_y1 && x > r->sel_x1) return 0;
+  return 1;
+}
 static void draw_cell(render *r, gfx_surface *s, int px, int py, vt_cell c, int cur) {
   unsigned fg = render_color(r, c.fg, r->fg), bg = render_color(r, c.bg, r->bg);
   int w = r->cw, h = r->ch;
-  if (c.attr & VT_INVERSE) { unsigned t = fg; fg = bg; bg = t; }
+  if (!(c.attr & VT_INVERSE) != !(c.pad & PAD_SEL)) { unsigned t = fg; fg = bg; bg = t; }
   if (c.attr & VT_DIM) fg = mix(fg, bg, 150);
   if (c.attr & VT_HIDDEN) fg = bg;
   int style = cur ? (cur - 1) & 7 : 0, focused = cur && ((cur - 1) & 8);
@@ -155,11 +173,11 @@ int render_draw(render *r, vt *t, gfx_surface *s, int focused, render_rect *dmg)
     int py = r->pad_y + y * r->ch;
     for (int x = 0; x < cols; x++) {
       vt_cell c = (src && x < w) ? src[x] : blank;
-      c.pad = (uint16_t)((y == cy && x == cx) ? cmark : 0);
+      c.pad = (uint16_t)(((y == cy && x == cx) ? cmark : 0) | (selected(r, x, y) ? PAD_SEL : 0));
       if (!full && !memcmp(&c, &sh[x], sizeof c)) continue;
       sh[x] = c;
       int px = r->pad_x + x * r->cw;
-      draw_cell(r, s, px, py, c, c.pad);
+      draw_cell(r, s, px, py, c, c.pad & 0xff);
       if (px < dmg->x0) dmg->x0 = px;
       if (py < dmg->y0) dmg->y0 = py;
       if (px + r->cw > dmg->x1) dmg->x1 = px + r->cw;

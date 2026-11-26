@@ -11,11 +11,16 @@
          font: 14px/1.5 ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; white-space: pre-wrap; overflow: auto; }
   #log.hidden { display: none; }
   #log b { color: #fe8019; }
+  #note { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 8px 14px; border-radius: 6px;
+          color: #ebdbb2; background: #3c3836; border: 1px solid #fabd2f; pointer-events: none;
+          font: 14px/1.4 ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; }
+  #note.hidden { display: none; }
 </style>
 </head>
 <body>
 <canvas id="screen" tabindex="0"></canvas>
 <pre id="log"></pre>
+<div id="note" class="hidden"></div>
 <script type="module" src="./page.mjs"></script>
 </body>
 </html>

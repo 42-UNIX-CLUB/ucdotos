@@ -1,25 +1,31 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Build doom and a test image that contains one IWAD and (optionally) default
-# arguments, without touching the shared rootfs/: the extra files go only into
-# build-doom/root/, and build-doom/initrd.tar is re-created from it.
+# Build doom and a test image with (optionally) default arguments, without touching the
+# shared rootfs/: the extra files go only into build-doom/root/, and build-doom/initrd.tar
+# is re-created from it. The game data is not put in the image: it reaches Doom the way it
+# does in the hosted build, as a remote file fetched on first open (kernel/remote.c), from
+# build-doom/files/ (tools/remote-files.sh; the WADs come from $WADS, default bin/doom/wads).
 #   bin/doom/tests/mkimage.sh doom1.wad|freedoom1.wad|none [doom arguments...]
-# With WM=1 in the environment, the window manager is built too and its config
+# freedoom1.wad adds "-iwad freedoom1.wad" to the arguments; none builds with no game data.
+# With WM=1 in the environment, the window manager is built too and its dotfile wm.uconf
 # (in build-doom/root only) starts doom: boot that image with --init=/bin/wm.
 set -e
 cd "$(dirname "$0")/../../.."
-B=build-doom
+B=${B:-build-doom}
 WAD=$1; shift
+W=${WADS:-bin/doom/wads}
+[ "$WAD" = none ] && W=/nonexistent
 PROGS=doom
 [ "$WM" = 1 ] && PROGS="doom wm"
-make B=$B PROGS="$PROGS" >/dev/null
+make B=$B PROGS="$PROGS" WADS="$W" >/dev/null
 D=$B/root/usr/share/games/doom
 mkdir -p $D
 for f in doom1.wad freedoom1.wad doom.args; do [ -f $D/$f ] && rm $D/$f; done
-[ "$WAD" = none ] || cp bin/doom/wads/$WAD $D/
-[ $# -gt 0 ] && echo "$@" > $D/doom.args
+ARGS="$*"
+[ "$WAD" = freedoom1.wad ] && ARGS="-iwad freedoom1.wad $ARGS"
+[ -n "$ARGS" ] && echo "$ARGS" > $D/doom.args
 C=$B/root/home/user/.config/wm
-[ -f $C/config ] && rm $C/config
-if [ "$WM" = 1 ]; then mkdir -p $C; printf 'gaps 0\nexec doom\n' > $C/config; fi
+[ -f $C/config ] && rm $C/config     # the old i3-style file, from images made before wm.uconf
+if [ "$WM" = 1 ]; then mkdir -p $C; printf '[general]\ngaps = 0\n[autostart]\nexec = doom\n' > $C/wm.uconf; fi
 tar --format=ustar --owner=0 --group=0 -C $B/root -cf $B/initrd.tar .
-echo "image: $WAD, args: $*"
+echo "image: $WAD (remote), args: $ARGS"

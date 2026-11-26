@@ -34,6 +34,9 @@ static int ev_fd = -1, listen_fd = -1;
 static int mods, swallow[256], swallow_text;
 static int buttons;
 static client *grab;  /* the window that got the mouse button press receives motion until release */
+static client *locked; /* the window the mouse is captured for: no cursor, movement as UI_EV_MOUSE_REL */
+static client *drag;  /* a floating window being moved with Mod + left button */
+static int drag_dx, drag_dy; /* where the pointer holds it, from its top-left corner */
 static int quit;
 static int state_dirty;
 static int children[64], nchildren;
@@ -275,6 +278,21 @@ static void print_stats(void) {
           stats_frames, stats_writes, stats_bytes, stats_compose_ms, nclients, si.totalram, si.bufferram, si.procs,
           (int)__builtin_wasm_memory_size(0));
 }
+/* Capture the mouse while the focused window asked for it and is fullscreen; release it
+ * as soon as that stops being true (another window, a workspace switch, fullscreen off,
+ * the window gone). Called after everything that can change those. Costs a few
+ * comparisons when nothing changes. */
+static void lock_update(void) {
+  client *f = focused();
+  client *want = f && f->wants_lock && f->fullscreen && f->ws == cur_ws ? f : NULL;
+  if (want == locked) return;
+  locked = want;
+  int on = locked != NULL;
+  __syscall3(SYS_ioctl, ev_fd, EVIOCGRAB, &on);
+  if (on) { if (ptr_shown) damage(ptr_x, ptr_y, 12, 19); ptr_shown = 0; } /* hide the cursor */
+  else cursor_moved(ptr_x, ptr_y);                                        /* and bring it back */
+}
+
 int run_command(client *src, const char *cmd) {
   char verb[32] = "", arg[160] = "";
   while (*cmd == ' ') cmd++;
@@ -302,6 +320,12 @@ int run_command(client *src, const char *cmd) {
     client *f = focused();
     if (d == 2 || !f) return -1;
     send_event(f, UI_EV_ZOOM, 0, 0, 0, 0, 0, 0, 0, d);
+    return 0;
+  }
+  if (!strcmp(verb, "pointer-lock")) { /* from a window: capture the mouse while I am fullscreen */
+    if (!src) return -1;
+    src->wants_lock = !strcmp(arg, "on");
+    lock_update();
     return 0;
   }
   if (!strcmp(verb, "theme")) return theme_set(*arg ? arg : "next");
@@ -342,6 +366,8 @@ void drop_client(client *c) {
   memmove(order + i, order + i + 1, (nclients - i - 1) * sizeof order[0]);
   nclients--;
   if (grab == c) grab = NULL;
+  if (locked == c) { locked = NULL; int off = 0; __syscall3(SYS_ioctl, ev_fd, EVIOCGRAB, &off); cursor_moved(ptr_x, ptr_y); }
+  if (drag == c) drag = NULL;
   close(c->fd);
   if (c->hello) relayout(); /* repaints the screen and tells the bar */
   free(c->buf); free(c->out);
@@ -416,10 +442,13 @@ static int begin_present(client *c) {
       (unsigned long long)c->cur.len != sizeof *p + (unsigned long long)p->w * p->h * 4)
     return -1;
   if (p->bw != c->pw || p->bh != c->ph) {
-    unsigned *n = calloc((size_t)p->bw * p->bh, 4);
-    if (!n) return -1;
+    /* Free first: the old pixels are dropped anyway, and wasm memory never shrinks, so
+     * allocating before freeing would leave both sizes claimed for good. */
     free(c->buf);
-    c->buf = n; c->pw = p->bw; c->ph = p->bh;
+    c->buf = calloc((size_t)p->bw * p->bh, 4);
+    c->pw = c->ph = 0;
+    if (!c->buf) return -1;
+    c->pw = p->bw; c->ph = p->bh;
   }
   c->in_pixels = 1;
   c->px_got = 0;
@@ -538,10 +567,37 @@ static void handle_key(int code, int value) {
   client *f = focused();
   send_event(f, value ? UI_EV_KEY_DOWN : UI_EV_KEY_UP, code, mods, value == 2, 0, 0, 0, 0, 0);
 }
+/* Move the window being dragged so that its top-left corner is at x, y, kept on the screen. */
+static void drag_to(int x, int y) {
+  client *c = drag;
+  if (!c->floating || !visible(c)) { drag = NULL; return; } /* it stopped floating or left the screen */
+  if (x > scr_w - c->r.w) x = scr_w - c->r.w;
+  if (y > scr_h - c->r.h) y = scr_h - c->r.h;
+  if (x < 0) x = 0;
+  if (y < 0) y = 0;
+  if (x == c->r.x && y == c->r.y) return;
+  damage(c->r.x, c->r.y, c->r.w, c->r.h);
+  c->r.x = x; c->r.y = y;
+  c->placed = 1;
+  damage(c->r.x, c->r.y, c->r.w, c->r.h);
+}
 static void handle_button(int code, int value) {
   int b = code == 0x110 ? 0 : code == 0x112 ? 1 : code == 0x111 ? 2 : -1;
   if (b < 0) return;
+  if (drag) { /* the window being moved gets no clicks; the left button's release ends the move */
+    if (value) buttons |= 1 << b; else buttons &= ~(1 << b);
+    if (!value && b == 0) drag = NULL;
+    return;
+  }
   client *c = value ? client_at(ptr_x, ptr_y) : grab;
+  /* nofocus overlays (the cheat sheet) are not moved: picking one up would give it the focus */
+  if (value && b == 0 && (mods & cfg.mod) && c && c->floating && !c->nofocus && !buttons) {
+    set_focus(c); /* also raises it */
+    buttons |= 1;
+    drag = c;
+    drag_dx = ptr_x - c->r.x; drag_dy = ptr_y - c->r.y;
+    return;
+  }
   if (value) {
     buttons |= 1 << b;
     grab = c;
@@ -558,7 +614,7 @@ static void handle_button(int code, int value) {
 }
 static void input_readable(void) {
   static struct input_event evs[64];
-  static int nx = -1, ny = -1, resized;
+  static int nx = -1, ny = -1, rdx, rdy, resized;
   for (;;) {
     long n = __syscall3(SYS_read, ev_fd, evs, sizeof evs);
     if (n <= 0) break;
@@ -570,7 +626,9 @@ static void input_readable(void) {
         else if (e->code < 256) handle_key(e->code, e->value);
         break;
       case 2: /* EV_REL */
-        if (e->code == 8) {
+        if (e->code == 0) rdx += e->value;         /* movement while the mouse is captured */
+        else if (e->code == 1) rdy += e->value;
+        else if (e->code == 8) {
           client *c = client_at(ptr_x, ptr_y);
           if (c) { int x, y; to_window(c, &x, &y); send_event(c, UI_EV_WHEEL, 0, mods, 0, 0, x, y, 0, e->value > 0 ? 1 : -1); }
         }
@@ -585,6 +643,11 @@ static void input_readable(void) {
         break;
       case 0: /* EV_SYN: the end of one batch */
         swallow_text = 0;
+        if (rdx || rdy) {
+          if (locked) send_event(locked, UI_EV_MOUSE_REL, 0, mods, 0, 0, rdx, rdy, 0, 0);
+          rdx = rdy = 0;
+        }
+        if (locked) nx = ny = -1;                  /* captured: the cursor stays hidden and still */
         if (nx >= 0 || ny >= 0) {
           int ox = ptr_x, oy = ptr_y;
           if (nx >= 0) ptr_x = nx;
@@ -596,7 +659,8 @@ static void input_readable(void) {
           if (ptr_y >= scr_h) ptr_y = scr_h - 1;
           if (ox != ptr_x || oy != ptr_y || !ptr_shown) {
             cursor_moved(ox, oy);
-            client *c = grab ? grab : client_at(ptr_x, ptr_y);
+            client *c = drag ? NULL : grab ? grab : client_at(ptr_x, ptr_y);
+            if (drag) drag_to(ptr_x - drag_dx, ptr_y - drag_dy);
             if (c) { int x, y; to_window(c, &x, &y); send_event(c, UI_EV_MOUSE_MOVE, 0, mods, 0, 0, x, y, 0, 0); }
           }
         }
@@ -685,6 +749,7 @@ int main(int argc, char **argv) {
         if (pf[i].revents & (POLLIN | POLLHUP | POLLERR | 0x20)) client_readable(c);
       }
     }
+    lock_update();
     if (state_dirty) { state_dirty = 0; broadcast_state(); }
     if (damage_pending() && now_ms() >= next_frame) {
       compose();

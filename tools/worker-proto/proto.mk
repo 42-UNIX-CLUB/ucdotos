@@ -99,7 +99,7 @@ $(P)/run-b/initrd.tar: $(P)/mrk/initrd.tar $(P)/bin/wproto $(P)/bin/wproto-b
 # ---- web folder: the default page files, the prototype modules, the test pages ----
 $(P)/dist/index.html: $(P)/run/initrd.tar $(wildcard boot/*.mjs boot/*.html boot/worker-proto/*)
 	@mkdir -p $(P)/dist/worker-proto
-	@cp boot/index.html boot/page.mjs boot/host.mjs boot/keys.mjs $(P)/run/kernel.wasm $(P)/run/initrd.tar $(P)/dist/
+	@cp boot/index.html boot/page.mjs boot/host.mjs boot/audio.mjs boot/audio-worklet.js boot/hostnet.mjs boot/keys.mjs $(P)/run/kernel.wasm $(P)/run/initrd.tar $(P)/dist/
 	@cp boot/worker-proto/*.mjs boot/worker-proto/*.js boot/worker-proto/*.html $(P)/dist/worker-proto/
 	@echo "  DIST  $(P)/dist"
 

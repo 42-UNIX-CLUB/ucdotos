@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* The compositor: a damage list, a back buffer (scr) and the wallpaper (wall).
- * Each frame repaints only the damaged rectangles of scr, from the wallpaper up
- * through the windows to the cursor, then writes just those rectangles to /dev/fb0. */
+/* The compositor: a damage list, a strip of screen rows to paint into, and the wallpaper.
+ * Each frame repaints only the damaged rectangles, a band of rows at a time: the wallpaper,
+ * then the windows, then the cursor go into the strip, and the band is written to /dev/fb0.
+ * There is no full-screen back buffer and no full-screen copy of the wallpaper: the kernel
+ * already keeps the screen, and the wallpaper is a flat colour and a dot grid that are
+ * cheap to make again, plus the logo, which is kept as a small picture of its own. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,23 +13,35 @@
 #include "wm.h"
 
 int scr_w, scr_h;
-unsigned *scr, *wall;
 int G_gap, G_border, G_radius, G_thin;
 static int fb_fd = -1;
 static rect dmg[MAX_DAMAGE];
 static int ndmg;
 static double write_ms;
 
+/* The strip: whole screen rows, strip_y0 .. strip_y0 + strip_rows - 1. Static, so it costs
+ * the same at any screen size; at 1280 px wide it holds 51 rows. */
+#define STRIP_BYTES (256 * 1024)
+static unsigned strip[STRIP_BYTES / 4];
+static int strip_y0, strip_rows;
+static inline unsigned *row_at(int y) { return strip + (size_t)(y - strip_y0) * scr_w; }
+
+/* The logo picture: logo_w x logo_h at (logo_x, logo_y), wallpaper and dots included. */
+static unsigned *logo;
+static int logo_x, logo_y, logo_w, logo_h;
+static unsigned wall_dot;
+/* Two whole wallpaper rows, ready to copy: wall_rows is the plain colour, wall_rows + scr_w
+ * the same with the dot grid. */
+static unsigned *wall_rows;
+
 int fb_setup(int fd) {
   if (fd >= 0) fb_fd = fd;
   unsigned v[40] = {0};
   if (__syscall3(SYS_ioctl, fb_fd, 0x4600, v) < 0 || v[6] != 32 || v[0] < 1 || v[1] < 1) return -1;
-  if ((int)v[0] == scr_w && (int)v[1] == scr_h && scr) return 0;
-  free(scr); free(wall);
+  if ((int)v[0] == scr_w && (int)v[1] == scr_h) return 0;
+  if ((size_t)v[0] * 4 > sizeof strip) { fprintf(stderr, "wm: a %u px wide screen is too wide\n", v[0]); return -1; }
   scr_w = v[0]; scr_h = v[1];
-  scr = malloc((size_t)scr_w * scr_h * 4);
-  wall = malloc((size_t)scr_w * scr_h * 4);
-  if (!scr || !wall) { fprintf(stderr, "wm: out of memory for a %dx%d screen\n", scr_w, scr_h); return -1; }
+  strip_rows = (int)(sizeof strip / 4 / (size_t)scr_w);
   if (ptr_x >= scr_w) ptr_x = scr_w - 1;
   if (ptr_y >= scr_h) ptr_y = scr_h - 1;
   return 0;
@@ -130,7 +145,7 @@ static void draw_window(client *c, const rect *D) {
   if (d.rad > d.R) d.rad = d.R;
   int t = d.t, w = r.w, h = r.h, R = d.R;
   for (int y = y0; y < y1; y++) {
-    unsigned *row = scr + (size_t)y * scr_w;
+    unsigned *row = row_at(y);
     int ly = y - r.y, a = x0 - r.x, b = x1 - r.x; /* window-local columns [a, b) */
     if (ly < R || ly >= h - R) {
       int cy = ly < R ? ly : h - 1 - ly;
@@ -173,7 +188,7 @@ static void draw_cursor(const rect *D) {
       int x = ptr_x + i;
       char ch = arrow[j][i];
       if (ch == ' ' || x < D->x || x >= D->x + D->w) continue;
-      scr[(size_t)y * scr_w + x] = ch == 'X' ? GFX_HEX(0x101010) : theme.fg;
+      row_at(y)[x] = ch == 'X' ? GFX_HEX(0x101010) : theme.fg;
     }
   }
 }
@@ -209,13 +224,26 @@ static void draw_windows(int ws, int dx, const rect *D, int with_bars, int only_
     }
   cur_ws = keep;
 }
+/* Wallpaper row y, columns [wx, wx + n), into dst. */
+static void wall_make(unsigned *dst, int y, int wx, int n) {
+  if (wall_rows) memcpy(dst, wall_rows + (y % 24 == 12 ? scr_w : 0) + wx, (size_t)n * 4);
+  else { /* no memory for the rows: make the pixels one by one */
+    for (int i = 0; i < n; i++) dst[i] = theme.desktop;
+    if (y % 24 == 12) /* the dot grid: columns 12, 36, 60 ... */
+      for (int x = wx + ((12 - wx % 24) + 24) % 24; x < wx + n; x += 24) dst[x - wx] = wall_dot;
+  }
+  if (logo && y >= logo_y && y < logo_y + logo_h) {
+    int a = wx > logo_x ? wx : logo_x, b = wx + n < logo_x + logo_w ? wx + n : logo_x + logo_w;
+    if (a < b) memcpy(dst + (a - wx), logo + (size_t)(y - logo_y) * logo_w + (a - logo_x), (size_t)(b - a) * 4);
+  }
+}
 /* Row y of the wallpaper, moved left by shift columns (wrapping around), for the screen
  * columns [a, b). */
 static void wall_span(int y, int shift, int a, int b) {
-  unsigned *row = scr + (size_t)y * scr_w, *w = wall + (size_t)y * scr_w;
+  unsigned *row = row_at(y);
   int seam = scr_w - shift; /* screen column where the wallpaper starts over */
-  if (a < seam) { int e = b < seam ? b : seam; memcpy(row + a, w + a + shift, (size_t)(e - a) * 4); a = e; }
-  if (a < b) memcpy(row + a, w + a - seam, (size_t)(b - a) * 4);
+  if (a < seam) { int e = b < seam ? b : seam; wall_make(row + a, y, a + shift, e - a); a = e; }
+  if (a < b) wall_make(row + a, y, a - seam, b - a);
 }
 /* The same for a whole row, minus the parts listed in solid[]. */
 static void wall_row(int y, int shift) {
@@ -233,22 +261,23 @@ static void wall_row(int y, int shift) {
     x = next;
   }
 }
+/* Paint D, which lies inside the strip. */
 static void paint(const rect *D) {
-  for (int y = D->y; y < D->y + D->h; y++)
-    memcpy(scr + (size_t)y * scr_w + D->x, wall + (size_t)y * scr_w + D->x, (size_t)D->w * 4);
+  for (int y = D->y; y < D->y + D->h; y++) wall_span(y, 0, D->x, D->x + D->w);
   draw_windows(cur_ws, 0, D, 1, 0);
   draw_cursor(D);
 }
+/* Write D, which lies inside the strip, to the framebuffer. */
 static void put(const rect *D) {
-  if (D->w * 2 >= scr_w) { /* wide: whole rows in one write */
+  if (D->x == 0 && D->w == scr_w) { /* whole rows: one write */
     long n = (long)scr_w * D->h * 4;
-    __syscall4(SYS_pwrite64, fb_fd, scr + (size_t)D->y * scr_w, n, (long)D->y * scr_w * 4);
+    __syscall4(SYS_pwrite64, fb_fd, row_at(D->y), n, (long)D->y * scr_w * 4);
     stats_writes++; stats_bytes += n;
     return;
   }
   for (int y = D->y; y < D->y + D->h; y++) {
     long off = ((long)y * scr_w + D->x) * 4;
-    __syscall4(SYS_pwrite64, fb_fd, scr + (size_t)y * scr_w + D->x, D->w * 4, off);
+    __syscall4(SYS_pwrite64, fb_fd, row_at(y) + D->x, D->w * 4, off);
     stats_writes++; stats_bytes += D->w * 4;
   }
 }
@@ -288,7 +317,7 @@ void anim_begin(void) {
 /* Call after it. dir +1: the viewer moves right along the workspaces, so the picture moves
  * left. -1: the other way. */
 void anim_go(int dir) {
-  if (cfg.animation_ms <= 0 || !scr || anim_from == cur_ws) return;
+  if (cfg.animation_ms <= 0 || !strip_rows || anim_from == cur_ws) return;
   anim_to = cur_ws;
   anim_dir = dir;
   anim_len = cfg.animation_ms;
@@ -337,44 +366,65 @@ static int compose_anim(void) {
     shift = rest;
   }
   int fixed_bar = bar_shown_on(anim_from) && bar_shown_on(anim_to);
-  rect all = {0, 0, scr_w, scr_h};
-  /* Two rounds over the same windows: first list what they will cover, then, once the
-   * wallpaper is down everywhere else, draw them. */
+  double paint_ms = 0, put_ms = 0;
   sliding = 1;
-  for (int round = 0; round < 2; round++) {
-    if (old_clip.w > 0) draw_windows(anim_from, old_dx, &old_clip, !fixed_bar, !round);
-    if (new_clip.w > 0) draw_windows(anim_to, new_dx, &new_clip, !fixed_bar, !round);
-    if (fixed_bar)
-      for (int i = 0; i < nclients; i++) {
-        if (order[i]->role != UI_BAR || !visible(order[i])) continue;
-        if (!round) add_solid(order[i], &all); else draw_window(order[i], &all);
-      }
-    for (int i = 0; i < nclients; i++) /* sticky windows stay where they are, on top */
-      if (order[i]->sticky && visible(order[i])) { if (!round) add_solid(order[i], &all); else draw_window(order[i], &all); }
-    /* The wallpaper is the same on both workspaces, so panning it is a rotation of each row. */
-    if (!round) for (int y = 0; y < scr_h; y++) wall_row(y, shift);
+  for (int y0 = 0; y0 < scr_h; y0 += strip_rows) { /* one band of the strip at a time */
+    rect band = {0, y0, scr_w, scr_h - y0 < strip_rows ? scr_h - y0 : strip_rows};
+    rect oc = old_clip, nc = new_clip;
+    oc.y = nc.y = band.y; oc.h = nc.h = band.h;
+    strip_y0 = y0;
+    nsolid = 0;
+    /* Two rounds over the same windows: first list what they will cover, then, once the
+     * wallpaper is down everywhere else, draw them. */
+    for (int round = 0; round < 2; round++) {
+      if (oc.w > 0) draw_windows(anim_from, old_dx, &oc, !fixed_bar, !round);
+      if (nc.w > 0) draw_windows(anim_to, new_dx, &nc, !fixed_bar, !round);
+      if (fixed_bar)
+        for (int i = 0; i < nclients; i++) {
+          if (order[i]->role != UI_BAR || !visible(order[i])) continue;
+          if (!round) add_solid(order[i], &band); else draw_window(order[i], &band);
+        }
+      for (int i = 0; i < nclients; i++) /* sticky windows stay where they are, on top */
+        if (order[i]->sticky && visible(order[i])) { if (!round) add_solid(order[i], &band); else draw_window(order[i], &band); }
+      /* The wallpaper is the same on both workspaces, so panning it is a rotation of each row. */
+      if (!round) for (int y = band.y; y < band.y + band.h; y++) wall_row(y, shift);
+    }
+    draw_cursor(&band);
+    double t1 = now_ms();
+    put(&band);
+    double t2 = now_ms();
+    paint_ms += t1 - t0; put_ms += t2 - t1;
+    t0 = t2;
   }
   sliding = 0;
-  draw_cursor(&all);
-  double t1 = now_ms();
-  put(&all);
   stats_frames++;
-  stats_compose_ms += t1 - t0;
-  write_ms += now_ms() - t1;
+  stats_compose_ms += paint_ms;
+  write_ms += put_ms;
   damage_all(); /* keep the frames coming */
   return 1;
 }
 void compose(void) {
   if (anim_on && compose_anim()) return;
-  double t0 = now_ms();
-  int n = ndmg;
-  for (int i = 0; i < n; i++) paint(&dmg[i]);
-  double t1 = now_ms();
-  for (int i = 0; i < n; i++) put(&dmg[i]);
+  double paint_ms = 0, put_ms = 0, t0 = now_ms();
+  for (int i = 0; i < ndmg; i++) {
+    rect D = dmg[i];
+    /* a wide rectangle is painted edge to edge, so that each band goes out in one write */
+    if (D.w * 2 >= scr_w) { D.x = 0; D.w = scr_w; }
+    for (int y0 = D.y; y0 < D.y + D.h; y0 += strip_rows) {
+      rect band = {D.x, y0, D.w, D.y + D.h - y0 < strip_rows ? D.y + D.h - y0 : strip_rows};
+      strip_y0 = y0;
+      paint(&band);
+      double t1 = now_ms();
+      put(&band);
+      double t2 = now_ms();
+      paint_ms += t1 - t0; put_ms += t2 - t1;
+      t0 = t2;
+    }
+  }
   ndmg = 0;
   stats_frames++;
-  stats_compose_ms += t1 - t0;
-  write_ms += now_ms() - t1;
+  stats_compose_ms += paint_ms;
+  write_ms += put_ms;
 }
 double bench_compose(int n) {
   double c0 = stats_compose_ms, w0 = write_ms, t0 = now_ms();
@@ -397,7 +447,8 @@ static const float two_b[] = {1579.08f, 275.40f, 1560.18f, 275.40f, 1560.18f, 29
 static const float two_c[] = {1560.18f, 275.40f, 1541.29f, 275.40f, 1541.29f, 294.30f};
 static const float cursor_bar[] = {1587.23f, 350.99f, 1606.12f, 350.99f, 1606.12f, 275.40f, 1587.23f, 275.40f};
 
-/* Even-odd polygon fill with 4 sub-rows per pixel and exact horizontal coverage, blended into wall. */
+/* Even-odd polygon fill with 4 sub-rows per pixel and exact horizontal coverage, blended into
+ * the logo picture (screen coordinates; anything outside the picture is left out). */
 static void logo_poly(const float *pts, int n, float s, int ox, int oy, unsigned color, float alpha) {
   float minx = 1e9f, maxx = -1e9f, miny = 1e9f, maxy = -1e9f;
   for (int i = 0; i < n; i++) {
@@ -408,10 +459,10 @@ static void logo_poly(const float *pts, int n, float s, int ox, int oy, unsigned
     if (y > maxy) maxy = y;
   }
   int bx0 = (int)minx, bx1 = (int)maxx + 2, by0 = (int)miny, by1 = (int)maxy + 2;
-  if (bx0 < 0) bx0 = 0;
-  if (by0 < 0) by0 = 0;
-  if (bx1 > scr_w) bx1 = scr_w;
-  if (by1 > scr_h) by1 = scr_h;
+  if (bx0 < logo_x) bx0 = logo_x;
+  if (by0 < logo_y) by0 = logo_y;
+  if (bx1 > logo_x + logo_w) bx1 = logo_x + logo_w;
+  if (by1 > logo_y + logo_h) by1 = logo_y + logo_h;
   if (bx0 >= bx1 || by0 >= by1) return;
   float *acc = calloc(bx1 - bx0, sizeof(float));
   if (!acc) return;
@@ -440,7 +491,7 @@ static void logo_poly(const float *pts, int n, float s, int ox, int oy, unsigned
     }
     for (int ix = bx0; ix < bx1; ix++) {
       float a = acc[ix - bx0] * alpha;
-      if (a > 0.002f) { unsigned *p = wall + (size_t)py * scr_w + ix; *p = gfx_blend_px(*p, color, (unsigned)(a * 255 + 0.5f)); }
+      if (a > 0.002f) { unsigned *p = logo + (size_t)(py - logo_y) * logo_w + (ix - logo_x); *p = gfx_blend_px(*p, color, (unsigned)(a * 255 + 0.5f)); }
     }
   }
   free(acc);
@@ -449,24 +500,41 @@ static void logo_dot(float cx, float cy, float r, float s, int ox, int oy, unsig
   float x = (cx - LX0) * s + ox, y = (cy - LY0) * s + oy, rr = r * s;
   for (int py = (int)(y - rr) - 1; py <= (int)(y + rr) + 1; py++)
     for (int px = (int)(x - rr) - 1; px <= (int)(x + rr) + 1; px++) {
-      if (px < 0 || py < 0 || px >= scr_w || py >= scr_h) continue;
+      if (px < logo_x || py < logo_y || px >= logo_x + logo_w || py >= logo_y + logo_h) continue;
       float dx = px + 0.5f - x, dy = py + 0.5f - y, c = rr - __builtin_sqrtf(dx * dx + dy * dy) + 0.5f;
       if (c <= 0) continue;
       if (c > 1) c = 1;
-      unsigned *p = wall + (size_t)py * scr_w + px;
+      unsigned *p = logo + (size_t)(py - logo_y) * logo_w + (px - logo_x);
       *p = gfx_blend_px(*p, color, (unsigned)(c * alpha * 255 + 0.5f));
     }
 }
 void render_wallpaper(void) {
-  unsigned bg = theme.desktop, dot = gfx_blend_px(theme.desktop, theme.fg, 16);
-  for (int y = 0; y < scr_h; y++) {
-    unsigned *row = wall + (size_t)y * scr_w;
-    for (int x = 0; x < scr_w; x++) row[x] = bg;
-    if (y % 24 == 12) for (int x = 12; x < scr_w; x += 24) row[x] = dot;
+  wall_dot = gfx_blend_px(theme.desktop, theme.fg, 16);
+  free(wall_rows); /* first: wasm memory never shrinks */
+  wall_rows = NULL;
+  unsigned *rows = malloc((size_t)scr_w * 2 * 4);
+  if (rows) { /* the slow path of wall_make fills them, then every row is a copy */
+    wall_make(rows, 0, 0, scr_w);
+    wall_make(rows + scr_w, 12, 0, scr_w);
+    wall_rows = rows;
   }
   /* the logo, about a quarter of the screen high, in the bottom-right corner */
   float lh = scr_h * 0.24f, s = lh / 102.64f;
   int ox = scr_w - (int)(193.21f * s) - 4 * G_gap - 24, oy = scr_h - (int)lh - 4 * G_gap - 24;
+  /* its picture: every pixel the shapes below can touch, kept on the screen */
+  int x0 = ox - 2, y0 = oy - 2, x1 = ox + (int)(193.21f * s) + 3, y1 = oy + (int)lh + 3;
+  if (x0 < 0) x0 = 0;
+  if (y0 < 0) y0 = 0;
+  if (x1 > scr_w) x1 = scr_w;
+  if (y1 > scr_h) y1 = scr_h;
+  free(logo); /* first: wasm memory never shrinks, so the old and new picture must not coexist */
+  logo = NULL;
+  logo_w = logo_h = 0;
+  if (x0 >= x1 || y0 >= y1) return;
+  unsigned *pic = malloc((size_t)(x1 - x0) * (y1 - y0) * 4);
+  if (!pic) return; /* no memory: a plain wallpaper */
+  for (int y = y0; y < y1; y++) wall_make(pic + (size_t)(y - y0) * (x1 - x0), y, x0, x1 - x0); /* colour and dots */
+  logo = pic; logo_x = x0; logo_y = y0; logo_w = x1 - x0; logo_h = y1 - y0;
   float al = 0.16f;
   logo_poly(chevron, 6, s, ox, oy, theme.color[10], al);
   logo_poly(four, 9, s, ox, oy, theme.fg, al);

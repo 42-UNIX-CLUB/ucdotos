@@ -185,7 +185,8 @@ static Node *new_var(Var *v, Tok *t) {
 }
 static int is_null_const(Node *n) {
   while (n->kind == N_CAST && (is_integer(n->ty) || (is_ptr(n->ty) && n->ty->base->kind == TY_VOID))) n = n->lhs;
-  return n->kind == N_NUM && n->ival == 0 && is_integer(n->ty);
+  /* `(void *)0` has been folded into a number of type void * by the time it gets here */
+  return n->kind == N_NUM && n->ival == 0 && (is_integer(n->ty) || (is_ptr(n->ty) && n->ty->base->kind == TY_VOID));
 }
 
 static Node *cast(Node *n, Type *ty);
@@ -1843,6 +1844,7 @@ static Node *conditional(void) {
   } else if (is_ptr(a->ty) && is_ptr(b->ty)) {
     ty = a->ty->base->kind == TY_VOID ? a->ty : b->ty->base->kind == TY_VOID ? b->ty : a->ty;
     if (is_null_const(a) && !is_null_const(b)) ty = b->ty;
+    else if (is_null_const(b) && !is_null_const(a)) ty = a->ty;
     b = cast(b, ty);
     a = cast(a, ty);
   } else if (is_ptr(a->ty) && is_integer(b->ty)) {

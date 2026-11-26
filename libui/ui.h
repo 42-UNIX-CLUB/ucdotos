@@ -46,6 +46,7 @@ enum {
   UI_EV_WM_STATE,   /* for bars: workspace state changed; see ui_wm_state() */
   UI_EV_ZOOM,       /* the user pressed a zoom key (Ctrl+= Ctrl+- Ctrl+0 by default): wheel = +1 bigger,
                      * -1 smaller, 0 back to normal. A program that has no use for it ignores it. */
+  UI_EV_MOUSE_REL,  /* x, y: how far the mouse moved, while it is captured for this window (ui_pointer_lock) */
 };
 typedef struct {
   int type;
@@ -84,6 +85,11 @@ typedef struct {
 int ui_wm_state(ui_window *win, ui_wm_info *out);
 /* Ask the manager to do something, e.g. "workspace 2", "reload", "exec term". 0 on success. */
 int ui_wm_command(ui_window *win, const char *command);
+/* on = 1: capture the mouse whenever this window is fullscreen and focused (a game). The
+ * cursor hides and cannot leave the window; UI_EV_MOUSE_REL events come instead of
+ * UI_EV_MOUSE_MOVE. In a browser, Esc gives the mouse back and a click takes it again.
+ * on = 0: never. 0 on success, -1 if the manager refused. */
+int ui_pointer_lock(ui_window *win, int on);
 
 /* Commands the manager understands (the same words as the bind lines of ~/.config/wm/wm.uconf):
  *   exec CMD ARGS...   workspace N   move N   focus next|prev   swap next|prev|master

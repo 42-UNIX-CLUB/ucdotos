@@ -2,6 +2,7 @@
 /* Program entry. Built twice: crt0_2.o calls main(argc, argv), crt0_3.o calls
  * main(argc, argv, envp). WebAssembly checks function signatures exactly, so the
  * build links whichever one matches the program's main. */
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
@@ -15,11 +16,16 @@ int main(int, char **);
 extern char **environ;
 
 /* The kernel hands over argv and the environment as one blob: argc, envc, then the
- * strings. The kernel caps the blob at 64 KiB; the pointer arrays are sized to fit. */
+ * strings. The kernel caps the blob at 64 KiB. Almost every blob fits in 4 KiB, so only a
+ * bigger one (the kernel answers -ERANGE) is given the full 64 KiB, from the heap: a static
+ * 64 KiB buffer would cost every program a page of memory it never uses. */
 __attribute__((export_name("_start"))) void _start(void) {
-  static char blob[65536];
+  static char small[4096];
   static char *none[2];
-  long n = __syscall2(SYS_getargs, blob, sizeof blob);
+  char *blob = small;
+  long n = __syscall2(SYS_getargs, blob, sizeof small);
+  if (n == -ERANGE && (blob = malloc(65536))) n = __syscall2(SYS_getargs, blob, 65536);
+  if (!blob || n < 0) { blob = small; n = 0; }
   int argc = 0, envc = 0;
   if (n >= 8) { memcpy(&argc, blob, 4); memcpy(&envc, blob + 4, 4); }
   char **vec = malloc(((unsigned)argc + (unsigned)envc + 2) * sizeof *vec);

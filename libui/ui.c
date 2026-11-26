@@ -78,7 +78,7 @@ static void handle(ui_window *win, const struct uip_hdr *h, const unsigned char 
     memcpy(&e, p, sizeof e);
     ev.type = e.type; ev.key = e.key; ev.mods = e.mods; ev.repeat = e.repeat; ev.codepoint = e.codepoint;
     ev.x = e.x; ev.y = e.y; ev.button = e.button; ev.wheel = e.wheel;
-    if (ev.type > UI_EV_NONE && ev.type <= UI_EV_ZOOM && ev.type != UI_EV_RESIZE) push(win, &ev);
+    if (ev.type > UI_EV_NONE && ev.type <= UI_EV_MOUSE_REL && ev.type != UI_EV_RESIZE) push(win, &ev);
     break;
   }
   case UIP_STATE: {
@@ -133,10 +133,12 @@ static int pump(ui_window *win, int timeout_ms) {
 
 static int resize_buffer(ui_window *win, int w, int h) {
   if (w == win->w && h == win->h && win->px) return 0;
-  unsigned *n = calloc((size_t)w * h, 4);
-  if (!n) return -1;
+  /* Free first: the old pixels are not kept, and wasm memory never shrinks, so allocating
+   * before freeing would leave both sizes claimed for good. */
   free(win->px);
-  win->px = n; win->w = w; win->h = h;
+  win->px = calloc((size_t)w * h, 4);
+  if (!win->px) { win->w = win->h = 0; return -1; }
+  win->w = w; win->h = h;
   return 0;
 }
 
@@ -275,3 +277,5 @@ int ui_wm_command(ui_window *win, const char *command) {
   }
   return win->reply_status;
 }
+
+int ui_pointer_lock(ui_window *win, int on) { return ui_wm_command(win, on ? "pointer-lock on" : "pointer-lock off"); }

@@ -1376,8 +1376,16 @@ void D_DoomMain (void)
 
     if (iwadfile == NULL)
     {
+#ifdef UCOS
+        I_Error("No game data is installed.\n"
+                "Doom needs a data file such as doom1.wad.\n"
+                "Drop one onto the page, or press Ctrl+Alt+O.\n"
+                "It is copied to ~/Downloads.\n"
+                "Then start Doom again.");
+#else
         I_Error("Game mode indeterminate.  No IWAD file was found.  Try\n"
                 "specifying one with the '-iwad' command line parameter.\n");
+#endif
     }
 
     modifiedgame = false;

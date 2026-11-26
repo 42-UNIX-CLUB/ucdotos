@@ -13,7 +13,7 @@ KLDFLAGS := -Wl,--no-entry -Wl,--export-table -Wl,--growable-table -Wl,-z,stack-
 LIBC_SRC := $(wildcard libc/src/*.c) lib/string.c lib/fmt.c
 LIBC_OBJ := $(patsubst %.c,$(B)/obj/%.o,$(LIBC_SRC)) $(B)/obj/lib/mem.o
 LIBC_HDR := $(wildcard libc/include/*.h libc/include/sys/*.h) abi/abi.h
-UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui -Ilibuconf
+UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui -Ilibclip -Ilibuconf
 ULDFLAGS := -Wl,--entry=_start -Wl,-z,stack-size=1048576 -Wl,--stack-first -Wl,--fatal-warnings
 CRT     := $(B)/obj/crt0_2.o $(B)/obj/crt0_3.o
 
@@ -28,6 +28,8 @@ UI_SRC      := $(wildcard libui/*.c)
 # Every program links libuconf (the .uconf dotfile parser); only programs that use it pull it in.
 UCONF_SRC   := $(wildcard libuconf/*.c)
 GFX_SRC     := $(wildcard libgfx/*.c)
+# A program directory containing a file named USE_CLIP links libclip (the clipboard client).
+CLIP_SRC    := $(wildcard libclip/*.c)
 
 all: $(B)/kernel.wasm $(B)/initrd.tar
 
@@ -59,12 +61,16 @@ $(B)/libui.a: $(patsubst %.c,$(B)/obj/%.o,$(UI_SRC))
 $(B)/libgfx.a: $(patsubst %.c,$(B)/obj/%.o,$(GFX_SRC))
 	@echo "  AR    libgfx.a"
 	@$(AR) rcs $@ $^
+$(B)/libclip.a: $(patsubst %.c,$(B)/obj/%.o,$(CLIP_SRC))
+	@echo "  AR    libclip.a"
+	@$(AR) rcs $@ $^
+
 $(B)/libuconf.a: $(patsubst %.c,$(B)/obj/%.o,$(UCONF_SRC))
 	@echo "  AR    libuconf.a"
 	@$(AR) rcs $@ $^
 
 # Link with the crt0 that matches main's signature: try (argc, argv) first, then (argc, argv, envp).
-gfx_lib = $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a) $(B)/libuconf.a
+gfx_lib = $(if $(wildcard bin/$(1)/USE_CLIP),$(B)/libclip.a) $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a) $(B)/libuconf.a
 define LINK
 	@mkdir -p $(B)/bin
 	@echo "  LINK  $(1)"
@@ -98,19 +104,28 @@ $(B)/cc-sysroot.stamp: $(LIBC_HDR) $(wildcard bin/cc/include/*.h libui/*.h libgf
 	@echo "  SYSROOT /usr/include /usr/lib"
 	@touch $@
 
+# Remote files (kernel/remote.c): $(B)/files/ beside the image, and the manifest
+# /etc/remote-files inside it. Doom's game data comes from $(WADS) when present.
+# The script runs on every build (it is quick when nothing changed) and rewrites the
+# manifest only when its contents change, so a different WADS= is picked up.
+WADS    := bin/doom/wads
+$(B)/root/etc/remote-files: FORCE
+	@sh tools/remote-files.sh $(B) $(WADS)
+FORCE:
+
 # initrd: rootfs/ plus the programs, as a plain ustar archive
-$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT)
+$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT) $(B)/root/etc/remote-files
 	@mkdir -p $(B)/root/bin
 	@cp -r rootfs/. $(B)/root/
 	@cp $(addprefix $(B)/bin/,$(PROGS)) $(B)/root/bin/
 	@echo "  TAR   initrd.tar"
 	@tar --format=ustar --owner=0 --group=0 -C $(B)/root -cf $@ .
 
-# Run the kernel, C library and shell suites against this build. Fails if any check fails.
+# Run the kernel, C library, shell, sound, network and router suites against this build. Fails if any check fails.
 test: all
 	@sh tools/test.sh $(B)
 
-.PHONY: all test
+.PHONY: all test FORCE
 
 # The image compressed for the page (it unpacks it with the browser's DecompressionStream).
 # The Node tools keep reading the plain initrd.tar.
@@ -121,6 +136,7 @@ $(B)/initrd.tar.gz: $(B)/initrd.tar
 # A directory ready to be served by any static web server.
 dist: all $(B)/initrd.tar.gz
 	@mkdir -p $(B)/dist
-	@cp boot/index.html boot/page.mjs boot/host.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
+	@cp boot/index.html boot/page.mjs boot/host.mjs boot/audio.mjs boot/audio-worklet.js boot/hostnet.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
+	@cp -r $(B)/files $(B)/dist/
 	@echo "  DIST  $(B)/dist"
 .PHONY: dist

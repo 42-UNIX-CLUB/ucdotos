@@ -347,7 +347,7 @@ authors before this pass.
 
 | What | Figure |
 |---|---|
-| window manager, full-screen composite | 1.0 to 1.3 ms |
+| window manager, full-screen composite | 1.0 to 2.0 ms (2026-11-26, painted in bands: 0.95, 1.08, 1.99 ms in three runs of `perf.mjs`; 1.58 ms twice with the old full-screen buffer) |
 | a 600x400 window's `ui_present` until its pixels are in the framebuffer | about 1.1 ms (median) |
 | window manager when idle | 0 framebuffer writes per second with the bar hidden; 1 frame per second for the clock |
 | terminal, full repaint of 160x45 cells (native build) | 2.9 ms |
@@ -384,8 +384,78 @@ time of `/usr/bin/time`; UC.OS figures come from time stamps on the console unde
   `vfs_create`, which search a directory's linked list of entries (CPU profile with
   `node --cpu-prof`). Directory size, not make, dominates there.
 
+## 11. Memory
 
-## 11. How to measure properly
+Headless under Node at 1280x720, 2026-11-26: the default desktop, then two more terminals
+opened with Mod+Return, then `ps` in the last one. Each figure is the process's whole wasm
+memory (`ps` MEM); two runs each. The kernel's own memory was 16.3 MiB both times.
+
+| Process | Before | After | Why |
+|---|---|---|---|
+| wm | 14.9 MiB | 6.4 MiB | no full-screen back buffer or wallpaper; window buffers freed before the new size is allocated |
+| bar | 1.9 MiB | 1.9 MiB | |
+| welcome terminal | 10.1 MiB | 8.3 to 8.4 MiB | window buffer freed before the new size is allocated |
+| second terminal | 6.9 MiB | 6.1 MiB | same |
+| third terminal | 5.4 MiB | 2.9 MiB | same, and the Nerd fallback font is not read until a glyph needs it |
+| init, sh, ps, each | 1.4 MiB | 1.1 MiB | the heap grows one page at a time; the argument buffer is 4 KiB, not 64 |
+| all processes | 47.5 MiB | 32.4 to 32.6 MiB | |
+
+After `perf.mjs` opens and closes 20 windows three times, the wm holds 91 pages (5.7 MiB)
+instead of 215 (13.4 MiB).
+
+What is left: every program reserves a 1 MiB stack (the deepest use measured in the test
+suites is 54 KiB, in `sh`); every font a program uses is read whole into its memory; the
+kernel keeps the initrd (7.6 MiB then, 9.8 MiB on `35050ca`; 5.5 MiB of it fonts), the
+framebuffer (3.6 MiB) and two 512 KiB buffers for each window's socket.
+
+## 12. Sound (2026-11-26)
+
+The design (DECISIONS.md 20, SOUND.md) was chosen from benchmarks of each piece, compiled
+to WebAssembly the same way as the real code, median of 7 batches, this machine:
+
+| Work | Node | Chromium |
+|---|---|---|
+| Doom's mix: 8 channels, resample 11025 to 48000 Hz, one frame of sound (1,371 frames) | 28.0 µs | 29.6 µs |
+| Sum 2 streams, one Doom frame of sound (what kernel mixing would cost) | 9.2 µs | 10.6 µs |
+| Sum 4 / 8 streams, 20 ms of sound (audiod) | 7.0 / 10.1 µs | 7.6 / 10.7 µs |
+| `postMessage` of one Doom frame of sound (11 KB, copied) | 3.3 µs | 5.2 µs |
+| Convert one Doom frame of sound from 16-bit to float | 3.8 µs | not run |
+
+A Doom frame at 35 fps lasts 28,571 µs: the whole game path is about 0.15% of it. That is
+why the kernel does not mix (it would add ~11 µs per frame on the main thread) and why
+conversion happens on the audio thread.
+
+Measured on the built system:
+
+- **Doom in headless Chromium** (Freedoom 0.13, its demo, 15 s of presented frames timed in
+  the page, 3 alternating runs each way):
+
+  | | fps | median frame | 95th pct | 99th pct | sd | underruns |
+  |---|---|---|---|---|---|---|
+  | sound | 34.81 / 34.81 / 34.79 | 32.7 / 33.1 / 31.9 ms | 33.7 / 33.6 / 33.6 | 34.0 / 33.8 / 33.8 | 7.05 / 7.51 / 6.46 | 0 / 0 / 0 |
+  | `-nosound` | 34.81 / 34.81 / 34.81 | 33.2 / 33.2 / 32.1 ms | 33.6 / 33.6 / 33.6 | 33.9 / 33.9 / 34.0 | 7.59 / 7.40 / 7.10 | |
+
+  No difference beyond run-to-run noise.
+- **Doom `-timedemo demo1` under Node** (as fast as it can): 1,779 / 1,683 / 1,730 fps with
+  sound, 1,730 / 1,695 / 1,683 without. Sound work is tied to real time (the device takes
+  only so much per second), not to the frame rate, so a faster game does not pay more.
+- **Doom, 20 s in real time under Node**, user CPU of the whole Node process: 2.23 to 2.37 s with
+  sound, 2.02 to 2.06 s without (3 runs each). Most of the difference is the stand-in's own
+  10 ms clock, which exists only under Node; at 5 ms it was 2.42 to 2.50 s. In a browser
+  that work is the worklet's, on the audio thread.
+- **audiod**, two clients for about 1.3 s (one resampled from 24 kHz): 8 to 10 ms of CPU,
+  down from 12.6 ms before its loop decoded each input frame once and dropped the division
+  per sample.
+- **Music** (DECISIONS.md 21, `oplplay` through audiod). Rendering inside UC.OS under Node:
+  30 s of Freedoom's E1M1 in about 285 to 295 ms (the difference of 31 s and 1 s runs, 3
+  each), about 10 ms of CPU per second of music, ~1% of the main thread; 10 s of a 9-voice
+  chord in 82 to 109 ms. Doom on the desktop in headless Chromium, 3 alternating runs each
+  way, 15 s of presented frames: with music 35.83 / 35.81 / 35.81 fps, 95th percentile
+  33.7 / 33.7 / 34.1 ms, 99th 35.1 / 34.5 / 35.6 ms; with `-nomusic` 35.82 / 35.80 / 35.82
+  fps, 33.7 / 33.6 / 33.6 ms, 34.0 / 35.0 / 33.9 ms; 0 underruns either way. The 99th
+  percentile is about 0.8 ms higher on average with music, inside the spread between runs.
+
+## 13. How to measure properly
 
 1. Put the timed loop in a `noinline` function and call it many times. V8 does not
    replace a running wasm loop with optimised code, so a loop entered once measures

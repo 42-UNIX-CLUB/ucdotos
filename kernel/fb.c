@@ -90,10 +90,12 @@ EXPORT(input_event) void input_event(int type, int code, int value) {
 /* The host tells the kernel how big the screen is, at boot and when the window changes. */
 EXPORT(fb_resize) u8 *fb_resize(u32 w, u32 h) {
   if (w != fb_w || h != fb_h) {
-    u8 *n = kzalloc(w * h * 4);
-    if (!n) return fb;
+    /* free first: the old picture is not kept, and wasm memory never shrinks */
     if (fb) kfree(fb);
-    fb = n; fb_w = w; fb_h = h;
+    fb = kzalloc(w * h * 4);
+    fb_w = fb_h = 0;
+    if (!fb) return 0;
+    fb_w = w; fb_h = h;
     dmg[0] = 0; dmg[1] = 0; dmg[2] = w - 1; dmg[3] = h - 1; /* a new buffer: the next frame shows all of it */
     ev_push(4 /* EV_MSC */, 0x11 /* screen resized */, (s32)((w << 16) | h));
     ev_push(0, 0, 0);
@@ -133,7 +135,18 @@ static int ev_poll(struct file *f, int add) {
   if (!ev_len && add) wq_add(&ev_wq);
   return ev_len ? POLLIN : 0;
 }
-static const struct fops ev_fops = {ev_read, NULL, ev_poll, NULL, NULL};
+/* EVIOCGRAB: the window manager captures the mouse for a fullscreen window that asked for
+ * it (a game). The page then locks the browser's pointer, hides it, and sends movement as
+ * REL_X and REL_Y instead of positions. */
+static long ev_ioctl(struct file *f, u32 cmd, u32 arg) {
+  (void)f;
+  if (cmd != EVIOCGRAB) return -ENOTTY;
+  int on;
+  if (copy_from_user(&on, arg, 4)) return -EFAULT;
+  host_pointer_lock(on != 0);
+  return 0;
+}
+static const struct fops ev_fops = {ev_read, NULL, ev_poll, NULL, ev_ioctl};
 
 struct file *fb_open(struct inode *ino, int flags) { return fb ? file_new(&fb_fops, ino, flags, NULL) : NULL; }
 struct file *ev_open(struct inode *ino, int flags) { return file_new(&ev_fops, ino, flags, NULL); }

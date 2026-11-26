@@ -84,7 +84,10 @@ bind = $mod, h, master, shrink
 bind = $mod, l, master, grow
 
 bind = $mod, f, fullscreen
+# float: the window leaves the tiling and the others fill its place.
+# Hold $mod and drag a floating window with the left button to move it.
 bind = $mod SHIFT, space, float
+bind = $mod, y, float
 
 # layouts, and new terminals beside the focused window ($mod CTRL and a direction)
 bind = $mod, s, layout, toggle

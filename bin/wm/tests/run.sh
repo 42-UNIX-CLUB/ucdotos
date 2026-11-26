@@ -6,7 +6,7 @@
 B=${1:-build-wm}
 cd "$(dirname "$0")/../../.." || exit 1
 fail=0
-for t in layout workspace slide zoom split robust misc perf showcase; do
+for t in layout workspace slide zoom split float robust misc pointerlock perf showcase; do
   out=$(timeout 300 node tools/shot.mjs --build="$B" --init=/bin/wm --size=1280x720 --script="bin/wm/tests/$t.mjs" 2>&1)
   echo "$out" | grep -a "^PASS\|^FAIL\|^RESULT\|^DONE\|^idle\|^cycle"
   echo "$out" | grep -q "^DONE $t: 0 failed" || fail=$((fail + 1))

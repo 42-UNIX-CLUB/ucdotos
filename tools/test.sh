@@ -16,5 +16,8 @@ run "kernel   " node tools/run.mjs --build="$B" --init=/bin/ktest
 run "C library" node tools/run.mjs --build="$B" --init=/bin/libctest
 run "uconf    " node tools/run.mjs --build="$B" --init=/bin/uconftest
 run "shell    " node tools/run.mjs --build="$B" --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'
+run "sound    " node tools/tests/audio.mjs --build="$B"
+run "network  " node tools/run.mjs --build="$B" --init=/bin/nettest
+run "router   " node tools/tests/router-http.mjs --build="$B"
 if [ $fail -eq 0 ]; then echo "all suites passed"; else echo "some suites failed"; fi
 exit $fail

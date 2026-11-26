@@ -6,7 +6,7 @@ How the system works, layer by layer. Everything here describes the code as it i
 Contents: 1 the big picture, 2 the host, 3 the system call path, 4 blocking and
 scheduling, 5 processes, 6 memory, 7 files and devices, 8 terminals, 9 sockets,
 10 screen and input, 11 the desktop stack, 12 the C library, 13 the toolchain,
-14 limits and what does not exist.
+14 limits and what does not exist, 15 sound, 16 networking.
 
 ## 1. The big picture
 
@@ -43,9 +43,10 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
 
 ## 2. The host (`boot/host.mjs`)
 
-`boot({ kernel, initrd, cmdline, screen, log, onIdle, onFrame, debug, extend })` does this
+`boot({ kernel, initrd, cmdline, screen, log, onIdle, onFrame, debug, extend, net })` does this
 (`extend` is a research hook, off by default, used only by the Worker prototype in
-`boot/worker-proto/`; see WORKER-PROCESSES.md):
+`boot/worker-proto/`; see WORKER-PROCESSES.md; `net` is passed to `boot/hostnet.mjs`, and
+`{ test: url }` puts it in the test mode described in NETWORKING.md):
 
 1. Compiles two hand-assembled modules that are byte arrays in the source: `SHIM` and
    `TRAMPOLINE` (see sections 3 and 6).
@@ -62,6 +63,12 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `random()` | 32 random bits |
    | `memory()` | bytes of memory the device reports (default 4 GiB) |
    | `fb_dirty()` | the framebuffer was written since the host last took the damage box (`fb_damage`); show it on the next animation frame. Called once per frame, not per write |
+   | `fetch(id, url, url_len, dst, size, gz)` | fetch a remote file (section 7) straight into the kernel buffer at `dst`, chunk by chunk through the kernel exports `remote_data(id, len)` and `remote_end(id, ok)`; never called back from inside the import (`queueMicrotask`). It uses the `remote(url)` option of `boot()` |
+   | `audio_rate audio_open audio_write audio_close audio_volume audio_reset` | the host half of `/dev/dsp` (`boot/audio.mjs`): samples go to the mixer on the browser's audio thread, or to a real-time stand-in under Node. See section 15 |
+   | `pointer_lock(on)` | the window manager captured (1) or released (0) the mouse (`EVIOCGRAB`); the page locks or unlocks the browser's pointer (section 10) |
+   | `timer(ms)` | call the kernel export `timer_fire` in ms milliseconds (0: on the next turn of the event loop; below 0: cancel). One timeout at a time; each call replaces the last |
+   | `hn_caps hn_open hn_send hn_done hn_more hn_close` | the host half of `/dev/hostnet` (`boot/hostnet.mjs`): DNS, HTTP through `fetch()`, and under Node real TCP. See NETWORKING.md |
+   | `clip_out(p, n, flags)` | a piece of text from `/dev/hostclip` for the computer's clipboard (flags: 1 first piece, 2 last, 4 cancel); the host joins the pieces and calls the `onClipboard(text)` option of `boot()` (section 11) |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
    kernel export `boot_alloc`, calls `fb_resize(w, h)` if there is a screen, then
@@ -71,12 +78,21 @@ Kernel command line: `init=/path/to/program -- arg1 arg2`. Default init is `/bin
 
 Kernel exports the host uses: `kmain boot_alloc syscall_pid proc_attach proc_state
 proc_crashed proc_account proc_resumed block_timeout console_input input_event fb_resize
-fb_addr fb_damage fb_width fb_height memory __indirect_function_table`. (`set_current` still exists and is
+fb_addr fb_damage fb_width fb_height audio_played audio_underrun remote_data remote_end
+remote_buf remote_scratch import_begin timer_fire hn_alloc hn_push hn_end hostclip_buf
+hostclip_ready memory
+__indirect_function_table`. (`set_current` still exists and is
 harmless; the kernel no longer depends on it.)
 
 The object `boot()` returns: `k` (kernel exports), `memory`, `procs`, `frame()`,
 `damage()` (the rectangle written since the last call), `resize(w, h)`,
-`input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`.
+`input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`, `importFile(path, blob)`
+(puts a file from the user's computer into the file system), `hostPaste(str)` (text pasted
+into the page becomes the next record of `/dev/hostclip`, at most 1 MiB) and
+`clipboardOut` (the last text sent out, for tests). `boot()` takes a `remote(url)`
+option, a function returning a Promise of a fetch Response: the page passes `fetch` relative
+to its own folder, the Node tools pass `tools/remote-node.mjs`, which reads the build
+directory.
 
 The host import `now` is `performance.now.bind(performance)`, not an arrow function:
 Chromium calls a bound function from wasm about 2.5 times faster (PERFORMANCE.md).
@@ -115,8 +131,8 @@ kernel:       syscall_pid(pid, nr, ...)               kernel/syscall.c: sets `cu
 
 - No JavaScript runs on this path. Measured cost of the cheapest call (`getppid`): see
   PERFORMANCE.md section 1 (about 11 to 12 ns warm under Node, 14 to 16 ns in Chromium at
-  moderate machine load, 100 to 400 ns for the first cold calls). About a third is the call, a third the
-  trampoline hop, a third kernel work.
+  moderate machine load, 100 to 400 ns for the first cold calls). About a third is the call,
+  a third the trampoline hop, a third kernel work.
 - `syscall_pid` dispatches the four hottest calls (`getppid`, `getpid`, `read`, `write`)
   itself and has no stack frame; every other call goes to `syscall_slow`. Keep large
   locals out of `syscall_pid`: one big buffer in any inlined case gives every call a frame.
@@ -132,12 +148,13 @@ kernel:       syscall_pid(pid, nr, ...)               kernel/syscall.c: sets `cu
   loops: `while ((r = host.syscall(...)) == -512) host.block();`.
 
 Call numbers follow Linux's generic table (`include/uapi/asm-generic/unistd.h`), the
-one every new Linux architecture uses. Implemented today (47 cases):
+one every new Linux architecture uses. Implemented today (54 cases):
 
 `getcwd dup dup3 fcntl ioctl mkdirat unlinkat renameat utimensat ftruncate chdir openat
 close pipe2 getdents64 lseek read write pread64 pwrite64 ppoll newfstatat fstat exit
 exit_group nanosleep clock_gettime sched_yield kill uname getpid getppid getuid sysinfo
-setpgid getpgid setsid socket bind listen accept connect wait4 getrandom`
+setpgid getpgid setsid socket bind listen accept connect getsockname getpeername sendto
+recvfrom setsockopt getsockopt shutdown wait4 getrandom`
 
 Private calls (Linux has no equivalent):
 
@@ -147,6 +164,9 @@ Private calls (Linux has no equivalent):
 | 501 | `getargs(buf, cap)` | the argument and environment blob for `_start` |
 | 502 | `procinfo(index, struct procinfo *)` | one row of the process table; `-ESRCH` past the end |
 | 503 | `intr()` | 1 if Ctrl-C was pressed for this process since the last call, then clears it |
+| 504 | `netstat(index, struct sockinfo *)` | one TCP connection or other socket, with TCP internals (cwnd, RTT, retransmits); `-ESRCH` past the end |
+| 505 | `ifinfo(index, struct ifinfo *)` | one network interface with its counters; `-ESRCH` past the end |
+| 506 | `ifctl(index, op, value)` | change an interface: up/down, MTU, simulated loss and delay, address, netmask, default route (`IFCTL_*`) |
 
 Anything else returns `-ENOSYS`.
 
@@ -267,8 +287,13 @@ The host tells the kernel how long a process ran each time it parks
   kfree`. wasm memory never shrinks.
 - Each process has its own linear memory, exported as `memory`. Its `malloc`
   (`libc/src/malloc.c`) is the same allocator and grows its own memory with no system
-  call. The program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack
-  overflow traps instead of corrupting data.
+  call, at least one 64 KiB page at a time. A request above 0x7fffffff bytes (PTRDIFF_MAX,
+  glibc's limit too), a `calloc` whose product does not fit, or memory that cannot grow,
+  returns NULL with `errno` ENOMEM. The program stack is 1 MiB, placed first in memory
+  (`--stack-first`), so a stack overflow traps instead of corrupting data.
+- Because memory never shrinks, code that replaces a big buffer frees the old one before
+  allocating the new one (window pixels in libui and the wm, the kernel framebuffer, the
+  wallpaper). Allocating first would leave both sizes claimed for good.
 - **User memory access.** The kernel cannot address another instance's memory directly.
   Per process, the host instantiates `SHIM`, a module that imports two memories (kernel
   `k`, process `p`) and exports `i(kdst, usrc, len)`, `o(udst, ksrc, len)` and `s()`
@@ -327,7 +352,24 @@ The host tells the kernel how long a process ran each time it parks
 | `/dev/ptmx`, `/dev/pts/N` | pseudo-terminals (section 8) |
 | `/dev/fb0` | the screen (section 10) |
 | `/dev/input/event0` | keyboard and pointer (section 10) |
+| `/dev/dsp` | sound output, in the shape of OSS (section 15) |
+| `/dev/hostnet` | the router's way out of the machine, through the host (section 16) |
+| `/dev/hostclip` | the clipboard's link to the computer's clipboard (section 11), at most 1 MiB each way. In: text pasted into the page with Ctrl+V; `ioctl(FIONREAD)` gives the waiting paste's size, one read takes it whole (`EINVAL` with less room), then it is gone; a newer paste replaces an unread one; the host fills it with `hostclip_buf` and `hostclip_ready`. Out: one write is one item, handed to the host 1 KiB at a time through the import `host_clip_out`; the page puts it on the computer's clipboard. |
 | `/tmp`, `/run`, `/proc` | empty directories created at boot; `/proc` has nothing in it |
+
+**Remote files** (`kernel/remote.c`). Large files the image does not carry (Doom's game
+data) are listed in `/etc/remote-files`, one per line: `PATH SIZE SHA256 URL [gz]`, read
+at boot after the initrd. Such a file shows in `ls` and `stat` with its real size and
+`st_blocks` 0 until it arrives. The first `open` asks the host to fetch it (once: other
+processes opening it wait for the same fetch; with `O_NONBLOCK` the open starts the fetch
+and returns `EAGAIN` until it is done, and `st_blocks` shows the bytes received). The
+kernel computes the SHA-256 as the bytes arrive, in its own C code, and refuses a wrong
+size or hash. A failed fetch (offline, HTTP error, wrong size or hash) gives `EIO` once to
+each waiting process; the file stays as it was and the next open tries again. Opening it
+with `O_TRUNC` for writing skips the fetch. Once fetched it is an ordinary file. A file
+nobody opens is never fetched. With `gz` in the line the host tries `URL.gz` first and
+unpacks it with the browser's `DecompressionStream`. Files from the user's computer arrive
+through the same records (`import_begin`, section 10). Up to 32 records at a time.
 
 `sysinfo`: `totalram` = what the device reports, capped at 4 GiB; `freeram` = that minus
 everything the kernel and all processes have claimed; `bufferram` = kernel heap in use.
@@ -362,8 +404,14 @@ There is no `SIGWINCH`: programs re-read the size when they redraw.
 `AF_UNIX`, `SOCK_STREAM` only: `socket bind listen accept connect`, then `read`,
 `write`, `ppoll`. 512 KiB buffer per direction, backlog 16, short writes, `-EPIPE` when
 the peer is gone, `-ECONNREFUSED` with no listener (and when the backlog is full). A bound
-socket keeps its inode alive: unlinking the path while the socket is open is safe. No datagrams, no `socketpair`, no
-`accept4` (set close-on-exec with `fcntl` after `accept`), no networking of any kind.
+socket keeps its inode alive: unlinking the path while the socket is open is safe. No
+datagrams, no `socketpair`, no `accept4` (set close-on-exec with `fcntl` after `accept`).
+`send` and `recv` on a unix socket are `write` and `read`; `accept` reports the peer as an
+unnamed `AF_UNIX` address.
+
+`AF_INET` and `AF_PACKET` sockets go to `kernel/inet.c`: `sys_socket`, `sys_bind`,
+`sys_listen`, `sys_connect` and `sys_accept` hand over any descriptor that is not a unix
+socket. See section 16.
 
 ## 10. Screen and input (`kernel/fb.c`, `boot/page.mjs`, `boot/keys.mjs`)
 
@@ -378,6 +426,12 @@ sizes the framebuffer to the window times the device pixel ratio (capped at 2; `
 forces 1). `lseek` works on `/dev/fb0` (`SEEK_END` counts from 0, because the device node
 has no size).
 
+**Files from the user's computer.** A file dropped on the page, or picked with the
+browser's file picker opened by Ctrl+Alt+O, is copied into `/home/user/Downloads/NAME`
+(the directory is made on first use; a second file with the same name replaces the
+first). At most 256 MiB. Nothing leaves the browser. A short note at the bottom of the
+page says what happened.
+
 **Input.** `/dev/input/event0` delivers Linux evdev records
 `{ s64 sec; s64 usec; u16 type; u16 code; s32 value; }` (24 bytes):
 
@@ -387,10 +441,24 @@ has no size).
 | ...that typed a character | followed by `(EV_MSC=4, 0x10, Unicode code point)`: the browser already applied the keyboard layout |
 | key release | `(EV_KEY, code, 0)` |
 | pointer | `(EV_ABS=3, 0, x)`, `(EV_ABS, 1, y)` in framebuffer pixels |
+| pointer, while captured | `(EV_REL=2, 0, dx)`, `(EV_REL, 1, dy)`: how far it moved, in framebuffer pixels |
 | buttons | `EV_KEY` with `0x110` left, `0x111` right, `0x112` middle |
 | wheel | `(EV_REL=2, 8, +1 or -1)` |
 | screen resized | `(EV_MSC, 0x11, (w << 16) | h)` |
 | end of a batch | `(EV_SYN=0, 0, 0)` |
+
+**Mouse capture.** `ioctl(EVIOCGRAB, 1)` on `/dev/input/event0` (Linux's number; here it
+means "capture the mouse") calls `host.pointer_lock(1)`: the page locks the browser's
+pointer (Pointer Lock), which hides it and keeps it in the page, and sends movement as
+`EV_REL` instead of positions. A browser grants the lock only right after a click or key
+press; if it refuses, the next click on the page takes it and is not passed on. Esc
+always releases it (the browser's rule) and a click takes it again. A browser that
+refuses the lock outright (headless Firefox does) gets its clicks passed on as usual, so
+buttons keep working without movement. While locked the page never calls
+`setPointerCapture`, which browsers refuse with an exception then. `0` releases it.
+Only the window manager does this, for a window that asked with `ui_pointer_lock` while
+that window is fullscreen, focused and on the current workspace; the window then gets
+`UI_EV_MOUSE_REL` events and the cursor is not drawn.
 
 Use the code point for text and the key code for shortcuts. Text from dead keys and
 input methods arrives as key 240 with a code point. The page keeps F5, F11, F12 and
@@ -410,8 +478,10 @@ init -> wm (owns /dev/fb0 and /dev/input/event0, listens on /run/wm.sock)
           +- doom, uidemo, any libui client
 ```
 
-**init** (`bin/init.c`) tries `/bin/wm`, then `/bin/term --fb`, then `/bin/sh` on the
-console, restarting each up to three times. `init PROGRAM ARGS` runs one program.
+**init** (`bin/init.c`) first starts `/bin/routerd` (the router, see NETWORKING.md) and
+does not wait for it, then tries `/bin/wm`, then `/bin/term --fb`, then `/bin/sh` on the
+console, restarting each up to three times. `init PROGRAM ARGS` runs one program, without
+the router (the test suites run that way, or as init themselves).
 
 **libui** (`libui/ui.h`, `ui.c`, `uiproto.h`). The client API: `ui_open(title, app_id,
 w, h, role)`, `ui_pixels`, `ui_width`, `ui_height`, `ui_present(x, y, w, h)`, `ui_fd`,
@@ -430,9 +500,16 @@ nonsense, and drops events for a client that stops reading. At most 24 clients.
 **A theme change is delivered as a resize event with the unchanged size.** Every client
 must call `ui_theme_load()` again on every `UI_EV_RESIZE` and redraw.
 
-**wm** (`bin/wm/`): two tiling layouts per workspace (master and stack, or a split tree), gaps, rounded anti-aliased borders (2 px
-accent on the focused window, 1 px grey on the others), fullscreen, floating windows,
-workspaces, damage-based compositing at most once per 15 ms, zero work when idle.
+**wm** (`bin/wm/`): two tiling layouts per workspace (master and stack, or a split tree),
+gaps, rounded anti-aliased borders (2 px accent on the focused window, 1 px grey on the
+others), fullscreen, floating windows (`float` toggles, on Mod+y and Mod+Shift+space; Mod +
+left-button drag moves a floating window, and that click never reaches the program; a
+window that never takes the focus, such as the cheat sheet, is not moved), workspaces, damage-based compositing at
+most once per 15 ms, zero work when idle. It keeps no full-screen buffers: damaged
+rectangles are painted a band of rows at a time into a static 256 KiB strip and each band
+is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made rows
+(plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2 MiB
+plus a copy of every window's pixels.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
 `layout master|split|toggle`, `open left|right|up|down CMD`, `toggle APP` (hide or show every
@@ -446,17 +523,19 @@ Ctrl+= with or without Shift, Ctrl+- and Ctrl+0, which therefore no longer reach
 Bindings are by key position, so on a non-US keyboard these are the keys in the US
 positions of = and -, and the numeric keypad cannot be bound).
 
-A workspace switch slides: for `animation_ms` milliseconds (160 by default, 0 for none) the
-old and the new workspace pan across the screen, eased out. The slide keeps no pictures of
-either workspace. Every frame, `compose_anim()` in `compose.c` draws the old workspace's
-windows shifted one way and the new one's shifted the other, each clipped to its side of the
-seam, over the wallpaper panned by the same amount, so it needs no extra memory at any
-screen size and windows keep updating while they move. The wallpaper is not copied where a
-window is about to cover it. The bar stays in place, unless one of the two workspaces hides
-it (a fullscreen window): then it travels with the workspace that shows it. Switching back
-to the workspace the slide came from continues from where the picture is. Any other switch
-during a slide cuts the first one short (the picture jumps to its end) and starts a new
-one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms apart).
+A workspace switch slides: for `animation` milliseconds (`[general]` in `wm.uconf`; 160 by
+default, 0 for none) the old and the new workspace pan across the screen, eased out. The
+slide keeps no pictures of either workspace. Every frame, `compose_anim()` in `compose.c`
+draws the old workspace's windows shifted one way and the new one's shifted the other,
+each clipped to its side of the seam, over the wallpaper panned by the same amount, so it
+needs no extra memory at any screen size and windows keep updating while they move. The
+wallpaper is not copied where a window is about to cover it. The bar stays in place,
+unless one of the two workspaces hides it (a fullscreen window): then it travels with the
+workspace that shows it. Sticky windows (the cheat sheet) stay in place, on top. Switching
+back to the workspace the slide came from continues from where the picture is. Any other
+switch during a slide cuts the first one short (the picture jumps to its end) and starts a
+new one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms
+apart).
 
 Configuration: `~/.config/wm/wm.uconf` (in the image: `rootfs/home/user/.config/wm/wm.uconf`).
 `$mod` is the modifier of the built-in bindings (ALT). `[general]`: `gaps`, `workspaces`,
@@ -491,14 +570,15 @@ process: what a subshell changes is put back when it ends (variables, functions 
 aliases through a journal, positional parameters, options, traps, `$!`, and the umask,
 directory and descriptors, saved only when the subshell is about to change them).
 `exit`, `break`, `continue` and `return` in a subshell end only the subshell. `umask` is
-kept by the shell and passed to the kernel when the kernel has the call. `exec CMD` calls `execve`; on a kernel without it (`ENOSYS`, today's `main`) and
-inside a subshell, `CMD` runs as a child and the shell exits with its status (`exec_cmd()`
-in `bin/sh/exec.c`). `trap` installs a handler that only marks the signal; the action runs
-between commands. Job control is detected once with `rt_sigprocmask` (`jobs_init()` in
-`bin/sh/exec.c`): with kernel support, an interactive shell turns on `set -m`, sets VSUSP
-to Ctrl-Z for the commands it runs, gives every pipeline its own process group, hands the
-terminal to the foreground group and waits with `WUNTRACED`. Without it (today's `main`),
-`set -m` is refused with a message and the rest behaves as before.
+kept by the shell and passed to the kernel when the kernel has the call. `exec CMD` calls
+`execve`; on a kernel without it (`ENOSYS`, today's `main`) and inside a subshell, `CMD`
+runs as a child and the shell exits with its status (`exec_cmd()` in `bin/sh/exec.c`).
+`trap` installs a handler that only marks the signal; the action runs between commands. Job
+control is detected once with `rt_sigprocmask` (`jobs_init()` in `bin/sh/exec.c`): with
+kernel support, an interactive shell turns on `set -m`, sets VSUSP to Ctrl-Z for the
+commands it runs, gives every pipeline its own process group, hands the terminal to the
+foreground group and waits with `WUNTRACED`. Without it (today's `main`), `set -m` is
+refused with a message and the rest behaves as before.
 
 **Themes** (`libui/theme.h`). The active name is the first word of
 `~/.config/ucos/theme`, a one-word file the window manager writes when the theme changes
@@ -558,10 +638,31 @@ file in `/bin`.
 **term** (`bin/term/`): `vt.c` (escape parser and screen model, VT500 state machine,
 5000 lines of scrollback), `render.c` (draws changed cells into a surface), `keys.c`
 (key presses to xterm sequences), `be_ui.c` (window back end), `be_fb.c` (bare
-framebuffer back end, `term --fb`), `main.c`. Options: `--fb`, `-e cmd args`, `-T title`,
-`--font-size N`, `--hold`, `--stats`. It sets `TERM=xterm-256color`,
-`COLORTERM=truecolor`, `THEME`. Test hook: Ctrl+Alt+Shift+F12 prints the visible text to
-the console log.
+framebuffer back end, `term --fb`), `main.c`. Options: `--fb`, `--fullscreen` (opens with
+the full-screen role; Mod+f toggles it off), `-e cmd args`, `-T title`, `--font-size N`,
+`--hold`, `--stats`. It sets `TERM=xterm-256color`, `COLORTERM=truecolor`, `THEME`. Test
+hook: Ctrl+Alt+Shift+F12 prints the visible text to the console log, with the grid and cell
+size.
+
+Selection and clipboard in **term**: drag with the left button, double click for a word,
+triple click for a line (Shift+drag when the program asked for the mouse). The selection is
+kept in absolute lines (scrollback plus screen), so scrolling the view does not move it;
+output that changes a selected line or scrolls the screen ends it. Ctrl+Shift+C sends it to
+`clipd`; Ctrl+Shift+V types the newest entry into the pty (line feeds as carriage returns,
+inside `ESC [200~ ... ESC [201~` when bracketed paste is on), 1 KiB every 4 ms.
+
+**The clipboard** is its own program, not part of the window manager or the kernel.
+`clipd` (`bin/clipd.c`) keeps up to 20 entries (1 MiB each, 4 MiB in all) and answers on
+the socket `/run/clip.sock`, one request per connection (`PUT GET LIST SELECT REMOVE
+CLEAR`, format in `libclip/clip.h`). `libclip` is the client; the first call that finds no
+`clipd` starts one. `clip` (`bin/clip/`) is the shell side (`ls | clip`, `clip -o`,
+`clip -l`, `clip -s N`, `clip -d N`, `clip -c`), and `clipboard` (`bin/clipboard/`) a
+launcher-style window over the history (Enter makes an entry the newest, Delete removes
+it). The computer's clipboard comes in through the page: Ctrl+V there is the browser's own
+paste, `boot/page.mjs` hands the text to `/dev/hostclip`, and `clipd` adds it. The other
+way, whatever becomes the newest entry by a copy or a pick, `clipd` writes to
+`/dev/hostclip`; the host joins the pieces and calls `onClipboard(text)`, and the page passes
+it to `navigator.clipboard.writeText` (secure page with the focus only).
 
 **libgfx** (`libgfx/`): `ttf.c` parses TrueType (`glyf` outlines, cmap formats 4 and 12,
 composite glyphs) and rasterizes with exact area coverage; a glyph cache stretches
@@ -722,16 +823,165 @@ How it maps onto UC.OS:
 | file size, file offset | just under 2 GiB, 2^31 - 1 | `kmalloc`, `sys_lseek` |
 | one `getrandom` call | 33,554,431 bytes (Linux's figure) | `sys_getrandom` |
 | argv + environment | 64 KiB | `sys_spawn` |
+| one `malloc` in a program | 0x7fffffff bytes | `MALLOC_MAX` in `libc/src/malloc.c` |
+| remote files and imports in progress / one imported file | 32 / 256 MiB | `NREMOTE`, `IMPORT_MAX` in `kernel/remote.c` |
 | ptys | 16 | `NPTY` |
 | pipe buffer / socket buffer | 64 KiB / 512 KiB per direction | |
+| sound streams (`/dev/dsp` opens) / buffer per stream | 8 / 512 bytes to 256 KiB (default 16 KiB) | `NSTREAM`, `BUF_MAX` in `audio.c` |
+| TCP buffers | 64 KiB send, 65535 bytes receive per connection | `SBUF`, `RBUF` in `tcp.c` |
+| UDP, raw, packet receive queue | 256 KiB per socket (`SO_RCVBUF`, up to 1 MiB) | `inet.c` |
+| listen backlog | 64 | `tcp_listen` |
+| `/dev/hostnet` requests open at once | 32 | `HN_MAX` in `hostnet.c` |
 | window manager clients | 24 | |
 | time slice | 8 ms | `SLICE_MS` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
-`fork`, signals, threads, shared memory, persistence, networking, sound, `/proc`
+`fork`, signals, threads, shared memory, persistence, networking beyond the machine
+itself (section 16), sound input (recording), `/proc`
 contents, users and permissions, time zones, a clipboard, dynamic linking for UC.OS
 programs. Unmodified Linux binaries run through an ordinary program,
 `bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
 on top of this kernel); its design is in `docs/LINUX-BINARIES.md`. It needs nothing from
 the kernel that other programs do not have, and lists what it would like in section 7.3
 of that file.
+
+## 15. Sound (`kernel/audio.c`, `boot/audio.mjs`, `boot/audio-worklet.js`, `bin/audiod.c`)
+
+DECISIONS.md 20; what works and what is missing is SOUND.md.
+
+**`/dev/dsp`**, in the shape of OSS. Each open descriptor is one stream (8 at most). One
+format: 16-bit little-endian stereo at the host's rate. Calls: `write` (blocking, or
+`EAGAIN` with `O_NONBLOCK`), `poll` (writable when a fragment is free), and the ioctls
+`SPEED SETFMT GETFMTS CHANNELS STEREO SETFRAGMENT GETBLKSIZE GETOSPACE GETODELAY
+SETPLAYVOL GETERROR RESET SYNC`, with Linux's numbers. `SPEED`, `SETFMT` and `CHANNELS`
+answer with what the device does, as OSS drivers may. No reading (recording), no `mmap`.
+
+The kernel does not mix. `write` copies the samples out of the process into a static
+16 KiB buffer and calls `host.audio_write` for each piece; the host copies them at once.
+Per stream the kernel keeps only `queued`, the bytes written and not yet played; the
+stream's buffer size (`SETFRAGMENT`: fragments of 256 B to 64 KiB, 256 KiB in all) caps
+it, so it is also the stream's delay. The host calls `audio_played(id, frames)` as sound
+plays, which lowers `queued` and wakes writers and `poll`; `audio_underrun(id)` counts a
+gap.
+
+**The host.** In a browser, `boot/audio.mjs` posts each write to an AudioWorklet node
+(`boot/audio-worklet.js`) with the buffer transferred. The worklet, on the audio thread,
+sums every stream with its volume into the output (float), every 4 render quanta
+(~11 ms) posts how many frames of each stream played, and reports a stream that ran dry
+while it was being fed: more data arriving within 0.5 s of running out. The page creates
+the AudioContext at boot and resumes it on the first click or key press (the browser's
+rule). Under Node, or without Web Audio, a stand-in consumes each stream in real time on a
+10 ms timer, only while something is queued, and can write the integer mix to a file
+(`--audio-capture=FILE` in `tools/run.mjs` and `tools/shot.mjs`).
+
+**audiod**, the sound server for everything but games, a user program started by `init`.
+It listens on `/run/audiod.sock`. A client sends a 20-byte header (`"UCAU"`, rate, channels,
+bits, volume 0 to 100, total bytes or 0) and samples: 8-bit unsigned or 16-bit, mono or
+stereo, 4 to 192 kHz. Each client is converted with linear interpolation in integers
+(16.16 positions, 15-bit fractions; a client at the device rate skips interpolation),
+mixed with a 32-bit sum and clamped, in 20 ms chunks into audiod's own `/dev/dsp` stream
+(16 x 4 KiB, ~340 ms). It reads a client only while that client's 64 KiB buffer has room,
+so a fast client waits in `write`. When a client's `total` bytes are mixed it gets one
+byte back and the connection is closed. With no clients, audiod closes `/dev/dsp`.
+
+**oplplay** (`bin/oplplay/`), Doom's music (DECISIONS.md 21). `opl.c` is our OPL2
+synthesizer: 9 two-operator channels, the chip's registers, computed like the chip in the
+log domain (a 256-entry log-sine table and a 256-entry exponential table: output =
+exp(logsin(phase) + attenuation)), a 9-bit envelope with the chip's rate scheme, four
+waveforms, feedback, FM and additive connection, key scaling, tremolo and vibrato.
+Rendered at 48 kHz directly (phase and envelope steps scaled from the chip's 49716 Hz);
+a channel whose voices have finished is skipped. `main.c` reads the GENMIDI instruments
+(a file or straight from a WAD), a MUS or MIDI song (format 0 or 1, tempo map; events
+sorted stably), and drives the 9 voices as Doom's music driver did: percussion on MIDI
+channel 10 from instruments 128 to 174 at fixed pitches, double-voice instruments with
+their fine detune, the oldest voice stolen when all are busy, volume and expression and
+pan per channel, pitch bend of 2 semitones. It sends 16-bit stereo to audiod, rendering
+at most ~60 ms ahead of real time; with `-c` it takes `pause`, `resume`, `volume N` and
+`stop` on stdin. Doom's music module (`bin/doom/i_ucossound.c`) writes the song and
+GENMIDI to `/tmp/doom/` and runs it.
+
+## 16. Networking (`kernel/net.h timer.c netif.c ip.c udp.c tcp.c inet.c`)
+
+Our own TCP/IP stack in the kernel (DECISIONS.md 18). Packets go only through the
+loopback interface for now (DECISIONS.md 19): every address in 127.0.0.0/8 is this
+machine, and anything else is `-ENETUNREACH` unless the router (`bin/routerd.c`) runs.
+The Ethernet layer, ARP, the DHCP client and a network card for the host are part of
+decision 18 but are not built: with only loopback there is nothing for them to talk to.
+They come with the first other transport. What the router reaches today, and what a full
+connection still needs, is in NETWORKING.md.
+
+**The router's kernel pieces.** `gw0` is a second looped interface, down and without an
+address until `routerd` gives it 10.0.2.15/24 and makes it the default route (`ifctl`
+`IFCTL_ADDR`, `IFCTL_MASK`, `IFCTL_DEFAULT`). `ip_input` takes a datagram for an outside
+address only if it came back through the default-route interface: TCP goes to a
+transparent listener (`IP_TRANSPARENT`; `IP_TRANSPARENT_PORT` limits it to one
+destination port), anything else gets ICMP host unreachable. The kernel never forwards.
+A normal listener never answers for an outside address. `/dev/hostnet`
+(`kernel/hostnet.c`) gives each open descriptor one host request: resolve, HTTP, or TCP
+(`HNIOC_OPEN`, `HNIOC_DONE`, `HNIOC_CAPS`); replies queue in the kernel (256 KiB, then
+the host is asked to pause).
+
+```
+socket calls (inet.c)  ->  tcp.c / udp.c (UDP and raw)  ->  ip.c (IPv4, ICMP)  ->  netif.c (lo)
+                                                                                    |
+   ip_input  <-----------------------------  lo_deliver, on a later event-loop turn
+```
+
+**Timers** (`timer.c`). A sorted list of `struct ktimer`. The kernel asks the host for
+one timeout at the earliest deadline (`host.timer`); the host calls `timer_fire()`,
+which runs every timer that is due. Timer callbacks run outside any system call, with
+no current process, so they may wake anyone. TCP's retransmission, persist, delayed ACK
+and TIME_WAIT timers, and loopback delivery, are all timers.
+
+**Loopback** (`netif.c`). Sending queues the datagram; a timer delivers it to
+`ip_input` on a later turn of the event loop, never inside the sender's call. This
+matters: delivering inline could wake a process that has not parked yet, and the host
+would drop that wake-up. One delivery pass takes only what was queued before it, so two
+sockets answering each other cannot hold the page. MTU 65535. `ifctl` can add loss (per
+thousand packets) and delay (milliseconds), so TCP's recovery can be watched; both are
+off by default. Packet sockets (`AF_PACKET`) get a copy of every datagram as it is sent.
+
+**IPv4 and ICMP** (`ip.c`). 20-byte header, no options, "don't fragment" always set,
+arriving fragments dropped, header checksum checked. ICMP answers echo requests, sends
+port and protocol unreachable (never about another ICMP error), and passes port
+unreachable to connected UDP sockets as `ECONNREFUSED`. Raw sockets (`SOCK_RAW`) see
+every datagram of their protocol with its IP header; what they send gets one added.
+
+**UDP** (`udp.c`). Checksums on, 65507-byte datagrams at most, delivery to the most
+specific socket (connected, then bound address, then wildcard), `SO_REUSEADDR` to share
+a port.
+
+**TCP** (`tcp.c`). The RFC 9293 state machine, with Linux's state numbers. Retransmission
+timer per RFC 6298 (initial 1 s, minimum 200 ms, maximum 60 s, Karn's rule); go-back
+from the first unacknowledged byte on a timeout. Slow start (initial window per RFC
+6928), congestion avoidance, fast retransmit on three duplicate ACKs, NewReno recovery.
+Receiver and sender silly window avoidance, zero-window probes, delayed ACKs (40 ms, or
+at once every second full segment), an out-of-order queue. MSS option from the route's
+MTU. TIME_WAIT lasts 60 s; a closed socket waiting in FIN_WAIT2 gives up after 60 s.
+Closing with unread data sends a reset (RFC 2525). A connection whose socket is closed
+lives on in the kernel until it finishes. Not built: window scaling (so at most 64 KiB in
+flight), timestamps, SACK, keepalive, urgent data, Nagle (every write goes out at once,
+as with `TCP_NODELAY`).
+
+**Sockets** (`inet.c`). Linux's calls and values: `socket bind listen accept connect
+send recv sendto recvfrom getsockname getpeername setsockopt getsockopt shutdown`, plus
+`read write ppoll close`. Options: `SO_REUSEADDR SO_ERROR SO_TYPE SO_RCVBUF SO_SNDBUF
+SO_KEEPALIVE IP_TTL TCP_NODELAY` (keepalive and send buffer sizes are accepted and do
+nothing). Non-blocking connect returns `EINPROGRESS` and completes with `POLLOUT`, with
+the result in `SO_ERROR`. Ephemeral ports are 49152 to 65535. Port sharing follows Linux:
+two TCP sockets may share a port if both set `SO_REUSEADDR` and neither listens.
+`MSG_PEEK` and `MSG_DONTWAIT` work; `sendmsg`, `recvmsg`, `accept4` and `socketpair` do
+not exist.
+
+**C library.** `<sys/socket.h> <netinet/in.h> <netinet/tcp.h> <arpa/inet.h> <netdb.h>`.
+`getaddrinfo` and `gethostbyname` read `/etc/hosts` (and always know `localhost`), then
+send a DNS query for A records to the server in `/etc/resolv.conf` (127.0.0.53, where
+`routerd` answers): two tries of 2.5 s. No server gives `EAI_AGAIN` at once. Services
+must be numeric ports.
+
+**Tools.** `routerd`, `ping`, `nc` (client, `-l` server, `-u` UDP, `-z` port scan, `-N`
+half-close when input ends), `netstat`
+(`-e` shows congestion window, RTT, RTO and retransmits; `-i` the interfaces), `ifconfig`
+(also sets `loss` and `delay`), `tcpdump` (a packet socket; filters `tcp udp icmp port N
+host A`). `bin/nettest.c` is the test suite. UC.OS has no signals, so Ctrl-C ends `ping`
+and `tcpdump` without their closing summary; give them `-c` to get it.
