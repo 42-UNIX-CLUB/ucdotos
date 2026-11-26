@@ -28,7 +28,12 @@ function worklet(getK, ctx, opts) {
   if (opts.expose) opts.expose(stats);
   const say = (m) => { console.warn('[audio] ' + m); if (opts.log) opts.log(`[audio] ${m}\n`); };
   const send = (m, transfer) => { if (node) node.port.postMessage(m, transfer || []); else if (!fallback) pending.push([m, transfer]); };
-  ctx.audioWorklet.addModule(new URL('./audio-worklet.js', import.meta.url)).then(() => {
+  // Browsers give AudioWorklet only on https and on localhost. Anywhere else the page must
+  // still boot: without it the mixer cannot load, and sound falls back to silence (below).
+  const load = ctx.audioWorklet
+    ? ctx.audioWorklet.addModule(new URL('./audio-worklet.js', import.meta.url))
+    : Promise.reject(new Error('no AudioWorklet here: the page is not on https or localhost'));
+  load.then(() => {
     node = new AudioWorkletNode(ctx, 'ucos-mixer', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
     node.connect(ctx.destination);
     node.port.onmessage = (e) => {
