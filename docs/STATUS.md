@@ -5,8 +5,8 @@ update it whenever you finish, break or start something.
 
 ## 1. What works today
 
-One image (`make B=... dist`, 52 programs, 8.5 MB of which 5.8 MB is fonts; 4.0 MB as the
-`initrd.tar.gz` the page loads when it is there; measured on `3e5abe7`) boots
+One image (`make B=... dist`, 83 programs, 10.3 MB of which 5.8 MB is fonts; 4.4 MB as the
+`initrd.tar.gz` the page loads when it is there; measured on `35050ca`) boots
 in Chromium to a tiling desktop.
 
 | Area | State | Evidence |
