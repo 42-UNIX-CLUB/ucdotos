@@ -157,6 +157,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `docs/BRAND.md` | you write any user-visible text or touch the look: palettes, fonts, voice, logo rules |
 | `docs/CC.md` | you work on the C compiler and linker inside UC.OS (`bin/cc/`, `bin/ld/`) |
 | `docs/DEPLOYMENT.md` | you deploy the site or touch `deploy/` (Docker Compose, Caddy, the Cloudflare Tunnel) |
+| `docs/SLIDES-REWRITE.md` | you work on `blueprint`, the slideshow for the club pages |
 | `CONTRIBUTING.md` | you are asked to commit, name a branch or open a pull request |
 
 Keep these files true. If you change how something works, change the matching file in
