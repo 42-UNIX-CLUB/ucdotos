@@ -57,7 +57,9 @@ export function checkSupport() {
   return missing;
 }
 
-export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, debug = false }) {
+// extend: research hook, off by default. extend(hostImports, ctx) returns the imports the
+// kernel gets instead (boot/worker-proto/ext.mjs uses it to run some processes in Workers).
+export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, debug = false, extend = null }) {
   const dec = new TextDecoder();
   // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
   const deviceMemory = ((globalThis.navigator && globalThis.navigator.deviceMemory) || 4) * 2 ** 30;
@@ -175,7 +177,8 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     }
   }
 
-  const { instance } = await WebAssembly.instantiate(kernel, { host });
+  const imports = extend ? extend(host, { get k() { return k; }, procs, log, debug }) : host;
+  const { instance } = await WebAssembly.instantiate(kernel, { host: imports });
   k = instance.exports;
   table = k.__indirect_function_table;
   const put = (bytes) => { const p = k.boot_alloc(bytes.length); mem().set(bytes, p); return p; };

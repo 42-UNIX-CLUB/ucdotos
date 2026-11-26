@@ -42,7 +42,9 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
 
 ## 2. The host (`boot/host.mjs`)
 
-`boot({ kernel, initrd, cmdline, screen, log, onIdle, onFrame, debug })` does this:
+`boot({ kernel, initrd, cmdline, screen, log, onIdle, onFrame, debug, extend })` does this
+(`extend` is a research hook, off by default, used only by the Worker prototype in
+`boot/worker-proto/`; see WORKER-PROCESSES.md):
 
 1. Compiles two hand-assembled modules that are byte arrays in the source: `SHIM` and
    `TRAMPOLINE` (see sections 3 and 6).
