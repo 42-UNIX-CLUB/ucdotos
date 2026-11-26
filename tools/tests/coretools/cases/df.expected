@@ -1,0 +1,9 @@
+{"cmd":"df / | head -1","out":"Filesystem     1K-blocks      Used Available Use% Mounted on\n","status":0,"err":false}
+{"cmd":"df -P / | head -1","out":"Filesystem     1024-blocks      Used Available Capacity Mounted on\n","status":0,"err":false}
+{"cmd":"df -h / | head -1","out":"Filesystem      Size  Used Avail Use% Mounted on\n","status":0,"err":false}
+{"cmd":"df -T / | head -1 | cut -c1-20","out":"Filesystem     Type \n","status":0,"err":false}
+{"cmd":"df / | wc -l","out":"2\n","status":0,"err":false}
+{"cmd":"df missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"df -Q /; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"df / / | wc -l","out":"3\n","status":0,"err":false}
+{"cmd":"df -h / | wc -l","out":"2\n","status":0,"err":false}

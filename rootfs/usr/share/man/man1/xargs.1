@@ -1,0 +1,27 @@
+XARGS(1)                  UC.OS Manual                  XARGS(1)
+
+NAME
+       xargs - build and run command lines from standard input
+
+SYNOPSIS
+       xargs [-0rtx] [-d DELIM] [-E EOF] [-I REPL] [-L N] [-n
+          N] [-s SIZE] [-P 1] [command [arg...]]
+
+DESCRIPTION
+       Reads arguments from standard input (blanks and
+       newlines separate them; quotes and backslashes escape,
+       except with -0 or -d) and runs the command (default
+       echo) with as many as fit. Commands run one at a time:
+       -P only accepts 1 (there is no parallel execution
+       here). Exit status: 0, 123 a command failed, 124 a
+       command exited 255, 125 a command was killed, 126
+       cannot run, 127 not found, 1 other errors.
+
+NOTES
+       Runs one command at a time; -P with more than 1 prints
+       a warning.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026               XARGS(1)

@@ -1,0 +1,27 @@
+{"cmd":"id -u","out":"1000\n","status":0,"err":false}
+{"cmd":"id -g","out":"1000\n","status":0,"err":false}
+{"cmd":"id -un","out":"ensui\n","status":0,"err":false}
+{"cmd":"id -gn","out":"ensui\n","status":0,"err":false}
+{"cmd":"id -ur","out":"1000\n","status":0,"err":false}
+{"cmd":"id -u -n","out":"ensui\n","status":0,"err":false}
+{"cmd":"id | cut -d' ' -f1-2","out":"uid=1000(ensui) gid=1000(ensui)\n","status":0,"err":false}
+{"cmd":"id -G | cut -d' ' -f1","out":"1000\n","status":0,"err":false}
+{"cmd":"id -u -g; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"id -n; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"id no-such-user-xyz; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"id -x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"whoami","out":"ensui\n","status":0,"err":false}
+{"cmd":"whoami extra; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"hostname","out":"lion\n","status":0,"err":false}
+{"cmd":"tty < /dev/null; echo \"st=$?\"","out":"not a tty\nst=1\n","status":0,"err":false}
+{"cmd":"tty -s < /dev/null; echo \"st=$?\"","out":"st=1\n","status":0,"err":false}
+{"cmd":"tty extra; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"test \"$(nproc)\" -ge 1 && echo nproc-ok","out":"nproc-ok\n","status":0,"err":false}
+{"cmd":"test \"$(nproc --all)\" -ge 1 && echo all-ok","out":"all-ok\n","status":0,"err":false}
+{"cmd":"nproc --ignore=100000","out":"1\n","status":0,"err":false}
+{"cmd":"nproc extra; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"sync; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"sync f; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"sync missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"sync -x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"id -u root","out":"0\n","status":0,"err":false}

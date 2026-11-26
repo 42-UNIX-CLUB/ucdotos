@@ -1,0 +1,46 @@
+st=0
+a b differ: char 6, line 2
+st=1
+st=1
+st=1
+st=1
+st=1
+st=0
+st=1
+st=0
+st=1
+6 145 170
+st=1
+1 141 170
+st=1
+st=1
+2   1   2
+3 377 376
+st=1
+bin1 bin2 differ: char 2, line 1
+st=1
+a b differ: byte 6, line 2 is 145 e 170 x
+st=1
+st=0
+a b differ: char 6, line 2
+st=1
+a b differ: char 2, line 1
+st=1
+st=1
+a b differ: char 2, line 1
+st=1
+st=1
+st=0
+a - differ: char 6, line 2
+st=1
+a - differ: char 6, line 2
+st=1
+st=2
+st=2
+st=2
+st=2
+st=2
+st=2
+big1 big2 differ: char 48884, line 9999
+st=1
+st=0

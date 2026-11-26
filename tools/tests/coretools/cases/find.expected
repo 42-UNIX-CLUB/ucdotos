@@ -1,0 +1,145 @@
+{"cmd":"find a | sort","out":"a\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a/ | sort","out":"a/\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -print | sort","out":"a\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name '*.txt' | sort","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -iname '*.txt' | sort","out":"a/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name '*.TXT'","out":"a/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -name 'f?.*' | sort","out":"a/b/f2.c\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name '[ft]*' | sort","out":"a/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name '.*' | sort","out":"a/.hidden\n","status":0,"err":false}
+{"cmd":"find a -name '*' | sort","out":"a\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -not -name '*.txt' | sort","out":"a\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a ! -name '*.txt' | sort","out":"a\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -path '*/b/*' | sort","out":"a/b/c\na/b/c/empty\na/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -path 'a/b' | sort","out":"a/b\n","status":0,"err":false}
+{"cmd":"find a -ipath '*/D/*' | sort","out":"a/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -wholename 'a/d/*'","out":"a/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -type d | sort","out":"a\na/b\na/b/c\na/d\n","status":0,"err":false}
+{"cmd":"find a -type f | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f,d | sort","out":"a\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type l","out":"","status":0,"err":false}
+{"cmd":"find a -type x","out":"","status":1,"err":true}
+{"cmd":"find a -maxdepth 1 | sort","out":"a\na/.hidden\na/b\na/d\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -maxdepth 0","out":"a\n","status":0,"err":false}
+{"cmd":"find a -mindepth 2 | sort","out":"a/b/c\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -mindepth 1 -maxdepth 1 | sort","out":"a/.hidden\na/b\na/d\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -mindepth 3 -type f","out":"a/b/c/empty\n","status":0,"err":false}
+{"cmd":"find a -empty | sort","out":"a/b/c/empty\n","status":0,"err":false}
+{"cmd":"find a -type f -empty","out":"a/b/c/empty\n","status":0,"err":false}
+{"cmd":"find a -size 0","out":"a/b/c/empty\n","status":0,"err":false}
+{"cmd":"find a -size -1k","out":"a/b/c/empty\n","status":0,"err":false}
+{"cmd":"find a -size +5c | sort","out":"a\na/b\na/b/c\na/b/f2.c\na/d\na/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -type f -size 10c","out":"a/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -size -2 -type f | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -size 1 -type f | sort","out":"a/.hidden\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name '*.c' -o -name '*.txt' | sort","out":"a/b/f2.c\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a \\( -name '*.c' -o -name '*.txt' \\) -print | sort","out":"a/b/f2.c\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name '*.c' -o -name '*.txt' -print | sort","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -a -name '*.c'","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -type f -and -name '*.c'","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -type d -name b -prune -o -type f -print | sort","out":"a/.hidden\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name b -prune | sort","out":"a/b\n","status":0,"err":false}
+{"cmd":"find a -path a/b -prune -o -print | sort","out":"a\na/.hidden\na/d\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -perm 600","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -perm -u+r | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -perm /o+x","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -type f -perm 755","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -type f -perm -755","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -type f -perm /111","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -type f -perm -644 | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -type f -perm u=rw","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -newer a/f1.txt -type f | sort | sed 's/.*/x/' | head -0","out":"","status":0,"err":false}
+{"cmd":"find a -mtime 0 -type f | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -mtime -1 -type f | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -mtime +1","out":"","status":0,"err":false}
+{"cmd":"find a -mmin -10 -type f | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -mmin +100","out":"","status":0,"err":false}
+{"cmd":"find a -amin -10 -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -cmin -10 -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -newer a/missing","out":"","status":1,"err":true}
+{"cmd":"find a -user \"$(id -un)\" -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -uid \"$(id -u)\" -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -group \"$(id -gn)\" -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -gid \"$(id -g)\" -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -nouser","out":"","status":0,"err":false}
+{"cmd":"find a -nogroup","out":"","status":0,"err":false}
+{"cmd":"find a -user no-such-user-xyz","out":"","status":1,"err":true}
+{"cmd":"find a -links 1 -type f | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -links +1 -type d | sort","out":"","status":0,"err":false}
+{"cmd":"find a -samefile a/f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -readable -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -writable -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -executable -type f","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -type f -print0 | tr '\\0' '\\n' | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -printf '%f\\n' | sort","out":".hidden\nempty\nf1.txt\nf2.c\nten.TXT\n","status":0,"err":false}
+{"cmd":"find a -type f -printf '%p %s\\n' | sort","out":"a/.hidden 1\na/b/c/empty 0\na/b/f2.c 12\na/d/ten.TXT 10\na/f1.txt 1\n","status":0,"err":false}
+{"cmd":"find a -type f -printf '%P\\n' | sort","out":".hidden\nb/c/empty\nb/f2.c\nd/ten.TXT\nf1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -printf '%h\\n' | sort","out":"a\na\na/b\na/b/c\na/d\n","status":0,"err":false}
+{"cmd":"find a -printf '%d %y %p\\n' | sort","out":"0 d a\n1 d a/b\n1 d a/d\n1 f a/.hidden\n1 f a/f1.txt\n2 d a/b/c\n2 f a/b/f2.c\n2 f a/d/ten.TXT\n3 f a/b/c/empty\n","status":0,"err":false}
+{"cmd":"find a -type f -printf '%m %M %f\\n' | sort","out":"600 -rw------- f1.txt\n644 -rw-r--r-- .hidden\n644 -rw-r--r-- empty\n644 -rw-r--r-- ten.TXT\n755 -rwxr-xr-x f2.c\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -printf '%u %g %U %G %n\\n'","out":"ensui ensui 1000 1000 1\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -printf '[%5s][%-6f][%.2f]\\n'","out":"[    1][f1.txt][f1]\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -printf '%%\\t\\n'","out":"%\t\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -printf 'a\\\\nb\\\\101\\\\c not printed\\n'","out":"a\\nb\\101\\c not printed\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -printf '%H|%k\\n'","out":"a|4\n","status":0,"err":false}
+{"cmd":"find . -name f1.txt -printf '%P %H\\n'","out":"a/f1.txt .\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -printf '%TY\\n' | wc -c","out":"5\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -printf '%T@\\n' | cut -d. -f1 | wc -c","out":"11\n","status":0,"err":false}
+{"cmd":"find a -type f -exec echo found {} \\; | sort","out":"found a/.hidden\nfound a/b/c/empty\nfound a/b/f2.c\nfound a/d/ten.TXT\nfound a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -exec echo {} + | tr ' ' '\\n' | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f -exec sh -c 'echo \"$#\"' sh {} +","out":"5\n","status":0,"err":false}
+{"cmd":"find a -name '*.c' -exec cat {} \\;","out":"hello world\n","status":0,"err":false}
+{"cmd":"find a -name '*.c' -exec echo '<{}>' 'x{}y' \\;","out":"<a/b/f2.c> xa/b/f2.cy\n","status":0,"err":false}
+{"cmd":"find a -type f -exec test -s {} \\; -print | sort","out":"a/.hidden\na/b/f2.c\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -type f ! -exec test -s {} \\; -print","out":"a/b/c/empty\n","status":0,"err":false}
+{"cmd":"find a -name f2.c -execdir pwd \\; | sed \"s|^$PWD|.|\"","out":"./a/b\n","status":0,"err":false}
+{"cmd":"find a -name f2.c -execdir echo {} \\;","out":"./f2.c\n","status":0,"err":false}
+{"cmd":"find a -name f2.c -exec false \\; -o -print | sort | head -3","out":"a\na/.hidden\na/b\n","status":0,"err":false}
+{"cmd":"find a -type f -exec false {} +; echo \"st=$?\"","out":"st=1\n","status":0,"err":false}
+{"cmd":"find a -name '*.c' -exec nonexistent-cmd-xyz {} \\; ; echo \"st=$?\"","out":"st=0\n","status":0,"err":true}
+{"cmd":"find e -name x -delete; ls e","out":"","status":0,"err":false}
+{"cmd":"find e -delete; test -e e || echo gone","out":"gone\n","status":0,"err":false}
+{"cmd":"find a -name b -quit -o -print | wc -l","out":"1\n","status":0,"err":false}
+{"cmd":"find a -name f1.txt -quit","out":"","status":0,"err":false}
+{"cmd":"find a -name f1.txt -print -quit","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a/b a/d -type f | sort","out":"a/b/c/empty\na/b/f2.c\na/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"(find a/b missing a/d -type f; echo \"st=$?\") | sort","out":"a/b/c/empty\na/b/f2.c\na/d/ten.TXT\nst=1\n","status":0,"err":true}
+{"cmd":"find missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -name; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -foo; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a \\( -name x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -maxdepth x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -type f extra; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -exec echo; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -perm 999; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -size 2x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -o; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a ! ; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"find a -regex '.*\\.c'","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -regex '.*/f[0-9]\\.\\(c\\|txt\\)' | sort","out":"a/b/f2.c\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -regextype posix-extended -regex '.*/f[0-9]\\.(c|txt)' | sort","out":"a/b/f2.c\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -regextype posix-basic -regex '.*b/f2.c'","out":"a/b/f2.c\n","status":0,"err":false}
+{"cmd":"find a -iregex '.*\\.TXT' | sort","out":"a/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -regex 'a/b'","out":"a/b\n","status":0,"err":false}
+{"cmd":"find a -depth | sort","out":"a\na/.hidden\na/b\na/b/c\na/b/c/empty\na/b/f2.c\na/d\na/d/ten.TXT\na/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -depth -type d | head -1 | grep -c c","out":"1\n","status":0,"err":false}
+{"cmd":"find a -d -name c","out":"a/b/c\n","status":0,"err":false}
+{"cmd":"find a -type f -name '*.c' , -type d -name c | sort","out":"a/b/c\n","status":0,"err":false}
+{"cmd":"find a -true -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -false","out":"","status":0,"err":false}
+{"cmd":"find a -name f1.txt -ls | wc -l","out":"1\n","status":0,"err":false}
+{"cmd":"find . -maxdepth 1 -type d | sort","out":".\n./a\n./e\n","status":0,"err":false}
+{"cmd":"find -maxdepth 1 -type d | sort","out":".\n./a\n./e\n","status":0,"err":false}
+{"cmd":"find -name f1.txt","out":"./a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -name '*.txt' -fprint out; sort out","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"cd a && find . -type f | sort","out":"./.hidden\n./b/c/empty\n./b/f2.c\n./d/ten.TXT\n./f1.txt\n","status":0,"err":false}
+{"cmd":"cd a && find * -type f | sort","out":"b/c/empty\nb/f2.c\nd/ten.TXT\nf1.txt\n","status":0,"err":false}
+{"cmd":"find a -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | sort","out":"b\nd\n","status":0,"err":false}
+{"cmd":"find a -empty -type d","out":"","status":0,"err":false}
+{"cmd":"find a -name 'f*' -type f -newer a/b/f2.c | wc -l","out":"0\n","status":0,"err":false}
+{"cmd":"find a -name \"*.txt\" -prune -o -type f -print | sort","out":"a/.hidden\na/b/c/empty\na/b/f2.c\na/d/ten.TXT\n","status":0,"err":false}
+{"cmd":"find a -xdev -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find -L a -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find -H a -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find -P a -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}
+{"cmd":"find a -follow -name f1.txt","out":"a/f1.txt\n","status":0,"err":false}

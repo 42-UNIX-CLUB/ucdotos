@@ -1,0 +1,25 @@
+{"cmd":"basename /usr/bin/sort","out":"sort\n","status":0,"err":false}
+{"cmd":"basename /usr/bin/","out":"bin\n","status":0,"err":false}
+{"cmd":"basename /usr//bin//","out":"bin\n","status":0,"err":false}
+{"cmd":"basename /","out":"/\n","status":0,"err":false}
+{"cmd":"basename //","out":"/\n","status":0,"err":false}
+{"cmd":"basename ///","out":"/\n","status":0,"err":false}
+{"cmd":"basename ''","out":"\n","status":0,"err":false}
+{"cmd":"basename a","out":"a\n","status":0,"err":false}
+{"cmd":"basename a.txt .txt","out":"a\n","status":0,"err":false}
+{"cmd":"basename .txt .txt","out":".txt\n","status":0,"err":false}
+{"cmd":"basename a.txt txt","out":"a.\n","status":0,"err":false}
+{"cmd":"basename a.txt a.txt","out":"a.txt\n","status":0,"err":false}
+{"cmd":"basename dir/a.c .c","out":"a\n","status":0,"err":false}
+{"cmd":"basename dir/a.c/ .c","out":"a\n","status":0,"err":false}
+{"cmd":"basename -a a/b c/d /e","out":"b\nd\ne\n","status":0,"err":false}
+{"cmd":"basename -s .c x.c y.c z.h","out":"x\ny\nz.h\n","status":0,"err":false}
+{"cmd":"basename --suffix=.c x.c","out":"x\n","status":0,"err":false}
+{"cmd":"basename -as .c x.c y.c","out":"x\ny\n","status":0,"err":false}
+{"cmd":"basename --multiple a/b c/","out":"b\nc\n","status":0,"err":false}
+{"cmd":"basename -z a/b | od -c","out":"0000000   b  \\0\n0000002\n","status":0,"err":false}
+{"cmd":"basename a b c","out":"","status":1,"err":true}
+{"cmd":"basename","out":"","status":1,"err":true}
+{"cmd":"basename -q x","out":"","status":1,"err":true}
+{"cmd":"basename -- -x","out":"-x\n","status":0,"err":false}
+{"cmd":"basename -s","out":"","status":1,"err":true}

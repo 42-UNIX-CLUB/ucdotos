@@ -43,4 +43,8 @@ int setenv(const char *, const char *, int);
 int unsetenv(const char *);
 int system(const char *); /* spawns /bin/sh -c; -1 if it cannot be started */
 char *realpath(const char *, char *);
+/* temporary files with random names (libc/src/tools_compat.c) */
+int mkstemp(char *);
+int mkstemps(char *, int);
+char *mkdtemp(char *);
 #endif

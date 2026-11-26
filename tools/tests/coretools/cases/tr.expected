@@ -1,0 +1,69 @@
+{"cmd":"tr a-z A-Z < f","out":"HELLO, WORLD!\nFOO  BAR   BAZ\n\tTABS\tHERE\n","status":0,"err":false}
+{"cmd":"tr A-Z a-z < f","out":"hello, world!\nfoo  bar   baz\n\ttabs\there\n","status":0,"err":false}
+{"cmd":"tr '[:lower:]' '[:upper:]' < f","out":"HELLO, WORLD!\nFOO  BAR   BAZ\n\tTABS\tHERE\n","status":0,"err":false}
+{"cmd":"tr '[:upper:]' '[:lower:]' < f","out":"hello, world!\nfoo  bar   baz\n\ttabs\there\n","status":0,"err":false}
+{"cmd":"tr -d '[:space:]' < f","out":"Hello,World!foobarbaztabshere","status":0,"err":false}
+{"cmd":"tr -d '[:punct:]' < f","out":"Hello World\nfoo  bar   baz\n\ttabs\there\n","status":0,"err":false}
+{"cmd":"tr -d aeiou < f","out":"Hll, Wrld!\nf  br   bz\n\ttbs\thr\n","status":0,"err":false}
+{"cmd":"tr -s ' ' < f","out":"Hello, World!\nfoo bar baz\n\ttabs\there\n","status":0,"err":false}
+{"cmd":"tr -s '[:space:]' < f","out":"Hello, World!\nfoo bar baz\n\ttabs\there\n","status":0,"err":false}
+{"cmd":"tr -s a-z < rep","out":"abcde\n","status":0,"err":false}
+{"cmd":"tr -s abc < rep","out":"abcdddeee\n","status":0,"err":false}
+{"cmd":"tr -s ab xy < rep","out":"xycccdddeee\n","status":0,"err":false}
+{"cmd":"tr abc xyz < rep","out":"xxxyyyzzzdddeee\n","status":0,"err":false}
+{"cmd":"tr abcde xy < rep","out":"xxxyyyyyyyyyyyy\n","status":0,"err":false}
+{"cmd":"tr -t abcde xy < rep","out":"xxxyyycccdddeee\n","status":0,"err":false}
+{"cmd":"tr -c a-z X < f","out":"XelloXXXorldXXfooXXbarXXXbazXXtabsXhereX","status":0,"err":false}
+{"cmd":"tr -cd a-z < f","out":"elloorldfoobarbaztabshere","status":0,"err":false}
+{"cmd":"tr -cs a-zA-Z '\\n' < f","out":"Hello\nWorld\nfoo\nbar\nbaz\ntabs\nhere\n","status":0,"err":false}
+{"cmd":"tr -C '[:alnum:]' _ < f","out":"Hello__World__foo__bar___baz__tabs_here_","status":0,"err":false}
+{"cmd":"tr -ds a b < rep","out":"bcccdddeee\n","status":0,"err":false}
+{"cmd":"tr -d '\\n' < f","out":"Hello, World!foo  bar   baz\ttabs\there","status":0,"err":false}
+{"cmd":"tr '\\n' ' ' < f","out":"Hello, World! foo  bar   baz \ttabs\there ","status":0,"err":false}
+{"cmd":"tr '\\t' '>' < f","out":"Hello, World!\nfoo  bar   baz\n>tabs>here\n","status":0,"err":false}
+{"cmd":"tr '\\101-\\132' x < f","out":"xello, xorld!\nfoo  bar   baz\n\ttabs\there\n","status":0,"err":false}
+{"cmd":"tr -d '\\000-\\037' < bin | od -c","out":"0000000   a   b   c 377 376\n0000005\n","status":0,"err":false}
+{"cmd":"tr '\\000' Z < bin | od -c","out":"0000000   Z 001 002   a   b   c 377 376  \\n\n0000011\n","status":0,"err":false}
+{"cmd":"tr '\\377' Y < bin | od -c","out":"0000000  \\0 001 002   a   b   c   Y 376  \\n\n0000011\n","status":0,"err":false}
+{"cmd":"tr -d '\\200-\\377' < bin | od -c","out":"0000000  \\0 001 002   a   b   c  \\n\n0000007\n","status":0,"err":false}
+{"cmd":"tr a-c '[x*]' < rep","out":"xxxxxxxxxdddeee\n","status":0,"err":false}
+{"cmd":"tr a-e '[x*2]yz' < rep","out":"xxxxxxyyyzzzzzz\n","status":0,"err":false}
+{"cmd":"tr a-e 'v[x*]z' < rep","out":"vvvxxxxxxxxxzzz\n","status":0,"err":false}
+{"cmd":"tr a-e '[x*010]' < rep","out":"xxxxxxxxxxxxxxx\n","status":0,"err":false}
+{"cmd":"tr '[=a=]' A < rep","out":"AAAbbbcccdddeee\n","status":0,"err":false}
+{"cmd":"tr -d '[=b=]' < rep","out":"aaacccdddeee\n","status":0,"err":false}
+{"cmd":"tr '[:digit:]' D < f","out":"Hello, World!\nfoo  bar   baz\n\ttabs\there\n","status":0,"err":false}
+{"cmd":"echo 123abc | tr '[:digit:]' '[:alpha:]'","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr '[c*]' x","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr z-a x","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr a","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr -d","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr -d a b","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr a b c","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr a ''","out":"","status":1,"err":true}
+{"cmd":"echo abc | tr -t a ''","out":"abc\n","status":0,"err":false}
+{"cmd":"echo abc | tr '[:foo:]' x","out":"","status":1,"err":true}
+{"cmd":"echo 'a-b-c' | tr - _","out":"a_b_c\n","status":0,"err":false}
+{"cmd":"echo 'a-b-c' | tr 'a-' 'x_'","out":"x_b_c\n","status":0,"err":false}
+{"cmd":"echo 'a\\b' | tr '\\\\' /","out":"a/b\n","status":0,"err":false}
+{"cmd":"echo 'abc' | tr 'a\\-c' 'xyz'","out":"xbz\n","status":0,"err":false}
+{"cmd":"echo 'a]b[c' | tr '[]' '()'","out":"a)b(c\n","status":0,"err":false}
+{"cmd":"echo 'abc' | tr -s ''","out":"abc\n","status":0,"err":false}
+{"cmd":"tr x y < nonl","out":"no newline at end","status":0,"err":false}
+{"cmd":"tr -s o < nonl","out":"no newline at end","status":0,"err":false}
+{"cmd":": | tr a b","out":"","status":0,"err":false}
+{"cmd":"tr '[:xdigit:]' '*' < f","out":"H*llo, Worl*!\n*oo  **r   **z\n\tt**s\th*r*\n","status":0,"err":false}
+{"cmd":"tr '[:blank:]' . < f","out":"Hello,.World!\nfoo..bar...baz\n.tabs.here\n","status":0,"err":false}
+{"cmd":"tr '[:cntrl:]' . < bin | od -c","out":"0000000   .   .   .   a   b   c 377 376   .\n0000011\n","status":0,"err":false}
+{"cmd":"tr -c '[:print:]' . < bin","out":"...abc...","status":0,"err":false}
+{"cmd":"tr '[:graph:]' g < f","out":"gggggg gggggg\nggg  ggg   ggg\n\tgggg\tgggg\n","status":0,"err":false}
+{"cmd":"echo hello | tr el ip","out":"hippo\n","status":0,"err":false}
+{"cmd":"echo hello | tr -- -e x","out":"hxllo\n","status":0,"err":false}
+{"cmd":"echo AbC | tr -c '[:upper:]' '*'","out":"A*C*","status":0,"err":false}
+{"cmd":"seq 1 2000 | tr -d '\\n' | wc -c","out":"6893\n","status":0,"err":false}
+{"cmd":"seq 1 2000 | tr 0-9 a-j | tail -3","out":"bjji\nbjjj\ncaaa\n","status":0,"err":false}
+{"cmd":"echo abc | tr --delete b","out":"ac\n","status":0,"err":false}
+{"cmd":"echo aabbcc | tr --squeeze-repeats abc","out":"abc\n","status":0,"err":false}
+{"cmd":"echo abc | tr --complement a x","out":"axxx","status":0,"err":false}
+{"cmd":"echo abcd | tr -t abcd xy","out":"xycd\n","status":0,"err":false}
