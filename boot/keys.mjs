@@ -6,7 +6,7 @@
 export const EV_SYN = 0, EV_KEY = 1, EV_REL = 2, EV_ABS = 3, EV_MSC = 4;
 export const MSC_UNICODE = 0x10;  // value = the Unicode code point this key press typed
 export const MSC_RESIZE = 0x11;   // value = (width << 16) | height
-export const ABS_X = 0, ABS_Y = 1, REL_WHEEL = 8;
+export const ABS_X = 0, ABS_Y = 1, REL_X = 0, REL_Y = 1, REL_WHEEL = 8;
 export const BTN_LEFT = 0x110, BTN_RIGHT = 0x111, BTN_MIDDLE = 0x112;
 
 export const KEY = {
