@@ -54,6 +54,7 @@ node tools/shot.mjs --script=tools/tests/desktop.mjs    # boots the desktop head
 | `tools/` | test runners |
 | `docs/` | how it works, how to develop it, what has been decided, current status |
 | `CLAUDE.md`, `AGENTS.md` | context for coding agents; start here if you are one |
+| `CONTRIBUTING.md` | how to name branches, write commits and open pull requests |
 
 ## Licence
 
