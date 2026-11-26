@@ -455,17 +455,39 @@ to the workspace the slide came from continues from where the picture is. Any ot
 during a slide cuts the first one short (the picture jumps to its end) and starts a new
 one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms apart).
 
-Configuration: `~/.config/wm/config` (in the image: `rootfs/home/user/.config/wm/config`),
-i3 style: `set mod Alt`, `gaps`, `border`, `border_thin`, `radius`, `workspace_count`,
-`animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default autostart: `exec bar`
-and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
+Configuration: `~/.config/wm/wm.uconf` (in the image: `rootfs/home/user/.config/wm/wm.uconf`).
+`$mod` is the modifier of the built-in bindings (ALT). `[general]`: `gaps`, `workspaces`,
+`master_ratio`, `animation`, `border { width thin radius colors { focus normal float } }`
+(the colours win over the theme's). `[binds]`: `bind = MODS, key, action, args` (the action is a
+command above), `unbind = MODS, key`, `defaults = false` drops the built-in bindings.
+`[autostart]`: `exec`, `exec_always`. With no file: the built-in bindings and `exec bar`, `exec
+term`. The shipped file autostarts `bar` and `term -e sh /etc/welcome` (`fetch`, then a shell).
+
+**Dotfiles: the .uconf format** (`libuconf/`). Every dotfile in `~/.config` and every theme is
+a `.uconf` file: TOML `[section]` headers, `name { ... }` blocks in JSON-style braces that nest
+(inside braces `, key =` starts the next setting, so one line can hold several), `key = value`,
+hyprlang `$variables` and `bind = MODS, key, action, args` lines; `# ` starts a comment and
+`#rrggbb` is a value. A setting's full name joins section, blocks and key with dots
+(`general.border.width`). Keys may repeat (`bind`, `exec`). Mistakes are reported as
+`file:line: message` on stderr and skipped, and settings nothing read are reported as unknown.
+Every program links `libuconf.a`; `bin/uconftest.c` checks the parser (in `make test`).
+
+| File | Program | Read |
+|---|---|---|
+| `~/.config/wm/wm.uconf` | wm | at start and on `reload` |
+| `~/.config/term/term.uconf` | term: `[font]` size regular bold, `[window]` padding, `[scrollback]` lines, `[cursor]` style, `[zoom]` step min max | at start, and on `reload` or a theme change, which resend every window its size (scrollback: start only) |
+| `~/.config/fetch/fetch.uconf` (or `$FETCH_CONFIG`) | fetch: `[fetch]` logo font, `[info]` `line = NAME[, LABEL]` (which lines, order, labels), `palette` | every run |
+| `~/.config/bar/bar.uconf` | bar: `[bar]` height, `[workspaces]` `[title]` `[clock]` show, `[clock]` format (strftime, UTC), `[stats]` show = mem, procs, sys | at start, and on `reload` or a theme change (height: start only) |
+| `~/.config/launcher/launcher.uconf` | launcher: `[launcher]` width rows | every time it opens |
+| `/usr/share/themes/NAME.uconf` | every graphical program, through `ui_theme_load()` | on every theme change |
 
 **Themes** (`libui/theme.h`). The active name is the first word of
-`~/.config/ucos/theme`. A theme is `/usr/share/themes/NAME.theme`, lines of
-`key = value`: colours `bg fg accent border_focus border_normal border_float bar_bg
-bar_fg panel dim desktop`, `color0..color15`, `font`, `font_bold`, `font_size`, `gap`,
-`border`, `radius`. Two ship: `deck` (Gruvbox + Fira Code) and `brand` (dark green +
-JetBrains Mono). See BRAND.md.
+`~/.config/ucos/theme`, a one-word file the window manager writes when the theme changes
+(not a `.uconf` file). A theme is `/usr/share/themes/NAME.uconf`: `[colors]` (`bg fg accent dim
+desktop panel`, `bar { bg fg }`, `border { focus normal float }`), `[terminal]` (the eight ANSI
+names and `bright { ... }`), `[font]` (`regular bold size`), `[geometry]` (`gap border radius`).
+Two ship: `deck` (Gruvbox + Fira Code) and `brand` (dark green + JetBrains Mono). See BRAND.md.
+fetch, vi, htop and sysbench keep their own colours for `deck` and `brand`, chosen by name.
 
 **bar** (`bin/bar/`), **launcher** (`bin/launcher/`): entries are
 `/usr/share/applications/*.app` files (`name=`, `exec=`, `comment=`), then every other

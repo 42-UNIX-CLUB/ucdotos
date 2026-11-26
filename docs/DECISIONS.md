@@ -29,6 +29,7 @@ with its date, the options that were on the table, and who chose.
 | 15 | 2026-11-26 | **Name: UC.OS** ("UC dot OS", UNIX CLUB dot OS). The earlier working name DuxOS is dropped. | EpochOS and a long list of others |
 | 16 | 2026-11-26 | **Repository**: https://github.com/42-UNIX-CLUB/ucdotos, branch `main`. The owners run git themselves. | |
 | 17 | 2026-11-26 | **Licence: GPL-2.0-or-later.** | GPL-3.0 |
+| 23 | 2026-11-26 | **Dotfiles are `.uconf` files** in `~/.config` for the window manager, the terminal, fetch, the bar and the launcher, and the themes are `.uconf` too. The format mixes TOML `[section]` headers, JSON-style braces for nested blocks (`name { ... }`) and hyprlang `$variables` and `bind = MODS, key, action, args`. It replaces the i3-style `~/.config/wm/config`, which is gone. (18 to 22 are the clipboard decisions, on their own branch.) | braces for values instead of blocks (`border = { width: 2 }`, lists in `[ ]`); keep reading the old i3-style file when there is no `.uconf` one |
 
 Notes that go with these:
 
@@ -55,17 +56,21 @@ Notes that go with these:
 | "Linux-shaped" means Linux's **generic** call table (the one aarch64 and riscv use), not x86-64's. | It is what a new Linux architecture gets. | One header: `abi/abi.h`. |
 | The kernel runs on the page's **main thread**. | Direct canvas access, simplest. | Move `boot()` into a Worker with an OffscreenCanvas. |
 | The C compiler inside UC.OS writes clang-compatible relocatable objects and has its own linker (option A of `docs/CC.md`); the tools are called `cc` and `ld` with no `gcc` alias; headers in `/usr/include` and `/usr/lib/cc/include`, libraries in `/usr/lib`; `long double` is binary128 as with clang; `-O` levels are accepted and change nothing; the compiler makes a cheap system call per statement and per 64 tokens so a long compile can be time-sliced. C++ is out of scope. | Options and reasons in `docs/CC.md` section 3. | `docs/CC.md` section 3 says where each lives. |
-| The window manager's modifier key is **Alt**. | Browsers and host systems take the Super key. | `set mod` in `~/.config/wm/config`. |
+| The window manager's modifier key is **Alt**. | Browsers and host systems take the Super key. | `$mod` in `~/.config/wm/wm.uconf`. |
 | Tiling layout is **master and stack**, 4 workspaces, 12 px gaps, radius 8. | To match slide 26. | The same config file. |
 | The first terminal runs `sh /etc/welcome` (fetch, then a shell). | So the desktop greets with fetch like the slide and stays open. | The `exec` line at the end of the wm config. |
 | Time slice is **8 ms**, with the clock read on every 256th system call. | Keeps input and a 60 Hz screen alive. Reading the clock costs about 400 ns in Chrome; at every 64th call it doubled the cost of the cheapest calls. The price: a process making slow calls (0.1 ms each) is only checked every 25 ms or so. | `SLICE_MS` in `kernel/kernel.h`; the mask in `syscall_pid`. |
 | Limits: 64 processes, 64 descriptors, 16 ptys, 24 window clients. | Simple fixed tables. | See ARCHITECTURE.md section 14. |
-| In the `brand` theme, blue, purple and aqua (and their bright versions) are **placeholders**. | The club's brand defines only 7 colours; a terminal needs 16. | `rootfs/usr/share/themes/brand.theme`. |
+| In the `brand` theme, blue, purple and aqua (and their bright versions) are **placeholders**. | The club's brand defines only 7 colours; a terminal needs 16. | `rootfs/usr/share/themes/brand.uconf`. |
 | Default theme is `deck`. | The deck is what the showcase audience has seen. | `rootfs/home/user/.config/ucos/theme`. |
 | Doom: A/D **turn** (like the arrows); the game's memory zone is 16 MiB; no sound. | Stated in the port's brief. | `bin/doom/doomgeneric_ucos.c`, `i_system.c`. |
 | Source files carry SPDX tags and **no copyright holder line**. | Whose name goes there is the owners' call. | Add a line to the headers and README. |
 | `.gitignore` excludes build output and `bin/doom/wads/`. | Game data licence is undecided. | Edit `.gitignore`. |
 | The club's source documents (guidelines, PDF, PowerPoint, `unix-club-logo/`) are **not in git**. | They contain phone numbers and e-mail addresses. | An owner can add redacted versions. |
+| `.uconf` details: one file per program at `~/.config/NAME/NAME.uconf`; `# ` (with a blank after it) starts a comment so that `#rrggbb` is a value; inside braces `, key =` starts the next setting; mistakes and unknown settings are reported with the file and line, never fatal. | Needed rules the three source formats do not settle together. | `libuconf/uconf.c`, `libuconf/uconf.h`. |
+| Which settings each dotfile has (see ARCHITECTURE.md section 11); the built-in key bindings stay unless `defaults = false`; `$mod` is the built-in bindings' modifier; the WM border colours can override the theme's. | A start; more settings are easy to add. | The program's `load_conf` or `config_load`. |
+| `~/.config/ucos/theme` stays a one-word file, not `.uconf`. | The window manager writes it when the theme changes; rewriting a user-edited `.uconf` file would lose its comments. | `bin/wm/main.c` (`theme_set`) and every reader of the file. |
+| Themes name the terminal colours black, red, green, yellow, blue, magenta, cyan, white and `bright { ... }`; fetch, vi, htop and sysbench still keep their own colours per theme name. | The ANSI names are what other terminals use; those four programs never read theme files. | `libui/theme.c`; the programs' `term.h`. |
 | OS identity strings: `uname` reports `UC.OS`, release `0.1.0`, machine `wasm32`, host name `42lisboa`, user `user`. | Needed something. | `kernel/kernel.h`, `kernel/syscall.c`, `bin/init.c`. |
 
 ## 3. Open: an owner needs to choose
