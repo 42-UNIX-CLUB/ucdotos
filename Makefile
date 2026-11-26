@@ -83,8 +83,9 @@ $(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/
 	@echo "  TAR   initrd.tar"
 	@tar --format=ustar --owner=0 --group=0 -C $(B)/root -cf $@ .
 
+# Run the kernel, C library and shell suites against this build. Fails if any check fails.
 test: all
-	node tools/run.mjs --init=/bin/ktest
+	@sh tools/test.sh $(B)
 
 .PHONY: all test
 

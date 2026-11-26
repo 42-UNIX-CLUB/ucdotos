@@ -51,8 +51,9 @@ docs: record the licence decision
 
 - Title: same form as a commit first line.
 - Description: what changed and why, how you tested it, and anything not tested.
-- Before opening, run the four suites listed in [CLAUDE.md](CLAUDE.md) (kernel, C library,
-  shell and tools, desktop) and say in the description that they pass.
+- Before opening, run `make B=build-NAME test` (kernel, C library, shell and tools) and the
+  desktop script listed in [CLAUDE.md](CLAUDE.md),
+  and say in the description that they pass.
 - If you changed how something works, update the matching file in `docs/` in the same
   pull request. `docs/STATUS.md` almost always needs a line.
 - A decision that belongs to the owners (see `docs/DECISIONS.md`) is not made in a pull

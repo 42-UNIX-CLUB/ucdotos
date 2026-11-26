@@ -95,7 +95,8 @@ parameters: `?scale=1` (one framebuffer pixel per CSS pixel), `?cmdline=init=/bi
 
 ## 4. Tests
 
-Run the four system suites before you say something works. Counts as of 2026-11-26.
+Run the system suites before you say something works: `make B=build-NAME test` runs the
+first three and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|

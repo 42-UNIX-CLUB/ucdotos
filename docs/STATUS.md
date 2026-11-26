@@ -58,7 +58,6 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 - The minishell port (waiting for the repo from an owner).
 - Running Linux programs: no libc port for recompiling them, no binary emulation.
 - A compressed image for hosting (the 7.3 MB initrd gzips to roughly half; not wired in).
-- A single `make test` that runs every suite.
 
 ## 4. Waiting for an owner
 

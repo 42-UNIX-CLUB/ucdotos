@@ -77,6 +77,7 @@ Chromium is needed only for `tools/browser.mjs`.
 make B=build-NAME                 # kernel, libc, every program, initrd. ALWAYS pass your own B=
 make B=build-NAME PROGS="sh ls"   # only these programs go in the image (others may be mid-edit)
 make B=build-NAME dist            # build-NAME/dist: static folder for any web server
+make B=build-NAME test            # kernel, C library and shell suites; fails if any check fails
 
 node tools/run.mjs  --build=build-NAME --init=/bin/ktest            # console only, for tests
 node tools/shot.mjs --build=build-NAME --script=tools/tests/desktop.mjs   # headless, PNG screenshots
