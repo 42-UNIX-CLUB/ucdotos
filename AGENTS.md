@@ -11,3 +11,5 @@ The five things that matter most:
 3. Always build into your own directory: `make B=build-YOURNAME`.
 4. No em-dashes in anything you write. No third-party code unless an owner asks.
 5. Do not commit, push, delete directories, or touch the club documents that are not in git.
+   When a person asks you to commit, follow [CONTRIBUTING.md](CONTRIBUTING.md): branch
+   `type/short-description`, commit `area: what changed`, pull request into `main`.

@@ -201,6 +201,9 @@ an `fdmap`, close your copies, `waitpid`. `bin/ktest.c` and `bin/sh/exec.c` show
 
 ## 8. Code conventions
 
+Branch names, commit messages and pull requests: see `CONTRIBUTING.md`.
+
+
 - C11, compact, readable; comments say why, not what. Two-space indent as in the tree.
 - Every source file of ours starts with `// SPDX-License-Identifier: GPL-2.0-or-later`
   (`#` for make, shell, Python and assembly). Upstream Doom files keep their own headers.

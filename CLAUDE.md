@@ -36,7 +36,10 @@ firmware: it loads the kernel, starts programs, and copies the framebuffer to a 
    PowerPoint, `unix-club-logo/pres/`) contain the founders' phone numbers and e-mail
    addresses. They are deliberately not in git. Never commit them, never copy those details
    anywhere. Refer to the founders by intra username only (rucosta, mju-ferr).
-6. **Git.** Commit or push only when an owner asks. The owners run git themselves.
+6. **Git.** Commit, push or open a pull request only when an owner asks. `main` is protected:
+   work goes on a `type/short-description` branch and through a pull request, with commit
+   messages of the form `area: what changed`. The rules are in `CONTRIBUTING.md`; follow
+   them exactly. Stage files by path, never `git add -A` (see rule 5).
 7. **Never delete directories or run `rm -rf`.** For a clean build use a new build
    directory name (`make B=build-NAME`).
 
@@ -134,6 +137,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `docs/STATUS.md` | to know what works today, what is broken, what is not built, and what is in flight |
 | `docs/PERFORMANCE.md` | you measure or quote speed |
 | `docs/BRAND.md` | you write any user-visible text or touch the look: palettes, fonts, voice, logo rules |
+| `CONTRIBUTING.md` | you are asked to commit, name a branch or open a pull request |
 
 Keep these files true. If you change how something works, change the matching file in
 the same piece of work. `docs/STATUS.md` is the one that goes stale fastest.
