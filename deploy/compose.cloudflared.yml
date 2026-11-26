@@ -1,0 +1,13 @@
+# A Cloudflare Tunnel of its own for the site, for a machine that has none yet.
+#   echo 'TUNNEL_TOKEN=...' > deploy/.env        (git-ignored; never commit the token)
+#   docker compose -f deploy/compose.yml -f deploy/compose.cloudflared.yml up -d --build
+# In the Cloudflare dashboard the tunnel's public hostname points at http://ucos-web:8080
+services:
+  cloudflared:
+    # pinned by digest (the `latest` of 2026-11-26), so a pull never changes the tunnel unannounced
+    image: cloudflare/cloudflared@sha256:55c7e3e8d89d5e8d20b75a82f3602cbf98e06db406e73e282073cfdc5a9a3af6
+    container_name: ucos-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: .env
+    depends_on: [web]

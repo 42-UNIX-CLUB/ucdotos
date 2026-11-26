@@ -1,0 +1,21 @@
+# Only the sources go into the build. Never the git history, build output, other worktrees,
+# local notes, game data or anything private that happens to sit in a working tree.
+.git
+.gitignore
+.worktrees
+.track
+.claude
+build
+build-*
+bin/doom/wads
+*.pdf
+*.pptx
+*.docx
+unix-club-logo
+42_UNIX_Club_Master_Brief.md
+deploy/.env
+**/.env
+*.key
+*.pem
+secrets/
+UNIX_Club_*
