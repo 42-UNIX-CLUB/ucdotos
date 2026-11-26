@@ -64,8 +64,8 @@ Settings, in the environment or in `deploy/.env`:
 ## 3. Putting https in front
 
 The site must be reached over https (or as localhost). Sound uses an interface browsers
-offer only there, and today the page does not even boot on a plain http address that is not
-localhost (see `STATUS.md`, known problems). TLS ends in front of the container. Three ways:
+offer only there (AudioWorklet): on a plain http address that is not localhost the page
+boots, but without sound. TLS ends in front of the container. Three ways:
 
 - **An existing cloudflared container** on the server (the owner's set-up). Add
   `deploy/compose.tunnel-network.yml`, which joins the site to that container's network:

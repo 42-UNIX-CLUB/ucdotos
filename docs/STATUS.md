@@ -78,7 +78,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 | Shell, for makefiles | `rootfs/usr/share/tests/make/shell-survey.sh` checks 63 shell constructs that makefile recipes use: all 63 pass inside UC.OS (2026-11-26, with the POSIX shell and the core tools' `tr`). |
 | A process killed while waiting for a remote file leaves a mark | The next process that gets the same pid receives one wrong `EIO` from that file; opening it again works. |
 | The sound suite failed one check once | `tools/tests/audio.mjs` failed one check in 1 of 12 runs (2026-11-26); the cause was not captured. |
-| The page does not boot on plain http other than localhost | It stops with "Cannot read properties of undefined (reading 'addModule')": the sound set-up (#23) needs an interface browsers give only on https or localhost. Serve the site over https (`DEPLOYMENT.md` section 3). A fix is planned. |
+| No sound on plain http other than localhost | Browsers give the audio interface the mixer needs (AudioWorklet) only on https and localhost. Elsewhere the page boots without sound and says so in the console and the boot log ("no sound, the mixer did not load"). Serve the site over https (`DEPLOYMENT.md` section 3). |
 | Stray build directories | `build-*` directories in the working tree are git-ignored and can be deleted by an owner. |
 
 ## 3. Not built

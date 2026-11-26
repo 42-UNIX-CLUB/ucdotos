@@ -55,8 +55,8 @@ play, oplplay ── /run/audiod.sock ── audiod ── /dev/dsp, ~340 ms ─
   all of its sound.
 - **The browser stays silent until the first click or key press on the page**: a browser
   rule. Until then nothing plays and blocking writers wait.
-- Doom plays its sound effects and music when its game data is present (none is in the
-  image yet). Music needs audiod, which `init` starts; Doom started as the first process
+- Doom plays its sound effects and music (its game data is fetched the first time it starts,
+  ARCHITECTURE section 7). Music needs audiod, which `init` starts; Doom started as the first process
   (`--init=/bin/doom`) has effects but no music.
 - `oplplay -w FILE.wad SONG` (or `-g GENMIDI`) plays a MUS or MIDI file; `-l` loops,
   `-v 0..127`, `-o FILE -s SECONDS` renders to a raw file instead.
@@ -68,6 +68,7 @@ play, oplplay ── /run/audiod.sock ── audiod ── /dev/dsp, ~340 ms ─
 | The whole system shares the page's main thread | mixing, conversion and pacing there would cost Doom frames | mixing and conversion run on the audio thread; the kernel only counts bytes; Doom writes without waiting |
 | The main thread can stall (an 8 ms time slice, a Doom frame, a busy program) | gaps in the sound | each stream has its own buffer: 64 ms for Doom (enough for normal stalls, short enough for instant gunshots), 340 ms for audiod (music) |
 | Shared memory between threads needs special HTTP headers (COOP and COEP) | ties sound to the open hosting decision | messages with transferred buffers instead: works on any static host |
+| AudioWorklet exists only on https and localhost | no mixer on a plain http page | the page checks for it; without it the page boots silent and says so in the console and the boot log |
 | Autoplay: silent until a user gesture | sound before the first input is lost | the page resumes the audio context on the first click or key |
 | Node has no Web Audio | tests could not run | `boot/audio.mjs` has a stand-in that "plays" in real time and can save the mix to a file, so `make test` checks sound sample by sample |
 
