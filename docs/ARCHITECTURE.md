@@ -528,6 +528,7 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
 - **Missing on purpose:** `setjmp`/`longjmp` (impossible in plain C on wasm), `fork`,
   `exec*`, threads. **Missing:** `long double` arithmetic and `%Lf`, `getopt_long`,
   `erf`/`gamma`, wide characters, locales other than "C", time zones (all times are UTC).
+- `make` (section 13) uses only what is here; it needed no new libc function.
 - `libc/crt/crt0.c` is built twice (`crt0_2.o`, `crt0_3.o`) because `main` may take two
   or three parameters and wasm checks signatures.
 - Each program is statically linked. A minimal program is about 1.6 KB; `sh` about 100 KB.
@@ -610,6 +611,37 @@ ld --crt0=/usr/lib/crt0_2.o,/usr/lib/crt0_3.o objs... -L/usr/lib -lc
   `#line` is accepted and ignored; calls to one unprototyped function with different
   argument types in one file; bit-fields that cross their container in a packed struct.
   Errors stop at the first one in most cases.
+
+### 13.2 make (`bin/make/`)
+
+`/bin/make` is our own make, written to run the makefiles people write for GNU Make 4.4.
+It is plain C (`make.h`, `util.c` for strings, hash tables and globbing, and these):
+
+| File | What |
+|---|---|
+| `read.c` | logical lines, comments, conditionals, `define`, `include`, assignments, rules |
+| `var.c` | variables, scopes (global, target, pattern, inherited from the parent target), `$(...)` expansion |
+| `func.c` | the built-in functions, `$(shell)` |
+| `rule.c` | the file table, time stamps (cached `stat`), `vpath`, pattern and suffix rules, the implicit rule search |
+| `run.c` | the update walk, recipes, `-j N`, the child environment |
+| `main.c` | options, `MAKEFLAGS`, remaking makefiles, goals, messages |
+| `builtin.c` | built-in variables and suffix rules (the C, C++, assembler, lex and yacc ones), `CC = cc` |
+| `sys.c` | the only file that talks to the system: one half for UC.OS (`spawn`), one for POSIX (`fork`/`exec`), so the same logic is tested natively |
+
+How it maps onto UC.OS:
+- A recipe line with no shell syntax is started directly with `spawn` (as GNU Make does
+  with `execvp`); anything else is `$(SHELL) -c line`, `/bin/sh` by default. The child gets
+  an environment built from the exported variables, `MAKEFLAGS` and `MAKELEVEL`+1.
+- `-C dir` is a `chdir` before reading; children inherit the directory. `$(shell)` uses a
+  pipe from `pipe2` as the child's standard output.
+- `-j N` keeps up to N children and waits with `wait4(-1)`. There is no jobserver: a
+  sub-make given `-jN` runs its own N jobs. With one CPU thread, `-j` gives no speed-up.
+- A makefile that was remade is re-read by starting make again with `spawn` and waiting
+  for it (there is no `exec`).
+- Time stamps: UC.OS keeps whole seconds, so a target written in the same second as its
+  prerequisite counts as up to date (GNU Make's rule: rebuild only if strictly newer).
+- Ctrl-C: the kernel kills make together with its recipe, so a half-written target is
+  not deleted. The native build does delete it, as GNU Make does.
 
 ## 14. Limits, and what does not exist
 

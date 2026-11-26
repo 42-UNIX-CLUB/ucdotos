@@ -1,0 +1,238 @@
+##### include
+=== make
+--- status 0
+--- stdout
+from-a from-b
+--- stderr
+
+=== files
+Makefile: "include a.mk b.mk\nall: ; @echo $(A) $(B)\n"
+a.mk: "A = from-a\n"
+b.mk: "B = from-b\n"
+##### include-glob
+=== make
+--- status 0
+--- stdout
+one two
+--- stderr
+
+=== files
+Makefile: "include parts/*.mk\nall: ; @echo $(sort $(PARTS))\n"
+parts/
+parts/one.mk: "PARTS += one\n"
+parts/two.mk: "PARTS += two\n"
+##### include-missing
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: nope.mk: No such file or directory
+make: *** No rule to make target 'nope.mk'.  Stop.
+
+=== files
+Makefile: "include nope.mk\nall: ; @echo all\n"
+##### dash-include
+=== make
+--- status 0
+--- stdout
+all
+--- stderr
+
+=== files
+Makefile: "-include nope.mk\nsinclude nope2.mk\nall: ; @echo all\n"
+##### include-dir
+=== make -I incdir
+--- status 0
+--- stdout
+found
+--- stderr
+
+=== make --include-dir=incdir
+--- status 0
+--- stdout
+found
+--- stderr
+
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: found.mk: No such file or directory
+make: *** No rule to make target 'found.mk'.  Stop.
+
+=== files
+Makefile: "include found.mk\nall: ; @echo $(F)\n"
+incdir/
+incdir/found.mk: "F = found\n"
+##### include-remade
+=== make
+--- status 0
+--- stdout
+making gen.mk
+V=generated
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+V=generated
+--- stderr
+
+=== files
+Makefile: "include gen.mk\nall: ; @echo \"V=$(V)\"\ngen.mk: ; @echo making gen.mk; echo 'V = generated' > gen.mk\n"
+gen.mk: "V = generated\n"
+##### include-remade-dash
+=== make
+--- status 0
+--- stdout
+V=generated restarts=1
+--- stderr
+
+=== files
+Makefile: "-include gen.mk\nall: ; @echo \"V=$(V) restarts=$(MAKE_RESTARTS)\"\ngen.mk: ; @echo 'V = generated' > gen.mk\n"
+gen.mk: "V = generated\n"
+##### include-out-of-date
+=== touch -d '2001-01-01' dep.mk
+--- status 0
+--- stdout
+--- stderr
+
+=== echo new > dep.src
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+regen
+V=new
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+V=new
+--- stderr
+
+=== files
+Makefile: "include dep.mk\nall: ; @echo \"V=$(V)\"\ndep.mk: dep.src ; @echo regen; sed 's/^/V = /' dep.src > dep.mk\n"
+dep.mk: "V = new\n"
+dep.src: "new\n"
+##### makefile-remade-itself
+=== make
+--- status 0
+--- stdout
+all
+--- stderr
+
+=== files
+Makefile: "all: ; @echo all\nMakefile: ; @echo checking makefile\n"
+##### include-dependency-files
+=== make
+--- status 0
+--- stdout
+compile a.c
+all done
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+all done
+--- stderr
+
+=== touch a.h
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+compile a.c
+all done
+--- stderr
+
+=== files
+Makefile: "OBJS = a.o\nall: $(OBJS) ; @echo all done\n%.o: %.c ; @echo compile $<; echo '$@: $< $(basename $<).h' > $(basename $@).d; touch $@\n-include $(OBJS:.o=.d)\n"
+a.c: "\n"
+a.d: "a.o: a.c a.h\n"
+a.h: "\n"
+a.o: ""
+##### include-no-rule
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:2: missing.mk: No such file or directory
+make: *** No rule to make target 'missing.mk'.  Stop.
+
+=== files
+Makefile: "all: ; @echo all\ninclude missing.mk\n"
+##### include-rule-fails
+=== make; echo "status $?"
+--- status 0
+--- stdout
+trying
+status 2
+--- stderr
+Makefile:1: bad.mk: No such file or directory
+make: *** [Makefile:3: bad.mk] Error 1
+
+=== files
+Makefile: "include bad.mk\nall: ; @echo all\nbad.mk: ; @echo trying; exit 1\n"
+##### include-n
+=== make -n
+--- status 0
+--- stdout
+echo 'V = gen' > gen.mk
+echo "V=gen"
+--- stderr
+
+=== files
+Makefile: "include gen.mk\nall: ; @echo \"V=$(V)\"\ngen.mk: ; echo 'V = gen' > gen.mk\n"
+gen.mk: "V = gen\n"
+##### makefiles-env
+=== MAKEFILES=extra.mk make
+--- status 0
+--- stdout
+[from-makefiles]
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$(M)]\"\n"
+extra.mk: "M = from-makefiles\nfirst-in-extra: ; @echo not default\n"
+##### eval-include
+=== make
+--- status 0
+--- stdout
+a
+--- stderr
+
+=== files
+Makefile: "$(eval include a.mk)\nall: ; @echo $(A)\n"
+a.mk: "A = a\n"
+##### include-twice
+=== make
+--- status 0
+--- stdout
+x x
+--- stderr
+
+=== files
+Makefile: "include a.mk\ninclude a.mk\nall: ; @echo $(N)\n"
+a.mk: "N += x\n"
+##### included-default-goal
+=== make
+--- status 0
+--- stdout
+inc
+--- stderr
+
+=== files
+Makefile: "include rules.mk\nall: ; @echo all\n"
+rules.mk: "inc: ; @echo inc\n"

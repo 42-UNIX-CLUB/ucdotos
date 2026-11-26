@@ -70,6 +70,10 @@ Notes that go with these:
 | Regular expressions and `fnmatch` live in the C library (`libc/src/regex.c`, `fnmatch.c`), not inside the tools. | They are POSIX C library functions other programs can use. | Move the files. |
 | Linux programs: riscv64 as the first guest architecture; the engine is called `lx`; the guest root is `/debian` if it exists, else `/`; guests see `uname` Linux 6.12.0-lx riscv64; the guest user id is the host's unless `LX_UID` is set; memory protection is recorded, not enforced; `fork` in a guest is emulated until the kernel has a clone call. | Listed with reasons in `docs/LINUX-BINARIES.md` section 1. | The same section says where each one lives. |
 | OS identity strings: `uname` reports `UC.OS`, release `0.1.0`, machine `wasm32`, host name `42lisboa`, user `user`. | Needed something. | `kernel/kernel.h`, `kernel/syscall.c`, `bin/init.c`. |
+| make: the program is called `make`; no `gmake` alias. | The conventional name; makefiles call `$(MAKE)`. | Add `gmake` to the image as a copy, or rename `bin/make/`. |
+| make: `MAKE_VERSION` is `4.4.1` and `.FEATURES` lists what is implemented. | Makefiles test these to pick GNU Make features. | `main.c`. |
+| make: built-in rules and variables are GNU Make's C, C++, assembler, lex and yacc subset; `CC = cc`, `AR = ar`, `ARFLAGS = -rv`. | What C projects rely on; `cc` is what the compiler stream provides. | `bin/make/builtin.c`. |
+| make: no jobserver; `-jN` is passed to sub-makes in MAKEFLAGS and each runs up to N jobs. | One CPU thread today, so the total gives no speed-up either way. | Add a pipe-based jobserver in `run.c`/`sys.c`. |
 
 ## 3. Open: an owner needs to choose
 
@@ -96,6 +100,9 @@ Notes that go with these:
 | **Brand theme colours** | approve or replace the placeholder blue, purple and aqua | |
 | **The 42 glyphs in public** | The club's own brief says to clear public use of the 42 logo with the campus. The mark (which contains the 42 glyphs) is drawn by fetch and the wallpaper. | Public launch |
 | **Browser floor** | JSPI needs Chrome/Edge 137+, Firefox 153+, Safari 27+. Accept, or add a fallback (a compile-time stack transform) for older browsers. | |
+| **make: name and alias** | `make` only (now); also `gmake`; another name | |
+| **make: Ctrl-C** | leave as is (make dies with the recipe; the target may be half-written); make calls `setsid()` so the kernel spares it and it can delete the target (relies on the kernel not refusing `setsid` for a group leader, which Linux would refuse); a kernel change so a process can catch Ctrl-C | deleting half-made targets on Ctrl-C in UC.OS |
+| **make: jobserver** | none (now); a pipe-based jobserver like GNU Make's | limiting the total of jobs across recursive makes |
 
 ## 4. Background: the research that led here
 

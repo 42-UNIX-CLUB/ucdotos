@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/* make: the built-in variables and suffix rules that C projects rely on.
+ * The names and values are the ones GNU Make documents in its manual
+ * ("Catalogue of Built-In Rules", "Variables Used by Implicit Rules"), so
+ * that makefiles written for GNU Make behave the same. CC is cc. */
+#include "make.h"
+
+const char *builtin_vars =
+  "AR = ar\n"
+  "ARFLAGS = -rv\n"
+  "AS = as\n"
+  "CC = cc\n"
+  "CXX = g++\n"
+  "CPP = $(CC) -E\n"
+  "FC = f77\n"
+  "LD = ld\n"
+  "LEX = lex\n"
+  "YACC = yacc\n"
+  "RM = rm -f\n"
+  "OUTPUT_OPTION = -o $@\n"
+  "COMPILE.c = $(CC) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c\n"
+  "LINK.c = $(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)\n"
+  "LINK.o = $(CC) $(LDFLAGS) $(TARGET_ARCH)\n"
+  "COMPILE.cc = $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c\n"
+  "COMPILE.cpp = $(COMPILE.cc)\n"
+  "COMPILE.C = $(COMPILE.cc)\n"
+  "LINK.cc = $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)\n"
+  "LINK.cpp = $(LINK.cc)\n"
+  "LINK.C = $(LINK.cc)\n"
+  "COMPILE.s = $(AS) $(ASFLAGS) $(TARGET_MACH)\n"
+  "COMPILE.S = $(CC) $(ASFLAGS) $(CPPFLAGS) $(TARGET_MACH) -c\n"
+  "LINK.s = $(CC) $(ASFLAGS) $(LDFLAGS) $(TARGET_MACH)\n"
+  "LINK.S = $(CC) $(ASFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_MACH)\n"
+  "PREPROCESS.S = $(CPP) $(CPPFLAGS)\n"
+  "LEX.l = $(LEX) $(LFLAGS) -t\n"
+  "YACC.y = $(YACC) $(YFLAGS)\n"
+  "LINT = lint\n"
+  "LINT.c = $(LINT) $(LINTFLAGS) $(CPPFLAGS) $(TARGET_ARCH)\n"
+  "MAKEINFO = makeinfo\n"
+  "TEX = tex\n"
+  ".LIBPATTERNS = lib%.so lib%.a\n";
+
+const char *builtin_rules =
+  ".o:\n\t$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@\n"
+  ".c:\n\t$(LINK.c) $^ $(LOADLIBES) $(LDLIBS) -o $@\n"
+  ".c.o:\n\t$(COMPILE.c) $(OUTPUT_OPTION) $<\n"
+  ".cc:\n\t$(LINK.cc) $^ $(LOADLIBES) $(LDLIBS) -o $@\n"
+  ".cc.o:\n\t$(COMPILE.cc) $(OUTPUT_OPTION) $<\n"
+  ".C:\n\t$(LINK.C) $^ $(LOADLIBES) $(LDLIBS) -o $@\n"
+  ".C.o:\n\t$(COMPILE.C) $(OUTPUT_OPTION) $<\n"
+  ".cpp:\n\t$(LINK.cpp) $^ $(LOADLIBES) $(LDLIBS) -o $@\n"
+  ".cpp.o:\n\t$(COMPILE.cpp) $(OUTPUT_OPTION) $<\n"
+  ".y.c:\n\t$(YACC.y) $< \n\tmv -f y.tab.c $@\n"
+  ".l.c:\n\t@$(RM) $@ \n\t$(LEX.l) $< > $@\n"
+  ".s:\n\t$(LINK.s) $^ $(LOADLIBES) $(LDLIBS) -o $@\n"
+  ".s.o:\n\t$(COMPILE.s) -o $@ $<\n"
+  ".S:\n\t$(LINK.S) $^ $(LOADLIBES) $(LDLIBS) -o $@\n"
+  ".S.o:\n\t$(COMPILE.S) -o $@ $<\n"
+  ".S.s:\n\t$(PREPROCESS.S) $< > $@\n"
+  ".texinfo.info:\n\t$(MAKEINFO) $(MAKEINFO_FLAGS) $< -o $@\n"
+  ".sh:\n\tcat $< >$@ \n\tchmod a+x $@\n";

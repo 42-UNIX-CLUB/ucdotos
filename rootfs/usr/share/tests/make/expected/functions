@@ -1,0 +1,8 @@
+a.o b.o sub/c.o a.h b.h sub/c.h
+a.c b.c c.c ./ ./ sub/ a b sub/c .c .c .c
+3 b.c a.c sub/c.c
+a.c b.h a m z
+bAnAnA x y an
+p/x p/y x.z y.z a1 b2
+<1> <2> <3> yes b b
+2 1 file recursive $(2) $(1)

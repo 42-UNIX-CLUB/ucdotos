@@ -1,0 +1,1 @@
+@=out.txt <=a.txt ^=a.txt b.txt +=a.txt b.txt a.txt |=dir.txt *= @D=. @F=out.txt
