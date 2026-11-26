@@ -121,9 +121,13 @@ first six and fails if any check fails. Counts as of 2026-11-26.
 | kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 124 checks, 0 failed` |
 | C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 298 checks, 0 failed` (292 if `/bin/sh` is not in the image) |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
+<<<<<<< ours
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
 | network | `node tools/run.mjs --build=B --init=/bin/nettest` | `nettest: 89 checks, 0 failed` |
 | router (HTTP path, offline) | `node tools/tests/router-http.mjs --build=B` | `routertest: 24 checks, 0 failed` |
+=======
+| .uconf parser | `node tools/run.mjs --build=B --init=/bin/uconftest` (part of `make test`); natively: `cc -Ilibuconf bin/uconftest.c libuconf/uconf.c` | `uconftest: 62 checks, 0 failed` |
+>>>>>>> theirs
 | desktop | `node tools/shot.mjs --build=B --script=tools/tests/desktop.mjs` | six screenshots; look at them |
 | browser | `node tools/browser.mjs --build=B --script=tools/tests/browser-desktop.mjs` | four screenshots; look at them |
 
@@ -138,10 +142,18 @@ Component suites:
 | terminal parser | `bin/term/tests/test_vt.c`, `fuzz_vt.c` | native, `bin/term/tests/run_tests.sh` | 315 checks; 30 MB fuzz clean |
 | terminal vs reference | `bin/term/tests/conformance.py` | native, needs `pyte` in a venv | 0 cell differences |
 | terminal in the OS | `bin/term/tests/os/*.mjs` | `shot.mjs` | 68 checks |
+<<<<<<< ours
 | clipboard in the terminal | `bin/term/tests/os/clipboard.mjs` | `shot.mjs --init=/bin/term` | 28 checks: selection, copy, paste, mouse reporting, the computer's clipboard both ways, pastes up to 589 KB |
 | clipboard window | `bin/clipboard/shots.mjs` | `shot.mjs --init=/bin/wm` | 4 checks |
 | the computer's clipboard in a real browser | `tools/tests/browser-clipboard.mjs` | `browser.mjs` (needs `make dist`) | in: by eye on 2 screenshots; out: `[test]` lines show what reached the browser's clipboard |
 | window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 9 scripts, 142 checks (2026-11-26) |
+=======
+| dotfiles | `tools/tests/dotfiles.mjs` | `shot.mjs --init=/bin/wm` | 14 checks; bar and launcher by eye on the screenshots |
+| split layout | `bin/wm/tests/split.mjs` (in `run.sh`) | `shot.mjs --init=/bin/wm` | 9 checks, needs term, ps and awk in the image |
+| keybinding cheat sheet | `bin/keys/shots.mjs` | `shot.mjs --init=/bin/wm` | 15 checks; the window manager tests hide the sheet first (`boot()` in `bin/wm/tests/lib.mjs`) |
+| themes and picker | `bin/themes/shots.mjs` | `shot.mjs --init=/bin/wm` | 19 checks: every theme's colour, Escape, Enter, memory on a second lap |
+| window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 8 scripts, 126 checks (2026-11-26) |
+>>>>>>> theirs
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | core tools | `tools/tests/coretools/` | native, against the host's tools: `node tools/tests/coretools/run.mjs [TOOL...]` (`--regen` rewrites expectations from the host, `--emit-os` writes the in-OS script); in the OS: `sh /usr/share/tests/coretools.sh [-v] [TOOL...]`; fuzzing: `node tools/tests/coretools/fuzz.mjs sed\|diff SECONDS` and `tools/tests/coretools/fuzzre.c`. On this machine the host's grep is ugrep and its find is bfs, not GNU | 19,072 native, 1,755 in the OS (2026-11-26; cases marked `@noos` run natively only) |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
@@ -212,7 +224,7 @@ from `dev_open()` in `kernel/main.c`, and implement `struct fops`.
 **Add a launcher entry.** `rootfs/usr/share/applications/NAME.app` with `name=`, `exec=`,
 `comment=`. Use `exec=term -e PROGRAM` for terminal programs.
 
-**Add a theme.** `rootfs/usr/share/themes/NAME.theme` (format in `libui/theme.h`).
+**Add a theme.** `rootfs/usr/share/themes/NAME.uconf` (format in `libui/theme.h`; copy `deck.uconf`).
 `Alt+t` cycles through the themes that exist.
 
 **Change a default dotfile.** They are in `rootfs/etc/` and `rootfs/home/user/`. They are

@@ -1,0 +1,60 @@
+# brand: the 42 UNIX Club's final brand colours, JetBrains Mono.
+#
+# Dark green background, cream text, sage, orange, red, yellow and green-yellow
+# are the club's colours. The brand has no blue, purple or aqua, but a terminal
+# needs all 16 colours, so those few are derived to sit well next to the green.
+# They are marked PLACEHOLDER below: the club has not approved them.
+#
+# The format is .uconf: see deck.uconf next to this file.
+
+[theme]
+description = 42 brand
+
+[colors]
+bg      = #0E362E   # dark green
+fg      = #EDE6C5   # cream
+accent  = #FE7700   # orange
+dim     = #ADC787   # sage
+desktop = #0A2A23   # a deeper green for the wallpaper, derived from bg
+panel   = #174A3E
+surface = #23604F
+bar {
+    bg = #174A3E   # a lighter green panel, derived from bg
+    fg = #EDE6C5
+}
+border {
+    focus  = #FE7700
+    normal = #3F6658   # a muted green-grey, derived from bg and sage
+    float  = #FFC72E   # yellow
+}
+
+[terminal]
+black   = #0A2A23   # derived from bg
+red     = #FC413A
+green   = #A9B200   # green-yellow
+yellow  = #FFC72E
+blue    = #5E9CA8   # PLACEHOLDER, not approved by the club
+magenta = #C28BA6   # PLACEHOLDER, not approved by the club
+cyan    = #6FB59A   # PLACEHOLDER, not approved by the club
+white   = #CFC8A8   # cream, dimmed
+bright {
+    black   = #5B7A6E   # derived from bg and sage
+    red     = #FF6A5C   # derived from red
+    green   = #ADC787   # sage
+    yellow  = #FFD666   # derived from yellow
+    blue    = #86BFCB   # PLACEHOLDER, not approved by the club
+    magenta = #DCAAC3   # PLACEHOLDER, not approved by the club
+    cyan    = #97D4B9   # PLACEHOLDER, not approved by the club
+    white   = #EDE6C5   # cream
+}
+
+[font]
+name    = JetBrains Mono
+regular = JetBrainsMonoNerdFontMono-Regular.ttf
+bold    = JetBrainsMonoNerdFontMono-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 12
+border = 2
+radius = 8
