@@ -36,6 +36,10 @@ show. Wrap at 72 columns. The body is optional for small changes.
 - The first line is at most 72 characters, starts lowercase after the colon, and has no
   full stop. Write "add", "fix", "remove", not "added" or "adds".
 - No em-dashes, as everywhere in this project.
+- No attribution lines: no `Co-authored-by:`, no "Generated with", no `Signed-off-by:`, no
+  mention of a coding agent, a tool or any person. The git author of the commit is the
+  only credit. The same goes for pull request titles and descriptions. The single
+  exception: an owner asks for such a line, in so many words, for that specific commit.
 - A commit should build and keep the tests green on its own.
 
 Examples:
@@ -70,3 +74,7 @@ docs: record the licence decision
 
 Follow this file exactly when you are asked to commit, name a branch or open a pull
 request. Do not commit, push or open a pull request unless a person asks you to.
+
+Never credit yourself or anyone else in a commit message or a pull request. Many agent
+tools add a `Co-authored-by:` or "Generated with" line by default: leave it out, and remove
+it if your tool added it. See the rule under Commits above.
