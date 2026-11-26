@@ -1,0 +1,19 @@
+MKTEMP(1)                 UC.OS Manual                 MKTEMP(1)
+
+NAME
+       mktemp - create a file or directory with a unique name
+
+SYNOPSIS
+       mktemp [-d] [-u] [-q] [-t] [-p DIR] [--suffix=SUFF]
+          [--tmpdir[=DIR]] [TEMPLATE]
+
+DESCRIPTION
+       Creates a file (or a directory with -d) with a unique
+       name and prints it. The trailing X's of the template
+       (at least three; default tmp.XXXXXXXXXX) become random
+       letters and digits from the kernel's random source.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026              MKTEMP(1)

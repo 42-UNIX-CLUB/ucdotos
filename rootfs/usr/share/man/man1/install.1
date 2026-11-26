@@ -1,0 +1,28 @@
+INSTALL(1)                UC.OS Manual                INSTALL(1)
+
+NAME
+       install - copy files and set their attributes
+
+SYNOPSIS
+       install [-cCDpsTv] [-m MODE] [-o OWNER] [-g GROUP] SRC
+          DEST install [...] SRC... DIR  |  install [...] -t
+          DIR SRC...  |  install -d [...] DIR...
+
+DESCRIPTION
+       Copy files and set their mode (default 0755), owner and
+       group. -D creates the leading directories of DEST, -d
+       creates directories, -p keeps the times, -C leaves an
+       identical destination alone, -s is accepted and does
+       nothing (there is no strip for WebAssembly). If the
+       kernel cannot set modes or owners (ENOSYS), install
+       says so once and carries on.
+
+NOTES
+       -s is accepted and does nothing (there is no strip for
+       WebAssembly). Where the kernel cannot change modes or
+       owners yet, install warns once and goes on.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026             INSTALL(1)

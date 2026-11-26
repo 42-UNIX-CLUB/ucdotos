@@ -20,6 +20,10 @@ typedef struct {
   vt_cell *shadow;          /* what is on screen, per cell (pad = cursor marker) */
   int full;                 /* next draw repaints everything, padding included */
   uint8_t *missing;         /* 2 bits per BMP code point: 0 unknown, 1 in the font, 2 missing */
+  /* The selection, in window rows and columns (rows may lie outside the window), drawn in
+   * inverse video: from (sel_x0, sel_y0) to (sel_x1, sel_y1) inclusive, in reading order.
+   * Set sel_on = 0 for none. The front end sets t->all_dirty when it changes. */
+  int sel_on, sel_x0, sel_y0, sel_x1, sel_y1;
   /* Set after render_init when the fallback font is wanted but not loaded yet: called once,
    * the first time a glyph is missing from the regular font. May return NULL. */
   const ttf_font *(*load_fallback)(void);

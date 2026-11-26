@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # memcpy / memmove / memset as single WebAssembly bulk-memory instructions.
-# Shared by the kernel and the user libc. The engine turns these into its
-# fastest native copy loop, so there is nothing to gain from a C loop here.
+# Used by the kernel. The engine turns these into its fastest native copy loop.
+# The user C library uses lib/umem.s, which copies up to 16 bytes without them.
 	.text
 	.globl	memcpy
 	.type	memcpy,@function

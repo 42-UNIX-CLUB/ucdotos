@@ -4,11 +4,15 @@
 long proc_wait(int pid, u32 ustatus, int options);
 int reg_truncate(struct inode *i, u32 size);
 struct file *dev_open(struct inode *i, int flags);
+long remote_open(struct inode *i, int flags); /* remote.c: fetch a remote file on first open */
+u32 remote_blocks(struct inode *i);
 
 static struct inode *at_base(int dirfd, const char *path, long *err) {
+  if (!path[0]) { *err = -ENOENT; return NULL; } /* checked before the descriptor, as on Linux */
   if (dirfd == AT_FDCWD || path[0] == '/') return cur->cwd;
   struct file *d = fd_get(dirfd);
-  if (!d || !d->ino) { *err = -EBADF; return NULL; }
+  if (!d) { *err = -EBADF; return NULL; }
+  if (!d->ino || (d->ino->mode & S_IFMT) != S_IFDIR) { *err = -ENOTDIR; return NULL; }
   return d->ino;
 }
 static long sys_openat(int dirfd, u32 upath, int flags, int mode) {
@@ -33,6 +37,7 @@ static long sys_openat(int dirfd, u32 upath, int flags, int mode) {
     if (!f) return -ENOENT;
   } else if (type == S_IFDIR) f = file_new(&dir_fops, i, flags, NULL);
   else if (type == S_IFREG) {
+    if (i->priv) { long r = remote_open(i, flags); if (r) return r; } /* a remote file not fetched yet */
     if ((flags & O_TRUNC) && (flags & O_ACCMODE) != O_RDONLY) reg_truncate(i, 0);
     f = file_new(&reg_fops, i, flags, NULL);
   } else return -EACCES;
@@ -64,17 +69,18 @@ static long sys_write(int fd, u32 ubuf, u32 len) {
 static long sys_lseek(int fd, long off, int whence) {
   struct file *f = fd_get(fd);
   if (!f) return -EBADF;
-  if (!f->ino || (f->ino->mode & S_IFMT) == S_IFCHR) return -ESPIPE;
-  long base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? (long)f->off : whence == SEEK_END ? (long)f->ino->size : -1;
-  if (base < 0 || base + off < 0) return -EINVAL;
-  return f->off = base + off;
+  if (!f->ino || ((f->ino->mode & S_IFMT) == S_IFCHR && f->ino->dev != DEV_FB)) return -ESPIPE;
+  s64 base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? (s64)f->off : whence == SEEK_END ? (s64)f->ino->size : -1;
+  /* the result must fit the 32-bit return value without looking like an error */
+  if (base < 0 || base + off < 0 || base + off > 0x7fffffff) return -EINVAL;
+  return f->off = (u32)(base + off);
 }
 static void fill_stat(struct stat *st, struct inode *i) {
   memset(st, 0, sizeof *st);
   if (!i) { st->st_mode = S_IFIFO | 0600; return; }
   st->st_ino = i->ino; st->st_mode = i->mode; st->st_nlink = i->nlink; st->st_size = i->size;
   st->st_uid = st->st_gid = 1000; st->st_rdev = i->dev; st->st_blksize = 4096;
-  st->st_blocks = (i->size + 511) / 512;
+  st->st_blocks = ((i->mode & S_IFMT) == S_IFREG && i->priv) ? remote_blocks(i) : (i->size + 511) / 512;
   st->st_atime = st->st_mtime = st->st_ctime = i->mtime;
 }
 static long sys_fstat(int fd, u32 ust) {
@@ -109,7 +115,7 @@ static long sys_getdents64(int fd, u32 ubuf, u32 len) {
     else { c = (idx == 2) ? f->ino->child : c->next; if (!c) break; name = c->name; ino = c; }
     if (idx < f->off) continue;
     u32 nl = strlen(name), rec = (sizeof(struct dirent64) + nl + 1 + 7) & ~7u;
-    if (done + rec > len) break;
+    if (done + rec > len) { if (!done) return -EINVAL; break; } /* as Linux: buffer too small for one entry */
     memset(&e, 0, sizeof e);
     e.d.d_ino = ino->ino; e.d.d_off = idx + 1; e.d.d_reclen = rec;
     u32 t = ino->mode & S_IFMT;
@@ -124,16 +130,21 @@ static long sys_getdents64(int fd, u32 ubuf, u32 len) {
 static long sys_dup3(int old, int new, int flags) {
   struct file *f = fd_get(old);
   if (!f || new < 0 || new >= NFD) return -EBADF;
-  if (old == new) return -EINVAL;
-  if (cur->fd[new]) file_put(cur->fd[new]);
+  if (old == new || (flags & ~O_CLOEXEC)) return -EINVAL;
+  if (cur->state != P_RUN) return -EBADF; /* see fd_alloc */
+  /* Install first, close after: closing the old file can hang up a terminal, which can
+   * kill this very process and close its descriptors, f included. */
+  struct file *old_f = cur->fd[new];
   f->refs++;
   cur->fd[new] = f;
   cur->cloexec[new] = !!(flags & O_CLOEXEC);
+  if (old_f) file_put(old_f);
   return new;
 }
 static long sys_dup(int old, int from) {
   struct file *f = fd_get(old);
   if (!f) return -EBADF;
+  if (from < 0 || from >= NFD) return -EINVAL;
   int fd = fd_alloc(cur, f, from);
   if (fd >= 0) f->refs++;
   return fd;
@@ -174,6 +185,8 @@ static long sys_chdir(u32 upath) {
   struct inode *i = vfs_lookup(cur->cwd, path);
   if (!i) return -ENOENT;
   if ((i->mode & S_IFMT) != S_IFDIR) return -ENOTDIR;
+  inode_get(i);
+  inode_put(cur->cwd);
   cur->cwd = i;
   return 0;
 }
@@ -203,7 +216,8 @@ static long sys_unlinkat(int dirfd, u32 upath, int flags) {
 }
 static long sys_ftruncate(int fd, long size) {
   struct file *f = fd_get(fd);
-  if (!f || !f->ino || (f->ino->mode & S_IFMT) != S_IFREG) return -EBADF;
+  if (!f) return -EBADF;
+  if (!f->ino || (f->ino->mode & S_IFMT) != S_IFREG || (f->flags & O_ACCMODE) == O_RDONLY || size < 0) return -EINVAL;
   return reg_truncate(f->ino, size);
 }
 static long sys_nanosleep(u32 ureq) {
@@ -211,6 +225,7 @@ static long sys_nanosleep(u32 ureq) {
   if (cur->sleep_until == 0) {
     struct timespec ts;
     if (copy_from_user(&ts, ureq, sizeof ts)) return -EFAULT;
+    if (ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= 1000000000) return -EINVAL;
     cur->sleep_until = now + (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
   }
   if (now >= cur->sleep_until) { cur->sleep_until = 0; return 0; }
@@ -241,6 +256,7 @@ static long sys_ppoll(u32 ufds, u32 nfds, u32 utimeout) {
   if (utimeout) {
     struct timespec ts;
     if (copy_from_user(&ts, utimeout, sizeof ts)) return -EFAULT;
+    if (ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= 1000000000) return -EINVAL;
     timeout = (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
   }
   int expired = cur->sleep_until != 0 && now >= cur->sleep_until;
@@ -310,14 +326,14 @@ static long sys_procinfo(int idx, u32 uinfo) {
   }
   return -ESRCH;
 }
-int vfs_rename(struct inode *cwd, const char *from, const char *to);
 static long sys_renameat(int fd1, u32 ufrom, int fd2, u32 uto) {
   char from[PATH_MAX], to[PATH_MAX];
   long err = str_from_user(from, ufrom, sizeof from);
   if (err < 0) return err;
   if ((err = str_from_user(to, uto, sizeof to)) < 0) return err;
-  (void)fd1; (void)fd2; /* only AT_FDCWD-relative and absolute paths for now */
-  return vfs_rename(cur->cwd, from, to);
+  struct inode *b1 = at_base(fd1, from, &err), *b2 = b1 ? at_base(fd2, to, &err) : NULL;
+  if (!b2) return err;
+  return vfs_rename(b1, from, b2, to);
 }
 static double boot_ms;
 static long sys_sysinfo(u32 uinfo) {
@@ -336,14 +352,15 @@ static long sys_sysinfo(u32 uinfo) {
   /* total = what the device reports, capped at what one wasm32 memory can address;
    * used (total - free) = everything the kernel and all processes have claimed from the browser */
   double dev = host_memory();
-  u32 claimed = (kpages + upages) << 16;
+  u64 claimed = (u64)(kpages + upages) << 16;
   si.totalram = dev >= 4294901760.0 ? 4294901760u : (u32)dev;
-  if (si.totalram < claimed) si.totalram = claimed;
-  si.freeram = si.totalram - claimed;
+  if (si.totalram < claimed) si.totalram = claimed > 4294901760u ? 4294901760u : (u32)claimed;
+  si.freeram = si.totalram - (claimed < si.totalram ? (u32)claimed : si.totalram);
   si.bufferram = kmem_used();
   return copy_to_user(uinfo, &si, sizeof si);
 }
 static long sys_kill(int pid, int sig) {
+  if (sig < 0 || sig > 64) return -EINVAL;
   if (pid <= 0 || pid >= NPROC || procs[pid].state != P_RUN) return -ESRCH;
   if (sig == 0) return 0;
   proc_exit(&procs[pid], 256 + sig);
@@ -354,6 +371,7 @@ static long sys_prw(int wr, int fd, u32 ubuf, u32 len, u32 pos) {
   struct file *f = fd_get(fd);
   if (!f) return -EBADF;
   if (!f->ino) return -ESPIPE;
+  if ((f->flags & O_ACCMODE) == (wr ? O_RDONLY : O_WRONLY)) return -EBADF;
   if (wr ? !f->ops->write : !f->ops->read) return -EINVAL;
   u32 saved = f->off;
   int app = f->flags & O_APPEND;
@@ -368,45 +386,26 @@ static long sys_setpgid(int pid, int pgid) {
   if (pid == 0) pid = cur->pid;
   if (pid <= 0 || pid >= NPROC || procs[pid].state != P_RUN) return -ESRCH;
   if (pid != cur->pid && procs[pid].ppid != cur->pid) return -EPERM;
+  if (pgid < 0) return -EINVAL;
   procs[pid].pgid = pgid ? pgid : pid;
   return 0;
 }
 static long sys_getrandom(u32 ubuf, u32 len) {
-  for (u32 i = 0; i < len; i += 4) {
-    u32 r = host_random();
-    if (copy_to_user(ubuf + i, &r, len - i < 4 ? len - i : 4)) return -EFAULT;
+  if (len > 33554431) len = 33554431; /* Linux's limit per call; the count comes back short */
+  if (len && !user_ok(ubuf, len)) return -EFAULT;
+  u32 tmp[64];
+  for (u32 i = 0; i < len; i += sizeof tmp) {
+    u32 n = len - i < sizeof tmp ? len - i : sizeof tmp;
+    for (u32 j = 0; j < (n + 3) / 4; j++) tmp[j] = host_random();
+    copy_to_user(ubuf + i, tmp, n);
   }
   return len;
 }
 
-/* Entry point. Every process calls this through its own tiny wasm trampoline, which
- * supplies the caller's pid (the program cannot forge it). The kernel therefore knows
- * who is calling without depending on the order in which the host resumes stacks. */
-EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, long d, long e, long f) {
-  (void)e; (void)f;
-  cur = &procs[pid];
-  cur->nsys++;
-  cur->sleeping = 0;
-  /* Time slicing. Nothing can interrupt running WebAssembly, so the kernel takes the CPU
-   * back at system call boundaries: every 256th call it looks at the clock, and a process
-   * that has run for more than SLICE_MS is parked for one turn of the event loop before
-   * this call is carried out. Input, the screen and other processes get to run. The call
-   * itself has not started yet, so the process simply retries it when it resumes. */
-  if (__builtin_expect((++cur->slice_calls & 255) == 0, 0)) {
-    double now = host_now();
-    if (cur->slice_start == 0) cur->slice_start = now;
-    else if (now - cur->slice_start > SLICE_MS) {
-      cur->nsys--;
-      long r = block(0);
-      cur->sleeping = 0; /* preempted, not sleeping */
-      return r;
-    }
-  }
+/* Every call except the four hottest. Kept out of syscall_pid so that the hot path has no
+ * stack frame: several of these cases need large buffers on the kernel stack. */
+static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long c, long d, long e, long f) {
   switch (nr) {
-  case SYS_getppid: return cur->ppid;
-  case SYS_getpid: return cur->pid;
-  case SYS_read: return sys_read(a, b, c);
-  case SYS_write: return sys_write(a, b, c);
   case SYS_openat: return sys_openat(a, b, c, d);
   case SYS_close: return sys_close(a);
   case SYS_lseek: return sys_lseek(a, b, c);
@@ -453,11 +452,57 @@ EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, l
   case SYS_socket: return sys_socket(a, b, c);
   case SYS_bind: return sys_bind(a, b, c);
   case SYS_listen: return sys_listen(a, b);
-  case SYS_accept: return sys_accept(a);
+  case SYS_accept: return sys_accept(a, b, c);
   case SYS_connect: return sys_connect(a, b, c);
+  case SYS_getsockname: return sys_getsockname(a, b, c);
+  case SYS_getpeername: return sys_getpeername(a, b, c);
+  case SYS_sendto: return sys_sendto(a, b, c, d, e, f);
+  case SYS_recvfrom: return sys_recvfrom(a, b, c, d, e, f);
+  case SYS_setsockopt: return sys_setsockopt(a, b, c, d, e);
+  case SYS_getsockopt: return sys_getsockopt(a, b, c, d, e);
+  case SYS_shutdown: return sys_shutdown(a, b);
+  case SYS_netstat: return sys_netstat(a, b);
+  case SYS_ifinfo: return sys_ifinfo(a, b);
+  case SYS_ifctl: return sys_ifctl(a, b, c);
   case SYS_spawn: return sys_spawn(a, b, c, d);
   case SYS_getargs: return sys_getargs(a, b);
   case SYS_procinfo: return sys_procinfo(a, b);
   }
   return -ENOSYS;
+}
+
+/* Time slicing. Nothing can interrupt running WebAssembly, so the kernel takes the CPU back
+ * at system call boundaries: every 256th call it looks at the clock, and a process that has
+ * run for more than SLICE_MS is parked for one turn of the event loop before the call is
+ * carried out. Input, the screen and other processes get to run. The call itself has not
+ * started yet, so the process simply retries it when it resumes. Both helpers are out of
+ * line so that the clock read and its floating point stay off the hot path. */
+static __attribute__((noinline)) int slice_over(void) {
+  double now = host_now();
+  if (cur->slice_start == 0) { cur->slice_start = now; return 0; }
+  return now - cur->slice_start > SLICE_MS;
+}
+static __attribute__((noinline)) long preempt(void) {
+  cur->nsys--; /* the call will be made again */
+  long r = block(0);
+  cur->sleeping = 0; /* preempted, not sleeping */
+  return r;
+}
+
+/* Entry point. Every process calls this through its own tiny wasm trampoline, which
+ * supplies the caller's pid (the program cannot forge it). The kernel therefore knows
+ * who is calling without depending on the order in which the host resumes stacks.
+ * The system call counter doubles as the time slice counter. */
+EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, long d, long e, long f) {
+  struct proc *p = &procs[pid]; /* a local, so the cases below need not reload cur */
+  cur = p;
+  p->sleeping = 0;
+  if (__builtin_expect((++p->nsys & 255) == 0, 0) && slice_over()) return preempt();
+  switch (nr) {
+  case SYS_getppid: return p->ppid;
+  case SYS_getpid: return p->pid;
+  case SYS_read: return sys_read(a, b, c);
+  case SYS_write: return sys_write(a, b, c);
+  }
+  return syscall_slow(nr, a, b, c, d, e, f);
 }

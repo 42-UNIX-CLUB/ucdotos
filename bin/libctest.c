@@ -346,6 +346,29 @@ static void test_qsort(void) {
   CHECK("bsearch miss", !hit);
 }
 
+/* Sizes that do not fit must be refused, and the heap must still work afterwards. */
+static void test_malloc_limits(void) {
+  printf("malloc limits\n");
+  volatile size_t huge = (size_t)-16, a = 65536, b = 65537, half = 0x80000000u;
+  errno = 0;
+  void *p = malloc(huge);
+  CHECK("malloc of a size that wraps when rounded returns NULL", !p);
+  CHECK("  errno is ENOMEM", errno == ENOMEM);
+  errno = 0;
+  void *q = calloc(a, b);
+  CHECK("calloc whose product does not fit returns NULL", !q);
+  CHECK("  errno is ENOMEM", errno == ENOMEM);
+  CHECK("malloc above PTRDIFF_MAX returns NULL", !malloc(half));
+  char *s = malloc(100);
+  CHECK("the heap still works afterwards", s != NULL);
+  if (s) { memset(s, 'x', 100); CHECK("  and the block is usable", s[0] == 'x' && s[99] == 'x'); free(s); }
+  char *z = calloc(16, 16);
+  int zero = z != NULL;
+  for (int i = 0; z && i < 256; i++) if (z[i]) zero = 0;
+  CHECK("calloc of a size that fits returns zeroed memory", zero);
+  free(z);
+}
+
 static void test_time(void) {
   printf("time\n");
   char buf[128];
@@ -580,6 +603,7 @@ int main(int argc, char **argv) {
   test_strtod();
   test_string();
   test_qsort();
+  test_malloc_limits();
   test_time();
   test_getopt();
   test_libgen();

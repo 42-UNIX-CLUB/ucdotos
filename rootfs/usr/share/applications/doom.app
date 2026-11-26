@@ -1,3 +1,3 @@
 name=Doom
-exec=doom
+exec=doom -fullscreen
 comment=rip and tear

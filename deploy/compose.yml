@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# UC.OS as a static site. From the repository root:
+#   docker compose -f deploy/compose.yml up -d --build
+# The site then answers on http://127.0.0.1:8081 on this machine (loopback only: nothing is
+# opened to the outside). Put it behind https with one of:
+#   - an existing cloudflared container: add the file deploy/compose.tunnel-network.yml
+#     (it joins the site to that container's network) and point the tunnel's public
+#     hostname at http://ucos-web:8080 (the loopback port below is then not needed)
+#   - a cloudflared of its own: add deploy/compose.cloudflared.yml and a token in deploy/.env
+#   - cloudflared or a reverse proxy running on the host itself: http://127.0.0.1:8081
+# See docs/DEPLOYMENT.md.
+name: ucos
+services:
+  web:
+    container_name: ucos-web
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        DOOM_DATA: ${UCOS_DOOM_DATA:-1}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${UCOS_PORT:-8081}:8080"
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 100
+    mem_limit: 256m
+    tmpfs:
+      - /tmp:mode=1777
+      - /config:mode=1777
+      - /data:mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/index.html"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

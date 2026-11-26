@@ -1,0 +1,18 @@
+FOLD(1)                   UC.OS Manual                   FOLD(1)
+
+NAME
+       fold - wrap lines to a width
+
+SYNOPSIS
+       fold [-bs] [-w WIDTH] [file...]
+
+DESCRIPTION
+       Wrap lines at WIDTH columns (default 80). Columns: a
+       tab goes to the next multiple of 8, backspace goes back
+       one, carriage return goes to 0; with -b every byte is
+       one column. -s breaks after the last blank that fits.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                FOLD(1)

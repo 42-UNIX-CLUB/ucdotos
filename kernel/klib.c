@@ -41,6 +41,7 @@ static struct blk *grow(u32 need) {
 void kfree(void *p);
 void *kmalloc(usize n) {
   if (!n) n = 1;
+  if (n > 0x7fffffff) return NULL; /* also keeps the size arithmetic below from wrapping */
   u32 need = (n + HDR + 15) & ~15u;
   for (;;) {
     struct blk **pp = &free_list;

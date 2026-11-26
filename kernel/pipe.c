@@ -6,7 +6,7 @@ struct pipe { u8 *buf; u32 head, len; int readers, writers; waitq rq, wq; };
 static long pipe_read(struct file *f, u32 ubuf, u32 len) {
   struct pipe *p = f->priv;
   if (!p->len) {
-    if (!p->writers) return 0;
+    if (!p->writers || !len) return 0;
     if (f->flags & O_NONBLOCK) return -EAGAIN;
     wq_add(&p->rq);
     return block(-1);
@@ -56,9 +56,15 @@ static const struct fops pipe_w_fops = {NULL, pipe_write, pipe_poll_w, pipe_clos
 
 int pipe_create(struct file **r, struct file **w) {
   struct pipe *p = kzalloc(sizeof *p);
-  if (!p || !(p->buf = kmalloc(PIPE_SZ))) return -ENOMEM;
+  if (p) p->buf = kmalloc(PIPE_SZ);
+  *r = p && p->buf ? file_new(&pipe_r_fops, NULL, O_RDONLY, p) : NULL;
+  *w = *r ? file_new(&pipe_w_fops, NULL, O_WRONLY, p) : NULL;
+  if (!*w) {
+    kfree(*r);
+    if (p) kfree(p->buf);
+    kfree(p);
+    return -ENOMEM;
+  }
   p->readers = p->writers = 1;
-  *r = file_new(&pipe_r_fops, NULL, O_RDONLY, p);
-  *w = file_new(&pipe_w_fops, NULL, O_WRONLY, p);
   return 0;
 }

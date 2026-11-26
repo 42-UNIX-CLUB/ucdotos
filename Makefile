@@ -13,7 +13,7 @@ KLDFLAGS := -Wl,--no-entry -Wl,--export-table -Wl,--growable-table -Wl,-z,stack-
 LIBC_SRC := $(wildcard libc/src/*.c) lib/string.c lib/fmt.c
 LIBC_OBJ := $(patsubst %.c,$(B)/obj/%.o,$(LIBC_SRC)) $(B)/obj/lib/mem.o
 LIBC_HDR := $(wildcard libc/include/*.h libc/include/sys/*.h) abi/abi.h
-UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui
+UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui -Ilibclip
 ULDFLAGS := -Wl,--entry=_start -Wl,-z,stack-size=1048576 -Wl,--stack-first -Wl,--fatal-warnings
 CRT     := $(B)/obj/crt0_2.o $(B)/obj/crt0_3.o
 
@@ -26,6 +26,8 @@ PROGS       := $(PROG_SINGLE) $(PROG_DIRS)
 # and libgfx (font rasterizer + 2D drawing).
 UI_SRC      := $(wildcard libui/*.c)
 GFX_SRC     := $(wildcard libgfx/*.c)
+# A program directory containing a file named USE_CLIP links libclip (the clipboard client).
+CLIP_SRC    := $(wildcard libclip/*.c)
 
 all: $(B)/kernel.wasm $(B)/initrd.tar
 
@@ -37,7 +39,9 @@ $(B)/kernel.wasm: $(KSRC) kernel/kernel.h abi/abi.h
 $(B)/obj/%.o: %.c $(LIBC_HDR)
 	@mkdir -p $(dir $@)
 	@$(CC) $(UCFLAGS) -c -o $@ $<
-$(B)/obj/lib/mem.o: lib/mem.s
+# The libc's memcpy/memmove/memset come from lib/umem.s (the kernel links lib/mem.s). The
+# object keeps the name mem.o so that it replaces the old member in an existing libc.a.
+$(B)/obj/lib/mem.o: lib/umem.s
 	@mkdir -p $(dir $@)
 	@$(CC) -c -o $@ $<
 $(B)/obj/crt0_2.o: libc/crt/crt0.c $(LIBC_HDR)
@@ -55,9 +59,12 @@ $(B)/libui.a: $(patsubst %.c,$(B)/obj/%.o,$(UI_SRC))
 $(B)/libgfx.a: $(patsubst %.c,$(B)/obj/%.o,$(GFX_SRC))
 	@echo "  AR    libgfx.a"
 	@$(AR) rcs $@ $^
+$(B)/libclip.a: $(patsubst %.c,$(B)/obj/%.o,$(CLIP_SRC))
+	@echo "  AR    libclip.a"
+	@$(AR) rcs $@ $^
 
 # Link with the crt0 that matches main's signature: try (argc, argv) first, then (argc, argv, envp).
-gfx_lib = $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a)
+gfx_lib = $(if $(wildcard bin/$(1)/USE_CLIP),$(B)/libclip.a) $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a)
 define LINK
 	@mkdir -p $(B)/bin
 	@echo "  LINK  $(1)"
@@ -75,23 +82,55 @@ endef
 $(foreach p,$(PROG_SINGLE),$(eval $(call SINGLE_RULE,$(p))))
 $(foreach p,$(PROG_DIRS),$(eval $(call DIR_RULE,$(p))))
 
+# What the C compiler needs inside the image, when cc is one of the programs: the libc
+# headers in /usr/include (sys/syscall.h finds abi.h as <ucos/abi.h> there), libui and
+# libgfx headers next to them, cc's own freestanding headers in /usr/lib/cc/include,
+# and the start files and libraries in /usr/lib.
+CC_SYSROOT := $(if $(filter cc,$(PROGS)),$(B)/cc-sysroot.stamp)
+$(B)/cc-sysroot.stamp: $(LIBC_HDR) $(wildcard bin/cc/include/*.h libui/*.h libgfx/*.h) $(B)/libc.a $(B)/libui.a $(B)/libgfx.a $(CRT)
+	@mkdir -p $(B)/root/usr/include/sys $(B)/root/usr/include/ucos $(B)/root/usr/lib/cc/include
+	@cp libc/include/*.h libui/*.h libgfx/*.h $(B)/root/usr/include/
+	@cp libc/include/sys/*.h $(B)/root/usr/include/sys/
+	@sed 's|"../../../abi/abi.h"|<ucos/abi.h>|' libc/include/sys/syscall.h > $(B)/root/usr/include/sys/syscall.h
+	@cp abi/abi.h $(B)/root/usr/include/ucos/abi.h
+	@cp bin/cc/include/*.h $(B)/root/usr/lib/cc/include/
+	@cp $(B)/libc.a $(B)/libui.a $(B)/libgfx.a $(CRT) $(B)/root/usr/lib/
+	@echo "  SYSROOT /usr/include /usr/lib"
+	@touch $@
+
+# Remote files (kernel/remote.c): $(B)/files/ beside the image, and the manifest
+# /etc/remote-files inside it. Doom's game data comes from $(WADS) when present.
+# The script runs on every build (it is quick when nothing changed) and rewrites the
+# manifest only when its contents change, so a different WADS= is picked up.
+WADS    := bin/doom/wads
+$(B)/root/etc/remote-files: FORCE
+	@sh tools/remote-files.sh $(B) $(WADS)
+FORCE:
+
 # initrd: rootfs/ plus the programs, as a plain ustar archive
-$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null)
+$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT) $(B)/root/etc/remote-files
 	@mkdir -p $(B)/root/bin
 	@cp -r rootfs/. $(B)/root/
 	@cp $(addprefix $(B)/bin/,$(PROGS)) $(B)/root/bin/
 	@echo "  TAR   initrd.tar"
 	@tar --format=ustar --owner=0 --group=0 -C $(B)/root -cf $@ .
 
-# Run the kernel, C library and shell suites against this build. Fails if any check fails.
+# Run the kernel, C library, shell, sound, network and router suites against this build. Fails if any check fails.
 test: all
 	@sh tools/test.sh $(B)
 
-.PHONY: all test
+.PHONY: all test FORCE
+
+# The image compressed for the page (it unpacks it with the browser's DecompressionStream).
+# The Node tools keep reading the plain initrd.tar.
+$(B)/initrd.tar.gz: $(B)/initrd.tar
+	@echo "  GZIP  initrd.tar.gz"
+	@gzip -9 -n -c $< > $@
 
 # A directory ready to be served by any static web server.
-dist: all
+dist: all $(B)/initrd.tar.gz
 	@mkdir -p $(B)/dist
-	@cp boot/index.html boot/page.mjs boot/host.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/dist/
+	@cp boot/index.html boot/page.mjs boot/host.mjs boot/audio.mjs boot/audio-worklet.js boot/hostnet.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
+	@cp -r $(B)/files $(B)/dist/
 	@echo "  DIST  $(B)/dist"
 .PHONY: dist

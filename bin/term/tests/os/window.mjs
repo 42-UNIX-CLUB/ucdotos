@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // term in a window: boot the window manager, open terminals with Alt+Return, type,
-// tile a second one (resize), switch the theme (Alt+t: a UI_EV_RESIZE with the same size).
+// tile another one (resize), switch the theme (Alt+t: a UI_EV_RESIZE with the same size).
+// The desktop already starts one terminal by itself, so the windows opened here are the
+// second and third: the new one may be narrower or shorter than the one before.
 //   node tools/shot.mjs --build=build-term --init=/bin/wm --size=1280x720 --script=bin/term/tests/os/window.mjs
 import { check, summary, screen, waitFor } from './lib.mjs';
 export default async (t) => {
@@ -23,8 +25,8 @@ export default async (t) => {
   await t.type('term --demo size\n');
   await t.sleep(800);
   s = await screen(t);
-  console.log(`INFO second window: ${s.cols}x${s.nrows}`);
-  check('second window is tiled narrower', s.cols < first.cols, `${s.cols} vs ${first.cols}`);
+  console.log(`INFO next window: ${s.cols}x${s.nrows}`);
+  check('the next window is tiled smaller', s.cols < first.cols || s.nrows < first.rows, `${s.cols}x${s.nrows} vs ${first.cols}x${first.rows}`);
   check('pty size matches the grid', s.text.includes(`${s.nrows} rows, ${s.cols} cols`), s.text.slice(0, 300));
   t.shot('window_two');
   await t.tap('KeyT', { alt: true });

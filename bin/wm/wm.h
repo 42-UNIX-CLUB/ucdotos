@@ -41,6 +41,7 @@ typedef struct client {
   unsigned char *out;
   unsigned outlen, outcap;
   int dropped, close_asked;
+  int wants_lock;      /* asked (pointer-lock on) for the mouse to be captured while it is fullscreen */
 } client;
 
 /* config (config.c) */

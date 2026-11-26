@@ -30,31 +30,90 @@ async function main() {
     return b;
   };
   const base = params.get('base') || '.';
-  const [kernel, initrd] = await Promise.all([get(`${base}/kernel.wasm`), get(`${base}/initrd.tar`)]);
+  // Boot phases in milliseconds since navigation, for the developer console and tools/bench/boot.mjs.
+  const marks = window.ucosBoot = { script: performance.now() };
+  // The image: initrd.tar.gz (about half the bytes; unpacked with the browser's own gzip
+  // decoder) when the folder has one, else the plain initrd.tar. A server that already sends
+  // the .gz with Content-Encoding: gzip hands over the tar itself, so look at the bytes.
+  const image = async () => {
+    const r = await fetch(`${base}/initrd.tar.gz`);
+    if (!r.ok) return get(`${base}/initrd.tar`);
+    let b = new Uint8Array(await r.arrayBuffer());
+    const packed = b.length;
+    if (b[0] === 0x1f && b[1] === 0x8b) b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    say(`  loaded ${base}/initrd.tar.gz (${(packed / 1024).toFixed(0)} KiB, ${(b.length / 1024).toFixed(0)} KiB unpacked)\n`);
+    return b;
+  };
+  const [kernel, initrd] = await Promise.all([get(`${base}/kernel.wasm`), image()]);
+  marks.fetched = performance.now();
 
   let dirty = false, frames = 0;
   const s = size();
   canvas.width = s.width; canvas.height = s.height;
+  // Sound: one AudioContext at the device's own rate (the kernel reports it to programs),
+  // so samples are resampled once, by the program. Browsers keep it silent until the
+  // first click or key press on the page, so it is resumed then.
+  let audioCtx = null;
+  try { audioCtx = new AudioContext({ latencyHint: 'interactive' }); } catch { /* no Web Audio: the host plays silently, in real time */ }
+  if (audioCtx) {
+    const unlock = () => { audioCtx.resume(); removeEventListener('pointerdown', unlock, true); removeEventListener('keydown', unlock, true); };
+    addEventListener('pointerdown', unlock, true);
+    addEventListener('keydown', unlock, true);
+  }
+  // Mouse capture for a fullscreen game (the window manager asks through EVIOCGRAB): lock
+  // the browser's pointer so it is hidden and cannot leave the page, and send movement
+  // instead of positions. A browser only grants the lock right after a click or key press;
+  // if this request is refused, the next click on the page takes it (and is not passed on).
+  // Esc always gives the mouse back (the browser's rule); a click takes it again. If the
+  // browser refuses the lock outright (some do, e.g. headless Firefox), clicks are passed
+  // on as usual, so a game still gets its buttons.
+  let wantLock = false, lockRefused = false;
+  document.addEventListener('pointerlockerror', () => { lockRefused = true; });
+  document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement === canvas) lockRefused = false; });
+  const lockPointer = () => { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch { /* no Pointer Lock */ } };
   const sys = await boot({
+    sound: { context: audioCtx, expose: (s) => { window.ucosAudio = s; } },
+    onPointerLock: (on) => {
+      wantLock = on;
+      if (on) lockPointer();
+      else if (document.pointerLockElement === canvas) document.exitPointerLock();
+    },
     kernel, initrd,
     cmdline: params.get('cmdline') || '',
     screen: s,
     log: (text) => { say(text); console.log(text.replace(/\n$/, '')); },
     onFrame: () => { dirty = true; },
+    // What is copied in UC.OS goes to the computer's clipboard too. Browsers allow this
+    // only on a secure page (https or localhost) that has the focus; Firefox and Safari
+    // also want it soon after a key press (Ctrl+Shift+C is one).
+    onClipboard: (text) => {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { console.warn('UC.OS: this page cannot write the computer\'s clipboard (it needs https or localhost)'); return; }
+      navigator.clipboard.writeText(text).catch((e) => console.warn(`UC.OS: could not copy to the computer's clipboard: ${e.message}`));
+    },
     onIdle: () => { logEl.classList.remove('hidden'); say('\nSystem halted: every process has exited. Reload to boot again.\n'); },
     debug: params.has('debug'),
+    remote: (url) => fetch(`${base}/${url}`), // remote files (kernel/remote.c) sit beside the image
   });
   window.ucos = sys; // for the developer console
+  marks.kernelUp = performance.now();
 
   // ---- screen ----
+  // Only the rectangle the kernel saw written since the last frame is copied to the canvas.
+  // The ImageData is a view of kernel memory, rebuilt when the buffer moves or grows.
+  let img = null;
+  const stats = params.has('stats') ? (window.ucosStats = { frames: 0, ms: 0, maxMs: 0, pixels: 0 }) : null;
   function present() {
     if (dirty) {
-      dirty = false;
       const f = sys.frame();
       if (f.addr && f.width === canvas.width && f.height === canvas.height) {
-        const px = new Uint8ClampedArray(sys.memory.buffer, f.addr, f.width * f.height * 4);
-        ctx.putImageData(new ImageData(px, f.width, f.height), 0, 0);
-        if (++frames === 1) logEl.classList.add('hidden'); // first frame: the desktop takes over from the boot log
+        dirty = false;
+        const t0 = stats && performance.now();
+        const d = sys.damage();
+        if (!img || img.data.buffer !== sys.memory.buffer || img.data.byteOffset !== f.addr || img.width !== f.width || img.height !== f.height)
+          img = new ImageData(new Uint8ClampedArray(sys.memory.buffer, f.addr, f.width * f.height * 4), f.width, f.height);
+        if (d.w) ctx.putImageData(img, 0, 0, d.x, d.y, d.w, d.h);
+        if (stats) { const ms = performance.now() - t0; stats.frames++; stats.ms += ms; if (ms > stats.maxMs) stats.maxMs = ms; stats.pixels += d.w * d.h; }
+        if (++frames === 1) { logEl.classList.add('hidden'); marks.firstFrame = performance.now(); } // the desktop takes over from the boot log
       }
     }
     requestAnimationFrame(present);
@@ -82,9 +141,12 @@ async function main() {
     return [...e.key].length === 1 && cp >= 32 && cp !== 127 ? cp : 0;
   }
   canvas.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.altKey && e.code === 'KeyO' && !e.repeat) { e.preventDefault(); picker.click(); return; } // see "files from the user's disk"
     const code = K.KEY[e.code];
-    // Let the browser keep a few keys: reload, devtools, fullscreen.
-    const browserKey = e.code === 'F5' || e.code === 'F11' || e.code === 'F12' || (e.ctrlKey && e.shiftKey && (e.code === 'KeyI' || e.code === 'KeyJ'));
+    // Let the browser keep a few keys: reload, devtools, fullscreen, and its own paste
+    // (Ctrl+V, Cmd+V on a Mac), which brings the computer's clipboard in (see 'paste').
+    const browserPaste = e.code === 'KeyV' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
+    const browserKey = browserPaste || e.code === 'F5' || e.code === 'F11' || e.code === 'F12' || (e.ctrlKey && e.shiftKey && (e.code === 'KeyI' || e.code === 'KeyJ'));
     if (!browserKey) e.preventDefault();
     if (code === undefined || browserKey) return;
     held.add(code);
@@ -107,6 +169,13 @@ async function main() {
       sys.input(K.EV_KEY, KEY_UNKNOWN, 0); syn();
     }
   });
+  // Ctrl+V: the computer's clipboard goes to the clipboard program (clipd) as its newest
+  // entry, through /dev/hostclip. Ctrl+Shift+V in a terminal then pastes it.
+  document.addEventListener('paste', (e) => {
+    const text = e.clipboardData && e.clipboardData.getData('text/plain');
+    if (text && !sys.hostPaste(text)) console.warn('UC.OS: paste not taken (the clipboard takes at most 1 MiB)');
+    e.preventDefault();
+  });
   const releaseAll = () => { for (const code of held) { sys.input(K.EV_KEY, code, 0); } if (held.size) syn(); held.clear(); };
   addEventListener('blur', releaseAll);
   document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
@@ -114,12 +183,76 @@ async function main() {
   // ---- pointer ----
   const pos = (e) => { sys.input(K.EV_ABS, K.ABS_X, Math.round(e.clientX * scale)); sys.input(K.EV_ABS, K.ABS_Y, Math.round(e.clientY * scale)); };
   const buttons = [K.BTN_LEFT, K.BTN_MIDDLE, K.BTN_RIGHT];
-  canvas.addEventListener('pointermove', (e) => { pos(e); syn(); });
-  canvas.addEventListener('pointerdown', (e) => { canvas.focus(); canvas.setPointerCapture(e.pointerId); pos(e); if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 1); syn(); e.preventDefault(); });
-  canvas.addEventListener('pointerup', (e) => { pos(e); if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 0); syn(); e.preventDefault(); });
+  const locked = () => document.pointerLockElement === canvas;
+  canvas.addEventListener('pointermove', (e) => {
+    if (locked()) { /* captured: how far it moved, not where it is */
+      const dx = Math.round(e.movementX * scale), dy = Math.round(e.movementY * scale);
+      if (dx || dy) { sys.input(K.EV_REL, K.REL_X, dx); sys.input(K.EV_REL, K.REL_Y, dy); syn(); }
+      return;
+    }
+    pos(e); syn();
+  });
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.focus();
+    e.preventDefault();
+    if (wantLock && !locked()) {
+      lockPointer();
+      if (!lockRefused) return;            /* this click takes the mouse back, it is not a click in the game */
+    }
+    if (!locked()) {                      /* pointer capture is refused (an exception) while the pointer is locked */
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* not needed */ }
+      pos(e);
+    }
+    if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 1);
+    syn();
+  });
+  canvas.addEventListener('pointerup', (e) => { if (!locked()) pos(e); if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 0); syn(); e.preventDefault(); });
   canvas.addEventListener('wheel', (e) => { sys.input(K.EV_REL, K.REL_WHEEL, e.deltaY < 0 ? 1 : -1); syn(); e.preventDefault(); }, { passive: false });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.focus();
 }
+
+// ---- files from the user's disk ----
+// A file dropped onto the page, or picked with Ctrl+Alt+O (a key press is the user gesture a
+// browser requires before it opens a file picker), is copied into the OS as
+// /home/user/Downloads/NAME. Nothing is sent anywhere: the bytes go from the browser
+// straight into kernel memory (boot/host.mjs importFile, kernel/remote.c). A second file
+// with the same name replaces the first, as cp would.
+const IMPORT_DIR = '/home/user/Downloads';
+const IMPORT_MAX = 256 * 2 ** 20; // the kernel refuses more (IMPORT_MAX in kernel/remote.c)
+const noteEl = document.getElementById('note');
+let noteTimer = 0;
+function tell(text, ms = 5000) {
+  noteEl.textContent = text;
+  noteEl.classList.remove('hidden');
+  clearTimeout(noteTimer);
+  if (ms) noteTimer = setTimeout(() => noteEl.classList.add('hidden'), ms);
+}
+// A name the OS accepts: no slash or NUL, at most 63 bytes of UTF-8.
+function osName(name) {
+  let n = name.replace(/[\/\0]/g, '_');
+  while (new TextEncoder().encode(n).length > 63) n = [...n].slice(0, -1).join('');
+  return n;
+}
+async function importFiles(files) {
+  const sys = window.ucos;
+  if (!sys) return;
+  for (const f of files) {
+    const name = osName(f.name);
+    if (f.size > IMPORT_MAX) { tell(`${name} is too big: the limit is ${IMPORT_MAX / 2 ** 20} MB.`); continue; }
+    tell(`Copying ${name} to ~/Downloads ...`, 0);
+    const r = await sys.importFile(`${IMPORT_DIR}/${name}`, f);
+    tell(r === 0 ? `${name} is in ~/Downloads.` : `Could not copy ${name} (error ${-r}).`);
+    console.log(`[page] import ${name}: ${f.size} bytes, ${r === 0 ? 'done' : 'error ' + -r}`);
+  }
+}
+const picker = document.createElement('input');
+picker.type = 'file';
+picker.multiple = true;
+picker.hidden = true;
+document.body.append(picker);
+picker.addEventListener('change', () => { importFiles([...picker.files]); picker.value = ''; canvas.focus(); });
+addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+addEventListener('drop', (e) => { e.preventDefault(); importFiles([...e.dataTransfer.files]); });
 
 main().catch((e) => { logEl.classList.remove('hidden'); say('\nBoot failed: ' + (e && e.message || e) + '\n'); console.error(e); });

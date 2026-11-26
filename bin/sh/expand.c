@@ -9,6 +9,7 @@
 #define QE 2 /* produced by an unquoted expansion: subject to field splitting */
 #define QB 4 /* hard field break, from "$@" (no character) */
 #define QM 8 /* marks that a field exists even if empty, from "" (no character) */
+#define QS 16 /* soft field break between the arguments of unquoted $@ and $* (a space) */
 struct xb { char *c; unsigned char *q; int n, cap; };
 static void xput(struct xb *b, char c, int q) {
   if (b->n + 1 >= b->cap) {
@@ -20,7 +21,11 @@ static void xput(struct xb *b, char c, int q) {
 }
 static void xputs(struct xb *b, const char *s, int q) { while (*s) xput(b, *s++, q); }
 static void xfree(struct xb *b) { free(b->c); free(b->q); }
-int expand_error;
+int expand_error, subst_ran;
+static void unset_error(const char *name) {
+  if (!expand_error) outf(2, "sh: %s: parameter not set\n", name);
+  expand_error = 1;
+}
 
 /* ---- parameters ---- */
 static char numbuf[32];
@@ -30,7 +35,7 @@ static const char *special(char c) {
   case '$': snprintf(numbuf, sizeof numbuf, "%d", getpid()); return numbuf;
   case '#': snprintf(numbuf, sizeof numbuf, "%d", frame->argc); return numbuf;
   case '!': if (!last_bg_pid) return ""; snprintf(numbuf, sizeof numbuf, "%d", last_bg_pid); return numbuf;
-  case '-': return interactive ? (opt_x ? "ix" : "i") : (opt_x ? "x" : "");
+  case '-': return dash_flags();
   case '0': return shell_name;
   }
   if (c >= '1' && c <= '9') return c - '0' <= frame->argc ? frame->argv[c - '1'] : NULL;
@@ -39,17 +44,22 @@ static const char *special(char c) {
 /* value of a named parameter; NULL if unset */
 static const char *param(const char *name) {
   if (!name[1] && !isalpha((unsigned char)name[0]) && name[0] != '_') return special(name[0]);
-  if (isdigit((unsigned char)name[0])) { int n = atoi(name); return n <= frame->argc ? frame->argv[n - 1] : NULL; }
+  if (isdigit((unsigned char)name[0])) { int n = atoi(name); return n >= 1 && n <= frame->argc ? frame->argv[n - 1] : n == 0 ? shell_name : NULL; }
+  if (name[0] == 'L' && !strcmp(name, "LINENO")) { snprintf(numbuf, sizeof numbuf, "%d", lineno); return numbuf; }
   return getvar(name);
 }
 
 static void xword(const char *s, struct xb *b, int dq);
 
-/* "$@" (quoted) gives one field per argument; "$*" joins them with a space */
+/* "$@" gives one field per argument; "$*" joins them with the first character
+ * of IFS; unquoted, both give one field per argument, each split further */
 static void put_args(struct xb *b, int q, int at, int *sawat) {
   if (sawat) *sawat = 1;
+  const char *ifs = getvar("IFS");
   for (int i = 0; i < frame->argc; i++) {
-    if (i) xput(b, (q == QQ && at) ? 0 : ' ', (q == QQ && at) ? QB : q);
+    if (q != QQ) { if (i) xput(b, ' ', QS); }
+    else if (at) { if (i) xput(b, 0, QB); xput(b, 0, QM); }
+    else if (i && (!ifs || *ifs)) xput(b, ifs ? *ifs : ' ', QQ);
     xputs(b, frame->argv[i], q);
   }
 }
@@ -62,6 +72,7 @@ static void put_subst(struct xb *b, const char *inner, int q) {
   xputs(b, out, q);
   free(out);
   last_status = st;
+  subst_ran = 1;
 }
 
 /* find the end of a ${...} body starting at s[i] (just after the brace) */
@@ -89,6 +100,7 @@ static void do_brace(const char *body, struct xb *b, int q, int *sawat) {
   if (!n) { if (len_op && !*p) { xputs(b, special('#'), q); return; } outs(2, "sh: bad substitution\n"); expand_error = 1; return; }
   int is_at = !strcmp(name, "@") || !strcmp(name, "*");
   const char *val = is_at ? (frame->argc ? "" : NULL) : param(name);
+  if (!val && !is_at && opt_u && (len_op || !*p || *p == '#' || *p == '%')) { unset_error(name); return; }
   if (len_op) {
     char tmp[24];
     snprintf(tmp, sizeof tmp, "%d", is_at ? frame->argc : val ? (int)strlen(val) : 0);
@@ -117,7 +129,11 @@ static void do_brace(const char *body, struct xb *b, int q, int *sawat) {
   case '-': case '+':
     if ((op == '-') == !set) {
       if (q == QQ) { char *w = expand_str(p, 0); xputs(b, w, QQ); free(w); }
-      else xword(p, b, 0);
+      else { /* unquoted: the word's own text is split like any expansion */
+        int from = b->n;
+        xword(p, b, 0);
+        for (int k = from; k < b->n; k++) if (!b->q[k]) b->q[k] = QE;
+      }
     } else if (op == '-') {
       if (is_at) put_args(b, q, name[0] == '@', sawat); else xputs(b, val, q);
     }
@@ -188,13 +204,19 @@ static int do_dollar(const char *s, int i, struct xb *b, int q, int *sawat) {
     return s[e] ? e + 1 : e;
   }
   if (c == '@' || c == '*') { put_args(b, q, c == '@', sawat); return i + 2; }
-  if (c && strchr("?$#!-0123456789", c)) { const char *v = special(c); if (v) xputs(b, v, q); return i + 2; }
+  if (c && strchr("?$#!-0123456789", c)) {
+    const char *v = special(c);
+    if (v) xputs(b, v, q);
+    else if (opt_u) { char nm[2] = {c, 0}; unset_error(nm); }
+    return i + 2;
+  }
   if (isalpha((unsigned char)c) || c == '_') {
     int j = i + 1;
     while (isalnum((unsigned char)s[j]) || s[j] == '_') j++;
     char *name = strndup(s + i + 1, j - i - 1);
-    const char *v = getvar(name);
+    const char *v = param(name);
     if (v) xputs(b, v, q);
+    else if (opt_u) unset_error(name);
     free(name);
     return j;
   }
@@ -290,6 +312,27 @@ int pmatch(const char *p, const char *s) {
       if (*q == '!' || *q == '^') neg = 1, q++;
       const char *start = q;
       while (*q && (*q != ']' || q == start)) {
+        if (q[0] == '[' && q[1] == ':') { /* [:class:] */
+          const char *e = strstr(q + 2, ":]");
+          if (e) {
+            int n = e - (q + 2), c = (unsigned char)*s, m = 0;
+            if (n == 5 && !strncmp(q + 2, "alpha", 5)) m = isalpha(c);
+            else if (n == 5 && !strncmp(q + 2, "digit", 5)) m = isdigit(c);
+            else if (n == 5 && !strncmp(q + 2, "alnum", 5)) m = isalnum(c);
+            else if (n == 5 && !strncmp(q + 2, "upper", 5)) m = isupper(c);
+            else if (n == 5 && !strncmp(q + 2, "lower", 5)) m = islower(c);
+            else if (n == 5 && !strncmp(q + 2, "space", 5)) m = isspace(c);
+            else if (n == 5 && !strncmp(q + 2, "blank", 5)) m = c == ' ' || c == '\t';
+            else if (n == 5 && !strncmp(q + 2, "punct", 5)) m = ispunct(c);
+            else if (n == 5 && !strncmp(q + 2, "print", 5)) m = isprint(c);
+            else if (n == 5 && !strncmp(q + 2, "graph", 5)) m = isgraph(c);
+            else if (n == 5 && !strncmp(q + 2, "cntrl", 5)) m = iscntrl(c);
+            else if (n == 6 && !strncmp(q + 2, "xdigit", 6)) m = isxdigit(c);
+            if (m && c) ok = 1;
+            q = e + 2;
+            continue;
+          }
+        }
         char lo = *q;
         if (lo == '\\' && q[1]) lo = *++q;
         char hi = lo;
@@ -402,25 +445,40 @@ static void emit(struct xb *b, int from, int to, int doglob, struct sv *out) {
   free(pat);
 }
 
+/* field splitting (POSIX 2.6.5): only characters that came from unquoted
+ * expansions (QE) split. IFS white space around a field is dropped; any other
+ * IFS character ends a field, with the white space next to it */
 static void split(struct xb *b, struct sv *out, int doglob) {
   const char *ifs = getvar("IFS");
   if (!ifs) ifs = " \t\n";
+  if (opt_f) doglob = 0;
+#define IFSCH(k) ((b->q[k] & QE) && *ifs && b->c[k] && strchr(ifs, b->c[k]))
+#define IFSWS(k) (IFSCH(k) && isspace((unsigned char)b->c[k]))
   int start = 0, exists = 0;
   for (int k = 0; k < b->n; k++) {
     unsigned char q = b->q[k];
     if (q & QB) { emit(b, start, k, doglob, out); start = k + 1; exists = 0; continue; }
+    if (q & QS) { if (exists) emit(b, start, k, doglob, out); start = k + 1; exists = 0; continue; }
     if (q & QM) { exists = 1; continue; }
-    if ((q & QE) && *ifs && strchr(ifs, b->c[k])) {
-      int ws = isspace((unsigned char)b->c[k]);
-      if (k > start || exists || !ws) emit(b, start, k, doglob, out);
-      while (ws && k + 1 < b->n && (b->q[k + 1] & QE) && strchr(ifs, b->c[k + 1]) && isspace((unsigned char)b->c[k + 1])) k++;
+    if (IFSCH(k)) {
+      if (IFSWS(k)) {
+        int had = exists;
+        if (had) emit(b, start, k, doglob, out);
+        while (k + 1 < b->n && IFSWS(k + 1)) k++;
+        if (had && k + 1 < b->n && IFSCH(k + 1)) { k++; while (k + 1 < b->n && IFSWS(k + 1)) k++; }
+      } else {
+        emit(b, start, k, doglob, out);
+        while (k + 1 < b->n && IFSWS(k + 1)) k++;
+      }
       start = k + 1;
       exists = 0;
       continue;
     }
     exists = 1;
   }
-  if (exists || b->n > start) emit(b, start, b->n, doglob, out);
+  if (exists) emit(b, start, b->n, doglob, out);
+#undef IFSCH
+#undef IFSWS
 }
 
 int expand_words(char **raw, int n, char ***out) {
@@ -475,9 +533,20 @@ static int a_eat(struct ar *a, const char *op) {
   a->s += n;
   return 1;
 }
+/* a variable in arithmetic: a number, or else an expression of its own */
 static long long varval(const char *name) {
+  static int depth;
   const char *v = getvar(name);
-  return v ? strtoll(v, NULL, 0) : 0;
+  if (!v || !*v) return 0;
+  char *e;
+  long long n = strtoll(v, &e, 0);
+  while (isspace((unsigned char)*e)) e++;
+  if (!*e || depth > 16) return n;
+  depth++;
+  int err = 0;
+  n = arith(v, &err);
+  depth--;
+  return n;
 }
 static void setnum(struct ar *a, const char *name, long long v) {
   if (a->noeval) return;

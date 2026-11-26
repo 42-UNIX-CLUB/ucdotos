@@ -1,0 +1,12 @@
+# Join the site to the Docker network of a cloudflared container that already runs on this
+# machine, so that the tunnel can reach it by name: http://ucos-web:8080
+#   UCOS_TUNNEL_NETWORK=name-of-that-network \
+#   docker compose -f deploy/compose.yml -f deploy/compose.tunnel-network.yml up -d --build
+# Find the name with: docker inspect CLOUDFLARED_CONTAINER --format '{{json .NetworkSettings.Networks}}'
+services:
+  web:
+    networks: [default, tunnel]
+networks:
+  tunnel:
+    external: true
+    name: ${UCOS_TUNNEL_NETWORK:?set UCOS_TUNNEL_NETWORK to the network of the cloudflared container}
