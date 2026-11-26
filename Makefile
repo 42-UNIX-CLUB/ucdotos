@@ -13,7 +13,7 @@ KLDFLAGS := -Wl,--no-entry -Wl,--export-table -Wl,--growable-table -Wl,-z,stack-
 LIBC_SRC := $(wildcard libc/src/*.c) lib/string.c lib/fmt.c
 LIBC_OBJ := $(patsubst %.c,$(B)/obj/%.o,$(LIBC_SRC)) $(B)/obj/lib/mem.o
 LIBC_HDR := $(wildcard libc/include/*.h libc/include/sys/*.h) abi/abi.h
-UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui
+UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui -Ilibclip
 ULDFLAGS := -Wl,--entry=_start -Wl,-z,stack-size=1048576 -Wl,--stack-first -Wl,--fatal-warnings
 CRT     := $(B)/obj/crt0_2.o $(B)/obj/crt0_3.o
 
@@ -26,6 +26,8 @@ PROGS       := $(PROG_SINGLE) $(PROG_DIRS)
 # and libgfx (font rasterizer + 2D drawing).
 UI_SRC      := $(wildcard libui/*.c)
 GFX_SRC     := $(wildcard libgfx/*.c)
+# A program directory containing a file named USE_CLIP links libclip (the clipboard client).
+CLIP_SRC    := $(wildcard libclip/*.c)
 
 all: $(B)/kernel.wasm $(B)/initrd.tar
 
@@ -57,9 +59,12 @@ $(B)/libui.a: $(patsubst %.c,$(B)/obj/%.o,$(UI_SRC))
 $(B)/libgfx.a: $(patsubst %.c,$(B)/obj/%.o,$(GFX_SRC))
 	@echo "  AR    libgfx.a"
 	@$(AR) rcs $@ $^
+$(B)/libclip.a: $(patsubst %.c,$(B)/obj/%.o,$(CLIP_SRC))
+	@echo "  AR    libclip.a"
+	@$(AR) rcs $@ $^
 
 # Link with the crt0 that matches main's signature: try (argc, argv) first, then (argc, argv, envp).
-gfx_lib = $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a)
+gfx_lib = $(if $(wildcard bin/$(1)/USE_CLIP),$(B)/libclip.a) $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a)
 define LINK
 	@mkdir -p $(B)/bin
 	@echo "  LINK  $(1)"
