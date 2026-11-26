@@ -19,6 +19,9 @@
  *   --fb / -fb      use the framebuffer even if a window manager is running
  *   -stats          print frame timing, system call and memory counters to stderr every 5 s
  *   -selftest       report the save game files to stderr when they appear or change
+ * Game data still on the web server (kernel/remote.c) is fetched when the engine first
+ * opens it (DG_FetchFile), with a progress bar in Doom's window. Fatal errors are shown
+ * in the window too when stderr is not a terminal (DG_ErrorBox); -nogui turns that off.
  * Default arguments: if /usr/share/games/doom/doom.args exists, its words are
  * inserted before the command-line arguments. */
 #include <stdio.h>
@@ -26,6 +29,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -37,6 +41,8 @@
 #include "i_video.h"
 #include "m_argv.h"
 #include "ui.h"
+#include "theme.h"
+#include "gfx.h"
 
 /* libui is optional at link time: these are weak references, null when the
  * library does not provide them (the CFLAGS file forces the linker to look for
@@ -49,6 +55,17 @@ extern int ui_width(ui_window *) __attribute__((weak));
 extern int ui_height(ui_window *) __attribute__((weak));
 extern void ui_present(ui_window *, int, int, int, int) __attribute__((weak));
 extern int ui_poll_event(ui_window *, ui_event *) __attribute__((weak));
+/* for the notices (progress, errors): the theme's font and colours */
+extern int ui_theme_load(ui_theme *, const char *) __attribute__((weak));
+extern unsigned char *ui_read_file(const char *, unsigned *) __attribute__((weak));
+extern int ttf_open(ttf_font *, const unsigned char *, unsigned) __attribute__((weak));
+extern ttf_cache *ttf_cache_new(const ttf_font *, float, int) __attribute__((weak));
+extern void ttf_cache_free(ttf_cache *) __attribute__((weak));
+extern void ttf_metrics_px(const ttf_font *, float, ttf_metrics *) __attribute__((weak));
+extern void gfx_init(gfx_surface *, unsigned int *, int, int, int) __attribute__((weak));
+extern void gfx_fill_rect(gfx_surface *, int, int, int, int, unsigned int) __attribute__((weak));
+extern int gfx_text(gfx_surface *, ttf_cache *, int, int, const char *, int, unsigned int) __attribute__((weak));
+extern int gfx_text_width(ttf_cache *, const char *, int) __attribute__((weak));
 
 #define SRC_W 320
 #define SRC_H 200
@@ -331,7 +348,10 @@ void DG_SetWindowTitle(const char *title) {
 
 /* ---------------------------------------------------------------- setup */
 
-void DG_Init(void) {
+void DG_Init(void) { /* also called early, by DG_FetchFile or DG_ErrorBox: once is enough */
+  static int done;
+  if (done) return;
+  done = 1;
   int force_fb = M_CheckParm("--fb") || M_CheckParm("-fb");
   if (!force_fb && ui_open && ui_pixels && ui_width && ui_height && ui_present && ui_poll_event)
     win = ui_open("Doom", "doom", 960, 600, UI_NORMAL);
@@ -348,6 +368,165 @@ void DG_Init(void) {
     fb_set_size(info[0], info[1]);
   }
   prev = calloc(SRC_W * SRC_H, 1);
+}
+
+/* ---------------------------------------------------------------- notices */
+
+/* Before the game picture exists: lines of text in the middle of the window, and
+ * optionally a progress bar. Drawn with the theme's font and colours when libui and
+ * libgfx provide them; without a font only the bar shows. */
+static ui_theme nth;
+static ttf_font nfont;
+static ttf_cache *nfc;
+static ttf_metrics nmet;
+static float nfc_px; /* the size nfc was made for */
+static int note_all = 1; /* the whole window must be redrawn and sent */
+
+static void note_init(void) {
+  static int done;
+  if (done) return;
+  done = 1;
+  nth.bg = GFX_HEX(0x282828); nth.fg = GFX_HEX(0xebdbb2); nth.accent = GFX_HEX(0xfe8019); nth.dim = GFX_HEX(0x928374);
+  nth.panel = GFX_HEX(0x3c3836); nth.font_size = 16;
+  if (ui_theme_load) ui_theme_load(&nth, NULL);
+  if (!ui_read_file || !ttf_open || !ttf_cache_new || !ttf_metrics_px || !gfx_text || !gfx_text_width || !gfx_init || !gfx_fill_rect) return;
+  unsigned n;
+  unsigned char *d = ui_read_file(nth.font, &n);
+  float px = nth.font_size > 0 ? nth.font_size * 1.25f : 20;
+  if (d && ttf_open(&nfont, d, n) == 0 && (nfc = ttf_cache_new(&nfont, px, 128))) { ttf_metrics_px(&nfont, px, &nmet); nfc_px = px; }
+}
+
+/* Make the font smaller when the widest line does not fit the window (a tiled window can be narrow). */
+static void note_fit(const char *text) {
+  if (!nfc) return;
+  int widest = 0;
+  for (const char *line = text; line;) {
+    const char *nl = strchr(line, '\n');
+    int len = nl ? (int)(nl - line) : (int)strlen(line), w = gfx_text_width(nfc, line, len);
+    if (w > widest) widest = w;
+    line = nl ? nl + 1 : NULL;
+  }
+  int room = out_w * 9 / 10;
+  if (widest <= room || nfc_px <= 8) return;
+  float px = nfc_px * room / widest;
+  if (px < 8) px = 8;
+  ttf_cache *c = ttf_cache_new(&nfont, px, 128);
+  if (!c) return;
+  if (ttf_cache_free) ttf_cache_free(nfc);
+  nfc = c; nfc_px = px;
+  ttf_metrics_px(&nfont, px, &nmet);
+}
+
+/* text: lines separated by \n; a line "%bar" is the progress bar (permille 0..1000). */
+static void note_draw(const char *text, int permille) {
+  if (!out || !gfx_init) return;
+  if (note_all) note_fit(text);
+  gfx_surface sf;
+  gfx_init(&sf, out, out_w, out_h, out_w);
+  int lh = nfc ? nmet.line_height * 3 / 2 : 0, bar_h = out_h / 120 < 4 ? 4 : out_h / 120;
+  int bar_w = out_w * 6 / 10 > 640 ? 640 : out_w * 6 / 10;
+  int lines = 1;
+  for (const char *c = text; *c; c++) lines += *c == '\n';
+  int total = lines * (lh ? lh : bar_h * 3), y = (out_h - total) / 2;
+  if (y < 0) y = 0;
+  int y0 = y;
+  if (note_all) gfx_fill_rect(&sf, 0, 0, out_w, out_h, nth.bg);
+  else gfx_fill_rect(&sf, 0, y0, out_w, total, nth.bg);
+  for (const char *line = text; line;) {
+    const char *nl = strchr(line, '\n');
+    int len = nl ? (int)(nl - line) : (int)strlen(line);
+    int step = lh ? lh : bar_h * 3;
+    if (len == 4 && !memcmp(line, "%bar", 4)) {
+      int bx = (out_w - bar_w) / 2, by = y + (step - bar_h) / 2;
+      gfx_fill_rect(&sf, bx, by, bar_w, bar_h, nth.panel);
+      gfx_fill_rect(&sf, bx, by, (int)((long long)bar_w * permille / 1000), bar_h, nth.accent);
+    } else if (nfc && len) {
+      gfx_text(&sf, nfc, (out_w - gfx_text_width(nfc, line, len)) / 2, y + (step + nmet.ascent - nmet.descent) / 2, line, len, nth.fg);
+    }
+    y += step;
+    line = nl ? nl + 1 : NULL;
+  }
+  if (note_all) present_rows(0, out_h);
+  else present_rows(y0, y0 + total > out_h ? out_h : y0 + total);
+  note_all = 0;
+}
+
+/* Events while a notice shows: 1 key or click, 2 the window was closed, 0 nothing. */
+static int note_events(void) {
+  int hit = 0;
+  if (win) {
+    ui_event e;
+    while (ui_poll_event(win, &e) > 0) {
+      if (e.type == UI_EV_RESIZE) { win_set_size(); note_all = 1; }
+      else if ((e.type == UI_EV_KEY_DOWN && !e.repeat) || e.type == UI_EV_MOUSE_DOWN) { if (!hit) hit = 1; }
+      else if (e.type == UI_EV_CLOSE) hit = 2;
+    }
+  } else if (ev_fd >= 0) {
+    struct input_event e[32];
+    long n;
+    while ((n = read(ev_fd, e, sizeof e)) > 0)
+      for (long i = 0; i < n / (long)sizeof e[0]; i++) {
+        if (e[i].type == 1 && e[i].value == 1 && !hit) hit = 1;
+        else if (e[i].type == 4 && e[i].code == 0x11) { fb_set_size((unsigned)e[i].value >> 16, e[i].value & 0xffff); note_all = 1; }
+      }
+  }
+  return hit;
+}
+
+static void note_sleep(void) { struct timespec ts = {0, 50 * 1000000L}; nanosleep(&ts, 0); }
+
+/* Called by W_StdC_OpenFile before it opens a WAD. A remote file that has not arrived yet
+ * (st_blocks short of st_size; see kernel/remote.c) is fetched here with a non-blocking
+ * open, which starts the transfer and says EAGAIN until it is complete, so the window can
+ * show how far it got. Anything else returns at once. */
+void DG_FetchFile(const char *path) {
+  struct stat s;
+  if (stat(path, &s) < 0 || !S_ISREG(s.st_mode) || s.st_size <= 0 || (long long)s.st_blocks * 512 >= s.st_size) return;
+  const char *name = strrchr(path, '/');
+  name = name ? name + 1 : path;
+  long long t0 = now_us();
+  double mb = s.st_size / 1048576.0;
+  fprintf(stderr, "doom: fetching %s (%.1f MB)\n", name, mb);
+  DG_Init();
+  note_init();
+  note_all = 1;
+  for (;;) {
+    int fd = open(path, O_RDONLY | O_NONBLOCK);
+    if (fd >= 0) { close(fd); break; }
+    if (errno != EAGAIN) {
+      fprintf(stderr, "doom: %s: %s\n", path, strerror(errno));
+      I_Error("Could not fetch the game data (%s).\nCheck the connection, then start Doom again.", name);
+    }
+    long long got = stat(path, &s) == 0 ? (long long)s.st_blocks * 512 : 0;
+    char text[256];
+    snprintf(text, sizeof text, "Fetching game data: %s\n%%bar\n%.1f of %.1f MB", name, got / 1048576.0, mb);
+    note_draw(text, (int)(got * 1000 / (s.st_size ? s.st_size : 1)));
+    if (note_events() == 2) exit(0);
+    note_sleep();
+  }
+  fprintf(stderr, "doom: %s arrived in %.1f s\n", name, (now_us() - t0) / 1e6);
+  if (out) memset(out, 0, (size_t)out_w * out_h * 4); /* black bars around the game picture */
+  need_full = 1;
+}
+
+/* Called by I_Error. Someone who started Doom from the launcher cannot see stderr, so
+ * the message is shown in the window until a key, a click, closing it, or one minute. */
+void DG_ErrorBox(const char *msg) {
+  if (!win && fb_fd < 0 && isatty(2)) return; /* a terminal already shows it */
+  DG_Init();
+  note_init();
+  note_all = 1;
+  char text[640];
+  int n = snprintf(text, sizeof text, "%s", msg);
+  while (n > 0 && text[n - 1] == '\n') text[--n] = 0;
+  snprintf(text + n, sizeof text - n, "\n\nPress any key to close.");
+  long long until = now_us() + 60000000LL;
+  note_draw(text, 0);
+  while (now_us() < until) {
+    if (note_events()) break;
+    if (note_all) note_draw(text, 0);
+    note_sleep();
+  }
 }
 
 /* Saves and the config live in $HOME/.doom/ (m_config.c asks for this). */

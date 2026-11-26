@@ -455,7 +455,12 @@ void I_Error (char *error, ...)
     }
 
 #elif defined(UCOS)
-    // UC.OS: no dialog program; the message already went to stderr.
+    {
+        // UC.OS: show it in Doom's window when nobody reads stderr (started from the
+        // launcher), or when the window is already open (doomgeneric_ucos.c).
+        extern void DG_ErrorBox(const char *msg);
+        DG_ErrorBox(msgbuf);
+    }
 #else
     {
         ZenityErrorBox(msgbuf);

@@ -95,7 +95,7 @@ The five suites that must stay green (counts as of 2026-11-26):
 
 | Suite | Command (add `--build=...`) | Result |
 |---|---|---|
-| Kernel | `node tools/run.mjs --init=/bin/ktest` | 109 checks, 0 failed |
+| Kernel | `node tools/run.mjs --init=/bin/ktest` | 124 checks, 0 failed |
 | C library | `node tools/run.mjs --init=/bin/libctest` | 298 checks, 0 failed |
 | Shell and tools | `node tools/run.mjs --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | 238 passed |
 | Sound | `node tools/tests/audio.mjs` | 37 checks, 0 failed |

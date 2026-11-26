@@ -27,6 +27,14 @@ int main(int argc, char **argv) {
     return 0;
   }
   if (argc > 1 && !strcmp(argv[1], "child-sleeper")) { sleep(100); return 0; }
+  if (argc > 1 && !strcmp(argv[1], "child-remote")) { /* open a remote file, expect its text */
+    char b[64] = {0};
+    int fd = open(argv[2], O_RDONLY);
+    if (fd < 0) return 2;
+    long n = read(fd, b, sizeof b - 1);
+    close(fd);
+    return n > 0 && !strcmp(b, argv[3]) ? 0 : 1;
+  }
   if (argc > 1 && !strcmp(argv[1], "child-spin")) { for (;;) __syscall0(SYS_getppid); }
   if (argc > 1 && !strcmp(argv[1], "child-sockflood")) { /* fill a socket, then say who we are from a stack buffer */
     struct { unsigned short fam; char path[108]; } addr = {1, "/tmp/flood.sock"};
@@ -542,6 +550,64 @@ int main(int argc, char **argv) {
     __syscall2(SYS_kill, pid, 9); waitpid(pid, &status, 0);
     if (calls >= 10) printf("  (the sleeper made %llu calls in 60 ms)\n", calls);
     CHECK("a sleep longer than 24 days waits on one timer, not in a loop", calls > 0 && calls < 10);
+  }
+
+  /* remote files (kernel/remote.c; test files from tools/remote-files.sh, served under Node by
+   * tools/remote-node.mjs: ".once." only on the first request, ".flaky." not on the first,
+   * ".slow." after 300 ms) */
+  {
+    const char *R = "/usr/share/tests/remote";
+    struct stat rs;
+    char rb[128];
+    int rfd;
+    #define RREAD(path, want) ((rfd = open(path, O_RDONLY)) >= 0 && (memset(rb, 0, sizeof rb), read(rfd, rb, sizeof rb - 1)) > 0 && \
+                               close(rfd) == 0 && !strcmp(rb, want))
+    if (stat("/etc/remote-files", &rs) != 0) printf("  info  no /etc/remote-files in this image: remote file checks skipped\n");
+    else {
+      int listed = 0;
+      DIR *d = opendir(R);
+      for (struct dirent *e; d && (e = readdir(d));) listed += !strcmp(e->d_name, "hello.once.txt") || !strcmp(e->d_name, "never.txt");
+      if (d) closedir(d);
+      CHECK("remote: listed before any fetch", listed == 2);
+      CHECK("remote: stat before the fetch has the real size, no blocks",
+            stat("/usr/share/tests/remote/hello.once.txt", &rs) == 0 && S_ISREG(rs.st_mode) && rs.st_size == 22 && rs.st_blocks == 0);
+      CHECK("remote: first open fetches it", RREAD("/usr/share/tests/remote/hello.once.txt", "fetched on first open\n"));
+      CHECK("remote: then it is a file in memory", stat("/usr/share/tests/remote/hello.once.txt", &rs) == 0 && rs.st_blocks == 1);
+      CHECK("remote: second open does not fetch again", RREAD("/usr/share/tests/remote/hello.once.txt", "fetched on first open\n"));
+      /* two processes wait for the same fetch: a second request for a .once. file would fail */
+      char *ca[] = {"ktest", "child-remote", "/usr/share/tests/remote/both.once.slow.txt", "two openers, one fetch\n", 0};
+      pid_t cp = spawn("/bin/ktest", ca, 0, 0);
+      int waiting = 0;
+      for (int tries = 0; tries < 200 && !waiting; tries++) {
+        struct procinfo pi;
+        for (int i = 0; __syscall2(SYS_procinfo, i, &pi) == 0; i++) if (pi.pid == cp && pi.state == 3) waiting = 1;
+        if (!waiting) usleep(2000);
+      }
+      int still = stat("/usr/share/tests/remote/both.once.slow.txt", &rs) == 0 && rs.st_blocks == 0;
+      CHECK("remote: two openers at once both get it", waiting && still && RREAD("/usr/share/tests/remote/both.once.slow.txt", "two openers, one fetch\n") &&
+            waitpid(cp, &status, 0) == cp && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+      CHECK("remote: failed fetch -> EIO", open("/usr/share/tests/remote/retry.flaky.txt", O_RDONLY) == -1 && errno == EIO);
+      CHECK("remote: and a later open fetches again", RREAD("/usr/share/tests/remote/retry.flaky.txt", "second try works\n"));
+      CHECK("remote: wrong SHA-256 -> EIO", open("/usr/share/tests/remote/bad.txt", O_RDONLY) == -1 && errno == EIO);
+      CHECK("remote: wrong SHA-256 again on retry, file unchanged",
+            open("/usr/share/tests/remote/bad.txt", O_RDONLY) == -1 && errno == EIO && stat("/usr/share/tests/remote/bad.txt", &rs) == 0 && rs.st_size == 34 && rs.st_blocks == 0);
+      CHECK("remote: missing on the server -> EIO", open("/usr/share/tests/remote/missing.txt", O_RDONLY) == -1 && errno == EIO);
+      int nb = open("/usr/share/tests/remote/nb.slow.txt", O_RDONLY | O_NONBLOCK), nberr = errno, polls = 0;
+      while (nb < 0 && errno == EAGAIN && polls < 500) { usleep(2000); polls++; nb = open("/usr/share/tests/remote/nb.slow.txt", O_RDONLY | O_NONBLOCK); }
+      CHECK("remote: O_NONBLOCK -> EAGAIN while it arrives, then opens", nberr == EAGAIN && nb >= 0 && polls > 0 && read(nb, rb, 12) == 12 && !memcmp(rb, "not waiting\n", 12));
+      if (nb >= 0) close(nb);
+      rfd = open("/usr/share/tests/remote/packed.txt", O_RDONLY);
+      long total = 0, n;
+      int same = rfd >= 0 && read(rfd, rb, 32) == 32 && !memcmp(rb, "line 0 of a file sent compressed", 32);
+      while (rfd >= 0 && (n = read(rfd, rb, sizeof rb)) > 0) total += n;
+      if (rfd >= 0) close(rfd);
+      CHECK("remote: a file sent as .gz arrives unpacked", same && total + 32 == 70890);
+      CHECK("remote: a file nobody opened was never fetched", stat("/usr/share/tests/remote/never.txt", &rs) == 0 && rs.st_size == 13 && rs.st_blocks == 0);
+      rfd = open("/usr/share/tests/remote/never.txt", O_WRONLY | O_TRUNC);
+      CHECK("remote: O_TRUNC for writing needs no fetch", rfd >= 0 && write(rfd, "mine\n", 5) == 5 && close(rfd) == 0 && RREAD("/usr/share/tests/remote/never.txt", "mine\n"));
+    }
+    #undef RREAD
+    (void)R;
   }
 
   /* informational: cost of the cheapest system call */

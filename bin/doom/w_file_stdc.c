@@ -35,6 +35,13 @@ static wad_file_t *W_StdC_OpenFile(char *path)
     stdc_wad_file_t *result;
     FILE *fstream;
 
+#ifdef UCOS
+    {
+        // UC.OS: a file still on the web server is fetched first, showing progress.
+        extern void DG_FetchFile(const char *path);
+        DG_FetchFile(path);
+    }
+#endif
     fstream = fopen(path, "rb");
 
     if (fstream == NULL)

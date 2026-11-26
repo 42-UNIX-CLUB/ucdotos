@@ -5,6 +5,7 @@
 //   node tools/shot.mjs [--build=build] [--init=/bin/init] [--size=1280x720] [--out=build/shots]
 //                       [--script=path/to/script.mjs] [--wait=1500] [--debug] [--quiet]
 //                       [--audio-capture=FILE]   save what /dev/dsp plays (raw 16-bit stereo, 48 kHz)
+//                       [--remote-rate=BYTES_PER_SECOND] [--remote-off]   (remote files: tools/remote-node.mjs)
 //
 // Without --script: waits --wait milliseconds and writes <out>/screen.png.
 // With --script: the module's default export is `async (t) => { ... }` where t has:
@@ -23,6 +24,7 @@
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { boot, checkSupport } from '../boot/host.mjs';
+import { nodeRemote } from './remote-node.mjs';
 import * as K from '../boot/keys.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
@@ -45,6 +47,7 @@ const sys = await boot({
   screen: { width: W, height: H },
   log: (s) => { logText += s; if (!quiet) process.stdout.write(s); },
   debug: args.includes('--debug'),
+  remote: nodeRemote(root + build, (s) => { logText += s; if (!quiet) process.stdout.write(s); }, { rate: Number(opt('remote-rate', 0)), off: args.includes('--remote-off') }), // remote files: read from the build directory
   onIdle: () => { console.error('[shot] every process has exited'); },
   sound: { capture: opt('audio-capture', null), expose: (s) => { audioStats = s; } },
 });
