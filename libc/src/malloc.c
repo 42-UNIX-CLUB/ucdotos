@@ -3,6 +3,7 @@
  * No system call is involved: a wasm instance grows its own memory. */
 #include <stddef.h>
 #include <string.h>
+#include <errno.h>
 extern unsigned char __heap_base;
 struct blk { unsigned size; struct blk *next_free; };
 #define HDR 8
@@ -32,8 +33,12 @@ void free(void *p) {
   if (n && (unsigned char *)b + b->size == (unsigned char *)n) { b->size += n->size; b->next_free = n->next_free; }
   if (prev && (unsigned char *)prev + prev->size == (unsigned char *)b) { prev->size += b->size; prev->next_free = b->next_free; }
 }
+/* A request above this is refused: the rounded size below must not wrap, and no object may
+ * be larger than PTRDIFF_MAX (the same limit glibc applies). */
+#define MALLOC_MAX 0x7fffffffu
 void *malloc(size_t n) {
   if (!n) n = 1;
+  if (n > MALLOC_MAX) { errno = ENOMEM; return 0; }
   unsigned need = (n + HDR + 15) & ~15u;
   for (;;) {
     struct blk **pp = &free_list;
@@ -48,12 +53,18 @@ void *malloc(size_t n) {
       return (unsigned char *)b + HDR;
     }
     struct blk *nb = grow(need);
-    if (!nb) return 0;
+    if (!nb) { errno = ENOMEM; return 0; }
     nb->size |= 1;
     free((unsigned char *)nb + HDR);
   }
 }
-void *calloc(size_t a, size_t b) { size_t n = a * b; void *p = malloc(n); if (p) memset(p, 0, n); return p; }
+void *calloc(size_t a, size_t b) {
+  if (b && a > (size_t)-1 / b) { errno = ENOMEM; return 0; } /* a * b does not fit */
+  size_t n = a * b;
+  void *p = malloc(n);
+  if (p) memset(p, 0, n);
+  return p;
+}
 void *realloc(void *p, size_t n) {
   if (!p) return malloc(n);
   if (!n) { free(p); return 0; }
