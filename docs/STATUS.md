@@ -10,7 +10,7 @@ in Chromium to a tiling desktop.
 
 | Area | State | Evidence |
 |---|---|---|
-| Kernel | processes, files, pipes, poll, ptys with line discipline and Ctrl-C, unix sockets, framebuffer, input, time slicing, CPU accounting | `ktest`: 66 of 66 |
+| Kernel | processes, files, pipes, poll, ptys with line discipline and Ctrl-C, unix sockets, framebuffer, input, time slicing, CPU accounting; audited and fuzzed on 2026-11-26 (branch `fix/kernel-hardening`, not merged yet): inodes are freed, many crash, hang and leak bugs fixed | `ktest`: 109 of 109; `kfuzz` (system call fuzzer, `--init=/bin/kfuzz --args="SEED ITERATIONS"`, or `--args=regress` for the kept seeds): 82 campaign runs, 5.6 million calls; one trap inside the kernel seen once and not reproduced (see below) |
 | Host and page | boots in Chromium 158 and under Node 26; real keyboard and mouse verified through the DevTools protocol | `tools/tests/browser-desktop.mjs` |
 | C library | stdio, scanf, math, time, termios, getopt and the rest | `libctest`: 290 of 290 |
 | Shell and 30 tools, `bc` | pipelines, redirections, control flow, functions, substitution, globbing; line editor, history, Tab completion, Ctrl-C (also stops shell loops) and Ctrl-D verified in the desktop | `sh-tests`: 238 of 238; `bin/sh/test/interactive.mjs`: 33 of 33 |
@@ -28,6 +28,11 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 
 | Problem | Detail |
 |---|---|
+| Large directories are slow | A directory is a linked list. Creating a file in a directory of 40,000 entries takes about 1.6 ms (80 us at 2,500); listing it takes 0.76 s. 100,000 entries would take minutes to create. Options are in the kernel hardening report. |
+| One call can grow kernel memory by up to 2 GiB | `ftruncate` or a write at a large offset makes a file that big for real (no sparse files), and wasm memory never shrinks. Whether to cap file size is an open question for the owners. |
+| A trap inside the kernel looks like a program crash | The host reports it as the calling process dying with signal 11; the kernel's state after it is unknown. Nothing says so loudly. |
+| One kernel trap from kfuzz is not understood | Seed 306 (4 workers, 20,000 calls) once trapped in `copy_from_user` with "function signature mismatch": the calling process's copy functions were not attached (a null table entry). Not reproduced in 3 reruns or 41 further runs with lifecycle checks on the host calls. |
+| ktest's preemption check is sensitive to load | "a spinning process is preempted" failed after 5 fuzz runs out of about 120 (the parent slept 150 to 257 ms instead of about 40), always while several fuzz runs shared the machine; the same seeds passed when rerun. Cause not proven. |
 | A pure CPU loop freezes the tab | Time slicing only works at system calls. Shell loops are covered (the shell calls `intr()` in every loop iteration, and Ctrl-C stops them). A C program that computes without calling the kernel still freezes everything. |
 | Ctrl-C in a non-interactive script is untested | The code path exists (exit status 130); the test runners cannot send Ctrl-C to it. Also untested: Ctrl-C while the `read` builtin waits. |
 | Speed figures in a browser are noisier and higher than under Node | Reading the clock costs about 400 ns in Chrome and it ticks every 0.1 ms. sysbench reports the resolution, shows `n/a` for the cold column there, and times rows on the process CPU clock. Run-to-run spread in Chromium is about 20%. See PERFORMANCE.md. |

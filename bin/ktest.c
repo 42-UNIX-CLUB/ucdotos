@@ -11,10 +11,12 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/sysinfo.h>
 
 static int fails, checks;
 #define CHECK(name, cond) do { checks++; if (cond) printf("  ok    %s\n", name); else { fails++; printf("  FAIL  %s (errno %d: %s)\n", name, errno, strerror(errno)); } } while (0)
 static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6; }
+static long heap_used(void) { struct sysinfo si; return sysinfo(&si) ? -1 : (long)si.bufferram; } /* kernel heap in use */
 
 int main(int argc, char **argv) {
   if (argc > 1 && !strcmp(argv[1], "child-exit")) return atoi(argv[2]);
@@ -54,6 +56,33 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  if (argc > 1 && !strcmp(argv[1], "child-ttytimed")) { /* a timed read on the tty (fd 0) that a hangup ends */
+    struct termios t;
+    if (__syscall3(SYS_ioctl, 0, TCGETS, &t)) return 2;
+    t.c_lflag &= ~(ICANON | ECHO | ISIG); t.c_cc[VMIN] = 0; t.c_cc[VTIME] = 10;
+    if (__syscall3(SYS_ioctl, 0, TCSETS, &t)) return 2;
+    char c;
+    if (read(0, &c, 1) != 0) return 3;
+    double t0 = now_ms();
+    usleep(2000);
+    return now_ms() - t0 > 200 ? 4 : 0; /* a stale deadline would make this sleep last until it */
+  }
+  if (argc > 1 && (!strcmp(argv[1], "child-ctrlc-self") || !strcmp(argv[1], "child-dup3-hup") || !strcmp(argv[1], "child-hold-pty"))) {
+    int m = open("/dev/ptmx", O_RDWR), n = -1;
+    char path[32];
+    if (m < 0 || __syscall3(SYS_ioctl, m, TIOCGPTN, &n)) return 2;
+    snprintf(path, sizeof path, "/dev/pts/%d", n);
+    int s = open(path, O_RDWR), me = getpid();
+    if (s < 0 || __syscall2(SYS_setpgid, 0, 0) || __syscall3(SYS_ioctl, s, TIOCSPGRP, &me)) return 2;
+    if (argv[1][6] == 'c') { /* Ctrl-C at our own terminal, followed by more input */
+      static char in[3000];
+      memset(in, 'x', sizeof in); in[0] = 3;
+      write(m, in, sizeof in);
+    } else if (argv[1][6] == 'd') __syscall3(SYS_dup3, s, m, 0); /* closes the master: hangup */
+    else sleep(100);
+    return 3; /* should not get here */
+  }
+  if (argc > 1 && !strcmp(argv[1], "child-longsleep")) { struct timespec ts = {1ll << 40, 0}; nanosleep(&ts, 0); return 0; }
   if (argc > 1 && !strcmp(argv[1], "child-sock")) { /* connect, ping, expect pong, then send 2 MiB */
     struct { unsigned short fam; char path[108]; } addr = {1, "/tmp/test.sock"};
     int s = __syscall3(SYS_socket, 1, 1, 0);
@@ -345,6 +374,175 @@ int main(int argc, char **argv) {
   CHECK("input: the resize event from boot", evfd >= 0 && read(evfd, ev, sizeof ev) == sizeof ev && ev[0].type == 4 && ev[0].code == 0x11 && (unsigned)ev[0].value == ((vinfo[0] << 16) | vinfo[1]) && ev[1].type == 0);
   CHECK("input: empty queue -> EAGAIN", read(evfd, ev, sizeof ev) == -1 && errno == EAGAIN);
   close(evfd);
+
+  /* ---- hardening: regression checks for bugs found by audit and by kfuzz ---- */
+  {
+    long h0;
+    fd = open("/tmp/big", O_RDWR | O_CREAT | O_TRUNC, 0644);
+    CHECK("pwrite at offset 0xfffffff0 -> ENOSPC, no hang", __syscall4(SYS_pwrite64, fd, buf, 64, 0xfffffff0u) == -ENOSPC);
+    CHECK("ftruncate to -16 (0xfffffff0) -> EINVAL, no hang", __syscall2(SYS_ftruncate, fd, -16) == -EINVAL);
+    CHECK("write of 0 bytes past the end does not extend the file", lseek(fd, 5000, SEEK_SET) == 5000 && __syscall3(SYS_write, fd, buf, 0) == 0 && fstat(fd, &st) == 0 && st.st_size == 0);
+    CHECK("lseek past 2 GiB -> EINVAL", __syscall3(SYS_lseek, fd, 0x7fffffff, SEEK_SET) == 0x7fffffff && __syscall3(SYS_lseek, fd, 1, SEEK_CUR) == -EINVAL);
+    close(fd);
+    fd = open("/tmp/big", O_RDONLY);
+    CHECK("pwrite and ftruncate on a read-only descriptor -> EBADF, EINVAL", __syscall4(SYS_pwrite64, fd, "x", 1, 0) == -EBADF && __syscall2(SYS_ftruncate, fd, 10) == -EINVAL);
+    CHECK("fcntl F_DUPFD with a negative or too large start -> EINVAL", __syscall3(SYS_fcntl, fd, 0, -1000) == -EINVAL && __syscall3(SYS_fcntl, fd, 0, 64) == -EINVAL);
+    CHECK("dup3 with unknown flags -> EINVAL", __syscall3(SYS_dup3, fd, 40, 1) == -EINVAL);
+    close(fd);
+    unlink("/tmp/big");
+    fbfd = open("/dev/fb0", O_RDWR);
+    CHECK("lseek on /dev/fb0", lseek(fbfd, 64, SEEK_SET) == 64 && write(fbfd, &px, 4) == 4 && __syscall4(SYS_pread64, fbfd, &back, 4, 64) == 4 && back == px);
+    close(fbfd);
+    fd = open("/tmp", O_RDONLY | O_DIRECTORY);
+    CHECK("getdents64 with a buffer too small for one entry -> EINVAL", __syscall3(SYS_getdents64, fd, buf, 10) == -EINVAL);
+    close(fd);
+    pipe(in);
+    CHECK("read of 0 bytes from an empty pipe returns at once", __syscall3(SYS_read, in[0], buf, 0) == 0);
+    close(in[0]); close(in[1]);
+    char name[128];
+    snprintf(name, sizeof name, "/tmp/%063d", 7);
+    fd = open(name, O_CREAT | O_WRONLY, 0644);
+    CHECK("a 63-byte name works", fd >= 0 && stat(name, &st) == 0 && close(fd) == 0 && unlink(name) == 0);
+    snprintf(name, sizeof name, "/tmp/%064d", 7);
+    CHECK("a 64-byte name -> ENAMETOOLONG (it used to be cut, giving duplicates)", open(name, O_CREAT | O_WRONLY, 0644) == -1 && errno == ENAMETOOLONG);
+    mkdir("/tmp/gone", 0755);
+    chdir("/tmp/gone");
+    rmdir("/tmp/gone");
+    CHECK("removed working directory: create -> ENOENT", open("f", O_CREAT | O_WRONLY, 0644) == -1 && errno == ENOENT && mkdir("x", 0755) == -1 && errno == ENOENT);
+    CHECK("removed working directory: rmdir(.) and rename(.) -> ENOENT, no hang", rmdir(".") == -1 && errno == ENOENT && __syscall4(SYS_renameat, AT_FDCWD, ".", AT_FDCWD, "/tmp/z") == -ENOENT);
+    CHECK("removed working directory: getcwd -> ENOENT", getcwd(buf, sizeof buf) == 0 && errno == ENOENT);
+    chdir("/");
+    mkdir("/tmp/e1", 0755);
+    chdir("/tmp/e1");
+    fd = open("/dev/zero", O_RDONLY);
+    CHECK("an empty path names nothing: rmdir(\"\") keeps the working directory", rmdir("") == -1 && errno == ENOENT && stat(".", &st) == 0 && open("", O_RDONLY) == -1 && errno == ENOENT);
+    CHECK("unlinkat(fd of a file, \"\") -> ENOENT, the file stays", __syscall3(SYS_unlinkat, fd, "", 0) == -ENOENT && stat("/dev/zero", &st) == 0);
+    CHECK("a relative path with a descriptor that is not a directory -> ENOTDIR", __syscall4(SYS_openat, fd, "x", O_RDONLY, 0) == -ENOTDIR);
+    close(fd);
+    chdir("/");
+    rmdir("/tmp/e1");
+    mkdir("/tmp/r1", 0755); mkdir("/tmp/r2", 0755);
+    close(open("/tmp/r1/x", O_CREAT | O_WRONLY, 0644));
+    int d1 = open("/tmp/r1", O_RDONLY | O_DIRECTORY), d2 = open("/tmp/r2", O_RDONLY | O_DIRECTORY);
+    CHECK("rename onto . or .. -> EINVAL", __syscall4(SYS_renameat, AT_FDCWD, "/tmp/r1/x", AT_FDCWD, "/tmp/r2/..") == -EINVAL && __syscall4(SYS_renameat, AT_FDCWD, "/tmp/r1/x", AT_FDCWD, "/") == -EINVAL);
+    CHECK("renameat honours its directory descriptors", __syscall4(SYS_renameat, d1, "x", d2, "y") == 0 && stat("/tmp/r2/y", &st) == 0 && stat("/tmp/r1/x", &st) == -1);
+    close(d1); close(d2);
+    unlink("/tmp/r2/y"); rmdir("/tmp/r1"); rmdir("/tmp/r2");
+
+    h0 = heap_used();
+    ok = 1;
+    for (int i = 0; i < 10000 && ok; i++) {
+      fd = open("/tmp/churn", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+      ok = fd >= 0 && write(fd, buf, 100) == 100 && close(fd) == 0 && unlink("/tmp/churn") == 0;
+    }
+    CHECK("10,000 create, write, unlink cycles give all memory back", ok && heap_used() == h0);
+    h0 = heap_used();
+    fd = open("/tmp/held", O_CREAT | O_RDWR, 0644);
+    write(fd, "still here", 10);
+    unlink("/tmp/held");
+    CHECK("an unlinked open file stays readable", stat("/tmp/held", &st) == -1 && __syscall4(SYS_pread64, fd, buf, 10, 0) == 10 && !memcmp(buf, "still here", 10));
+    close(fd);
+    CHECK("... and its memory is freed at the last close", heap_used() == h0);
+    h0 = heap_used();
+    ok = 1;
+    for (int i = 0; i < 3000 && ok; i++) { pid = spawn("/bin/true", a6, 0, 0); ok = pid > 0 && waitpid(pid, &status, 0) == pid && status == 0; }
+    CHECK("3,000 spawn and wait cycles give all memory back", ok && heap_used() == h0);
+    struct { unsigned short fam; char path[108]; } caddr = {1, "/tmp/churn.sock"};
+    close(open("/dev/ptmx", O_RDWR)); /* the first use of a pty number creates /dev/pts/N for good */
+    h0 = heap_used();
+    ok = 1;
+    for (int i = 0; i < 1000 && ok; i++) {
+      int l = __syscall3(SYS_socket, 1, 1 | O_NONBLOCK, 0), c = __syscall3(SYS_socket, 1, 1, 0);
+      ok = pipe(in) == 0 && __syscall3(SYS_bind, l, &caddr, sizeof caddr) == 0 && __syscall2(SYS_listen, l, 4) == 0 && __syscall3(SYS_connect, c, &caddr, sizeof caddr) == 0;
+      int a = __syscall1(SYS_accept, l), m = open("/dev/ptmx", O_RDWR);
+      ok = ok && a >= 0 && m >= 0 && write(c, "x", 1) == 1;
+      close(in[0]); close(in[1]); close(l); close(c); close(a); close(m);
+      unlink("/tmp/churn.sock");
+    }
+    CHECK("1,000 pipes, socket connections and ptys give all memory back", ok && heap_used() == h0);
+    CHECK("kill with a signal number above 64 -> EINVAL", __syscall2(SYS_kill, getpid(), 65) == -EINVAL);
+    struct timespec badt = {0, 1000000000}, negt = {-1, 0};
+    CHECK("nanosleep with a bad timespec -> EINVAL", __syscall2(SYS_nanosleep, &badt, 0) == -EINVAL);
+    CHECK("ppoll with a negative timeout -> EINVAL", __syscall3(SYS_ppoll, 0, 0, &negt) == -EINVAL);
+    long rlen = __syscall2(SYS_getrandom, big, sizeof big);
+    CHECK("getrandom fills a buffer", rlen == sizeof big);
+
+    /* process groups, pid reuse and terminals */
+    ptm = open("/dev/ptmx", O_RDWR); ptn = -1;
+    __syscall3(SYS_ioctl, ptm, TIOCGPTN, &ptn);
+    snprintf(pts_path, sizeof pts_path, "/dev/pts/%d", ptn);
+    pts = open(pts_path, O_RDWR);
+    int nogroup = 60, neg = -5;
+    CHECK("TIOCSPGRP to a group that does not exist -> ESRCH, negative -> EINVAL", __syscall3(SYS_ioctl, pts, TIOCSPGRP, &nogroup) == -ESRCH && __syscall3(SYS_ioctl, pts, TIOCSPGRP, &neg) == -EINVAL);
+    pid_t ga = spawn("/bin/ktest", a5, 0, 0), gb = spawn("/bin/ktest", a5, 0, 0);
+    __syscall2(SYS_setpgid, ga, ga); __syscall2(SYS_setpgid, gb, ga);
+    CHECK("TIOCSPGRP to a live group", __syscall3(SYS_ioctl, pts, TIOCSPGRP, &ga) == 0);
+    __syscall2(SYS_kill, ga, 9); waitpid(ga, &status, 0);
+    pid_t gc = spawn("/bin/true", a6, 0, 0);
+    CHECK("a pid that still names a live process group is not handed out again", gc > 0 && gc != ga);
+    waitpid(gc, &status, 0);
+    __syscall2(SYS_kill, gb, 9); waitpid(gb, &status, 0);
+    int fgnow = -1;
+    CHECK("when a foreground group is gone, the terminal forgets it", __syscall3(SYS_ioctl, pts, TIOCGPGRP, &fgnow) == 0 && fgnow == 0);
+    char *e7[] = {"ktest", "child-exit", "7", 0}, *e8[] = {"ktest", "child-exit", "8", 0};
+    pid_t wx = spawn("/bin/ktest", e7, 0, 0), wy = spawn("/bin/ktest", e8, 0, 0);
+    __syscall2(SYS_setpgid, wy, wy);
+    int sx = 0, sy = 0;
+    waitpid(wx, &sx, 0);
+    usleep(20000);
+    CHECK("wait4(0) only waits for children in the caller's group", waitpid(0, &sy, WNOHANG) == -1 && errno == ECHILD);
+    CHECK("wait4(-pgid) waits for that group", waitpid(-wy, &sy, 0) == wy && WEXITSTATUS(sy) == 8 && WEXITSTATUS(sx) == 7);
+
+    int tmap3[3] = {pts, -1, -1};
+    char *tt[] = {"ktest", "child-ttytimed", 0};
+    fcntl(ptm, F_SETFD, FD_CLOEXEC); fcntl(pts, F_SETFD, FD_CLOEXEC); /* the child must not hold the master */
+    pid = spawn("/bin/ktest", tt, 0, tmap3);
+    usleep(100000);
+    close(pts);
+    close(ptm); /* hangup: the child's timed read returns 0 */
+    CHECK("a timed tty read ended by a hangup leaves no stale deadline behind", waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+
+    h0 = heap_used();
+    char *cs1[] = {"ktest", "child-ctrlc-self", 0}, *cs2[] = {"ktest", "child-dup3-hup", 0}, *cs3[] = {"ktest", "child-hold-pty", 0};
+    pid = spawn("/bin/ktest", cs1, 0, 0);
+    CHECK("Ctrl-C typed by a process at its own terminal kills it cleanly", waitpid(pid, &status, 0) == pid && WIFSIGNALED(status) && WTERMSIG(status) == SIGINT);
+    pid = spawn("/bin/ktest", cs2, 0, 0);
+    CHECK("dup3 over the last master of its own terminal: the hangup kills the caller cleanly", waitpid(pid, &status, 0) == pid && WIFSIGNALED(status) && WTERMSIG(status) == 1);
+    pid = spawn("/bin/ktest", cs3, 0, 0);
+    usleep(20000);
+    __syscall2(SYS_kill, pid, 9);
+    CHECK("killing a process whose terminal hangup reaches itself", waitpid(pid, &status, 0) == pid && WTERMSIG(status) == 9);
+    CHECK("... and the three terminals are freed", heap_used() == h0);
+    int ofd = open("/dev/ptmx", O_RDWR);
+    CHECK("ptys still work afterwards", ofd >= 0 && close(ofd) == 0);
+
+    { /* the whole process table, every child parked on one pipe: pid 63 is bit 63 of the wait mask */
+      static int kids[64];
+      int nk = 0, maxpid = 0, full = 0, fdn = open("/dev/null", O_WRONLY);
+      pipe2(in, O_CLOEXEC);
+      int kmap[3] = {in[0], fdn, fdn};
+      char *ck[] = {"ktest", "child-count", 0};
+      for (int i = 0; i < 64; i++) {
+        pid = spawn("/bin/ktest", ck, 0, kmap);
+        if (pid < 0) { full = errno == EAGAIN; break; }
+        kids[nk++] = pid;
+        if (pid > maxpid) maxpid = pid;
+      }
+      usleep(100000); /* let them all reach their read */
+      close(in[1]); close(in[0]); close(fdn);
+      int allok = 1;
+      for (int i = 0; i < nk; i++) allok &= waitpid(kids[i], &status, 0) == kids[i] && status == 0;
+      CHECK("a full process table: pid 63 is used, the next spawn is EAGAIN, all wake and exit", full && maxpid == 63 && allok);
+    }
+    char *ls[] = {"ktest", "child-longsleep", 0};
+    pid = spawn("/bin/ktest", ls, 0, 0);
+    usleep(60000);
+    struct procinfo pi; unsigned long long calls = 0;
+    for (int i = 0; __syscall2(SYS_procinfo, i, &pi) == 0; i++) if (pi.pid == pid) calls = pi.syscalls;
+    __syscall2(SYS_kill, pid, 9); waitpid(pid, &status, 0);
+    if (calls >= 10) printf("  (the sleeper made %llu calls in 60 ms)\n", calls);
+    CHECK("a sleep longer than 24 days waits on one timer, not in a loop", calls > 0 && calls < 10);
+  }
 
   /* informational: cost of the cheapest system call */
   t0 = now_ms();

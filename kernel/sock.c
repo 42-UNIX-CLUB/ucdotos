@@ -23,7 +23,7 @@ static long sock_read(struct file *f, u32 ubuf, u32 len) {
   struct sock *s = f->priv;
   if (s->state != S_CONN) return -EINVAL;
   if (!s->rx_len) {
-    if (s->hup) return 0;
+    if (s->hup || !len) return 0;
     if (f->flags & O_NONBLOCK) return -EAGAIN;
     wq_add(&s->rq);
     return block(-1);
@@ -78,7 +78,7 @@ static void sock_destroy(struct sock *s) {
   wq_wake(&s->wq); /* writers blocked on my queue get EPIPE on retry */
   wq_wake(&s->rq);
   for (int i = 0; i < s->nq; i++) sock_destroy(s->queue[i]);
-  if (s->ino) s->ino->priv = NULL;
+  if (s->ino) { s->ino->priv = NULL; inode_put(s->ino); }
   if (s->rx) kfree(s->rx);
   kfree(s);
 }
@@ -129,6 +129,7 @@ long sys_bind(int fd, u32 uaddr, u32 len) {
   }
   i->priv = s;
   s->ino = i;
+  inode_get(i); /* the socket keeps its name's inode alive, even if the name is unlinked */
   s->state = S_BOUND;
   return 0;
 }
