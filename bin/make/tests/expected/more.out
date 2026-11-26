@@ -1,0 +1,380 @@
+##### deep-chain
+=== make s20
+--- status 0
+--- stdout
+s0
+s1
+s2
+s3
+s4
+s5
+s6
+s7
+s8
+s9
+s10
+s11
+s12
+s13
+s14
+s15
+s16
+s17
+s18
+s19
+s20
+--- stderr
+
+=== files
+Makefile: "N := 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20\n$(foreach i,$(N),$(eval s$(i): s$(shell expr $(i) - 1) ; @echo $$@))\ns0: ; @echo s0\n"
+##### many-goals-messages
+=== make a b
+--- status 0
+--- stdout
+--- stderr
+
+=== make a b c d
+--- status 0
+--- stdout
+make: 'a' is up to date.
+make: 'b' is up to date.
+make: 'd' is up to date.
+--- stderr
+
+=== files
+Makefile: "a b c: ; @touch $@\nd: ;\n"
+a: ""
+b: ""
+c: ""
+##### phony-with-file
+=== make install
+--- status 0
+--- stdout
+installing prog
+--- stderr
+
+=== make install
+--- status 0
+--- stdout
+installing prog
+--- stderr
+
+=== files
+Makefile: ".PHONY: install\ninstall: prog ; @echo installing $<\nprog: ; @touch prog\n"
+prog: ""
+##### pattern-vs-explicit
+=== make
+--- status 0
+--- stdout
+explicit special.o
+--- stderr
+
+=== files
+Makefile: "%.o: ; @echo pattern $@\nspecial.o: ; @echo explicit $@\nall: special.o other.o\n"
+##### stem-with-dot
+=== make
+--- status 0
+--- stdout
+a.b.c . a.b.c
+dir/x.y dir x.y
+--- stderr
+
+=== files
+Makefile: "all: a.b.c.out dir/x.y.out\n%.out: ; @echo '$* $(*D) $(*F)'\n"
+##### percent-in-prereq-not-pattern
+=== make
+--- status 0
+--- stdout
+making a%b
+a%b
+--- stderr
+
+=== files
+Makefile: "all: a%b ; @echo '$^'\na%b: ; @echo making '$@'\n"
+##### wildcard-sorted
+=== make
+--- status 0
+--- stdout
+a.x b.x c.x
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(wildcard *.x)\n"
+a.x: "\n"
+b.x: "\n"
+c.x: "\n"
+##### wildcard-dirs
+=== make
+--- status 0
+--- stdout
+d1/a.c
+d2/b.c
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(wildcard */*.c) | tr ' ' '\\n'\n"
+d1/
+d1/a.c: "\n"
+d2/
+d2/b.c: "\n"
+d2/c.h: "\n"
+##### automatic-in-pattern-multiple
+=== make
+--- status 0
+--- stdout
+[x.a] [x]
+--- stderr
+
+=== files
+Makefile: "all: x.a x.b\n%.a %.b: ; @echo '[$@] [$*]'; touch $*.a $*.b\n"
+x.a: ""
+x.b: ""
+##### var-expansion-in-target
+=== make
+--- status 0
+--- stdout
+built prog
+--- stderr
+
+=== files
+Makefile: "NAME = prog\n$(NAME): ; @echo built $@\n"
+##### colon-in-var-value
+=== make
+--- status 0
+--- stdout
+http://example.org:80/x
+--- stderr
+
+=== files
+Makefile: "URL = http://example.org:80/x\nall: ; @echo $(URL)\n"
+##### semicolon-in-var
+=== make
+--- status 0
+--- stdout
+one
+two
+--- stderr
+
+=== files
+Makefile: "CMD = echo one; echo two\nall: ; @$(CMD)\n"
+##### equals-in-recipe
+=== make
+--- status 0
+--- stdout
+1
+a=b
+--- stderr
+
+=== files
+Makefile: "all:\n\t@X=1; echo $$X\n\t@echo a=b\n"
+##### target-var-expansion-time
+=== make t u
+--- status 0
+--- stdout
+inner
+outer
+--- stderr
+
+=== files
+Makefile: "X = $(Y)\nt: Y = inner\nt: ; @echo $(X)\nY = outer\nu: ; @echo $(X)\n"
+##### makeflags-in-recipe-env
+=== make -k -s
+--- status 0
+--- stdout
+ks
+--- stderr
+
+=== make -n
+--- status 0
+--- stdout
+echo "$MAKEFLAGS"
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"$$MAKEFLAGS\"\n"
+##### dollar-in-target-specific
+=== make
+--- status 0
+--- stdout
+a$b
+--- stderr
+
+=== files
+Makefile: "t: V = a$$b\nt: ; @echo '$(V)'\n"
+##### export-target-value
+=== make t u
+--- status 0
+--- stdout
+target
+global
+--- stderr
+
+=== files
+Makefile: "export E = global\nt: E = target\nt: ; @echo \"$$E\"\nu: ; @echo \"$$E\"\n"
+##### else-with-text
+=== make; echo "status $?"
+--- status 0
+--- stdout
+make: 'all' is up to date.
+status 0
+--- stderr
+Makefile:2: extraneous text after 'else' directive
+
+=== files
+Makefile: "ifeq (a,b)\nelse junk\nendif\nall: ;\n"
+##### recursive-plain-make-warning
+=== make
+--- status 0
+--- stdout
+sub 1
+--- stderr
+
+=== files
+Makefile: "all: ; @make -s -f sub.mk\n"
+sub.mk: "x: ; @echo sub $(MAKELEVEL)\n"
+##### file-and-dir-same-name
+=== mkdir src
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+all
+--- stderr
+
+=== files
+Makefile: "all: src ; @echo all\n"
+src/
+##### include-makefile-list-last
+=== make
+--- status 0
+--- stdout
+sub/
+--- stderr
+
+=== files
+Makefile: "include sub/inc.mk\nall: ; @echo $(HERE)\n"
+sub/
+sub/inc.mk: "HERE := $(dir $(lastword $(MAKEFILE_LIST)))\n"
+##### append-to-env-var
+=== PATHX=env make
+--- status 0
+--- stdout
+env extra file
+env extra
+--- stderr
+
+=== files
+Makefile: "PATHX += extra\nall: ; @echo \"$(PATHX) $(origin PATHX)\"; echo \"$$PATHX\"\n"
+##### conditional-assign-env
+=== make
+--- status 0
+--- stdout
+default
+--- stderr
+
+=== EV=env make
+--- status 0
+--- stdout
+env
+--- stderr
+
+=== files
+Makefile: "EV ?= default\nall: ; @echo $(EV)\n"
+##### simple-var-with-dollar-paren
+=== make
+--- status 0
+--- stdout
+$(not expanded)
+--- stderr
+
+=== files
+Makefile: "A := $$(not expanded)\nB = $(A)\nall: ; @echo '$(B)'\n"
+##### join-lines-in-function
+=== make
+--- status 0
+--- stdout
+[ bbb]
+--- stderr
+
+=== files
+Makefile: "X = $(subst a,b,\\\n      aaa)\nall: ; @echo '[$(X)]'\n"
+##### dollar-paren-brace-mix
+=== make
+--- status 0
+--- stdout
+xy x
+--- stderr
+
+=== files
+Makefile: "A = x\nB = y\nall: ; @echo ${A}$(B) $(A${B}) ${$(subst z,,A)}\nxy = z\nyx = w\n"
+##### order-of-goals-and-default
+=== make three one two
+--- status 0
+--- stdout
+three
+one
+two
+--- stderr
+
+=== files
+Makefile: "one: ; @echo one\ntwo: ; @echo two\nthree: ; @echo three\n"
+##### same-goal-twice
+=== make a a
+--- status 0
+--- stdout
+a
+make: 'a' is up to date.
+--- stderr
+
+=== files
+Makefile: "a: ; @echo a\n"
+##### shell-in-prereq
+=== make
+--- status 0
+--- stdout
+making x
+making y
+x y
+--- stderr
+
+=== files
+Makefile: "all: $(shell echo x y) ; @echo $^\nx y: ; @echo making $@\n"
+##### sort-dedup-in-prereqs
+=== make
+--- status 0
+--- stdout
+a b c | a b a c b
+--- stderr
+
+=== files
+Makefile: "all: a b a c b ; @echo '$^ | $+'\na b c: ;\n"
+##### newer-only-question
+=== touch -d '2001-01-01' a.o
+--- status 0
+--- stdout
+--- stderr
+
+=== touch -d '2001-01-02' lib
+--- status 0
+--- stdout
+--- stderr
+
+=== touch b.o
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+update with b.o
+--- stderr
+
+=== files
+Makefile: "lib: a.o b.o ; @echo 'update with $?'; touch lib\n"
+a.o: ""
+b.o: ""
+lib: ""

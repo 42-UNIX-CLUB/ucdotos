@@ -1,0 +1,8 @@
+false
+make: [Makefile:2: all] Error 1 (ignored)
+after
+status 0
+false
+make: [Makefile:2: all] Error 1 (ignored)
+after
+status 0

@@ -1,0 +1,1 @@
+-mtail-call -ffp-contract=off -fno-math-errno -DJIT_RENAME -Ilibjit libjit/wasm.c libjit/rvdec.c libjit/xlat.c libjit/rvsem.c libjit/rvfp.c libjit/rvinterp.c libjit/fmt.c libjit/jitcore.c -Wl,--export-table -Wl,--growable-table

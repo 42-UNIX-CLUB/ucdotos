@@ -1,0 +1,544 @@
+##### simple
+=== make
+--- status 0
+--- stdout
+echo hello
+hello
+--- stderr
+
+=== make all
+--- status 0
+--- stdout
+echo hello
+hello
+--- stderr
+
+=== files
+Makefile: "all:\n\techo hello\n"
+##### default-goal-first
+=== make
+--- status 0
+--- stdout
+first
+--- stderr
+
+=== make second first
+--- status 0
+--- stdout
+second
+first
+--- stderr
+
+=== files
+Makefile: "first: ; @echo first\nsecond: ; @echo second\n"
+##### default-goal-skips-dot
+=== make
+--- status 0
+--- stdout
+dirdot
+--- stderr
+
+=== files
+Makefile: ".hidden: ; @echo hidden\n%.x: ; @echo pattern\ndir/.ok: ; @echo dirdot\nreal: ; @echo real\n"
+##### default-goal-var
+=== make
+--- status 0
+--- stdout
+two
+--- stderr
+
+=== files
+Makefile: ".DEFAULT_GOAL := two\none: ; @echo one\ntwo: ; @echo two\n"
+##### default-goal-reset
+=== make
+--- status 0
+--- stdout
+goal=one
+two
+--- stderr
+
+=== files
+Makefile: "one: ; @echo one\n$(info goal=$(.DEFAULT_GOAL))\n.DEFAULT_GOAL :=\ntwo: ; @echo two\n"
+##### up-to-date
+=== make
+--- status 0
+--- stdout
+cp in out
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== make out
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== make all
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== files
+Makefile: "all: out\nout: in\n\tcp in out\n"
+in: "data\n"
+out: "data\n"
+##### nothing-to-be-done
+=== make
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== make in
+--- status 0
+--- stdout
+make: Nothing to be done for 'in'.
+--- stderr
+
+=== files
+Makefile: "all: in\n"
+in: "x\n"
+##### multiple-targets
+=== make a b c
+--- status 0
+--- stdout
+making a
+making b
+making c
+--- stderr
+
+=== make b
+--- status 0
+--- stdout
+making b
+--- stderr
+
+=== files
+Makefile: "a b c:\n\t@echo making $@\n"
+##### line-continuation
+=== make
+--- status 0
+--- stdout
+one two three
+a b
+x \
+y
+--- stderr
+
+=== files
+Makefile: "X = one \\\n    two \\\n\tthree\nall:\n\t@echo $(X)\n\t@echo a \\\n\tb\n\t@echo 'x \\\n\ty'\n"
+##### comments
+=== make
+--- status 0
+--- stdout
+[value ] [with#hash] [#bc]
+# this goes to the shell
+--- stderr
+
+=== files
+Makefile: "# a comment\nX = value # trailing comment\nY = with\\#hash\nZ = $(subst a,#,abc)\nall: # comment after the colon\n\t@echo \"[$(X)]\" \"[$(Y)]\" \"[$(Z)]\"\n\t# this goes to the shell\n\t@# and this too\n"
+##### semicolon-recipe
+=== make
+--- status 0
+--- stdout
+dep
+all dep
+--- stderr
+
+=== files
+Makefile: "all: dep ; @echo all $<\ndep: ; @echo dep\n"
+##### recipe-prefix
+=== make
+--- status 0
+--- stdout
+with prefix
+second line
+--- stderr
+
+=== files
+Makefile: ".RECIPEPREFIX = >\nall:\n> @echo with prefix\n> @echo second line\n"
+##### blank-lines-in-recipe
+=== make
+--- status 0
+--- stdout
+one
+two
+three
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo one\n\n\t@echo two\n# comment\n\t@echo three\n"
+##### at-sign
+=== make
+--- status 0
+--- stdout
+silent
+echo loud
+loud
+--- stderr
+
+=== make -s
+--- status 0
+--- stdout
+silent
+loud
+--- stderr
+
+=== make -n
+--- status 0
+--- stdout
+echo silent
+echo loud
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo silent\n\techo loud\n"
+##### dash-ignore
+=== make; echo "status $?"
+--- status 0
+--- stdout
+false
+after
+status 0
+--- stderr
+make: [Makefile:2: all] Error 1 (ignored)
+
+=== files
+Makefile: "all:\n\t-false\n\t@echo after\n"
+##### error-stops
+=== make; echo "status $?"
+--- status 0
+--- stdout
+before
+false
+status 2
+--- stderr
+make: *** [Makefile:3: all] Error 1
+
+=== files
+Makefile: "all:\n\t@echo before\n\tfalse\n\t@echo never\n"
+##### exit-code-in-message
+=== make; echo "status $?"
+--- status 0
+--- stdout
+exit 3
+status 2
+--- stderr
+make: *** [Makefile:2: all] Error 3
+
+=== files
+Makefile: "all:\n\texit 3\n"
+##### prereq-order
+=== make
+--- status 0
+--- stdout
+a
+b
+c
+all
+--- stderr
+
+=== files
+Makefile: "all: a b c\n\t@echo all\na: ; @echo a\nb: ; @echo b\nc: ; @echo c\n"
+##### shared-prereq
+=== make
+--- status 0
+--- stdout
+z
+x
+y
+--- stderr
+
+=== files
+Makefile: "all: x y\nx: z ; @echo x\ny: z ; @echo y\nz: ; @echo z\n"
+##### timestamps
+=== touch -d '2001-01-01' in1 in2
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+rebuild
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== touch -d '2001-01-02' out
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== touch in2
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+rebuild
+--- stderr
+
+=== files
+Makefile: "out: in1 in2\n\t@echo rebuild\n\t@touch out\n"
+in1: ""
+in2: ""
+out: ""
+##### missing-target-file
+=== make
+--- status 0
+--- stdout
+running
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+running
+--- stderr
+
+=== files
+Makefile: "all: phonyish\nphonyish:\n\t@echo running\n"
+##### dollar-dollar
+=== make
+--- status 0
+--- stdout
+5
+$HOME is not expanded by make
+--- stderr
+
+=== files
+Makefile: "all:\n\t@x=5; echo $$x\n\t@echo '$$HOME is not expanded by make'\n"
+##### var-in-recipe-expanded-late
+=== make
+--- status 0
+--- stdout
+late
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo $(X)\nX = late\n"
+##### crlf
+=== printf 'all:\r\n\t@echo crlf\r\n' > Makefile; make
+--- status 0
+--- stdout
+crlf
+--- stderr
+
+=== files
+Makefile: "all:\r\n\t@echo crlf\r\n"
+##### empty-makefile
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No targets.  Stop.
+
+=== files
+Makefile: "# nothing\n"
+##### no-makefile
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No targets specified and no makefile found.  Stop.
+
+=== make foo; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'foo'.  Stop.
+
+=== files
+
+##### lowercase-makefile
+=== make
+--- status 0
+--- stdout
+lower
+--- stderr
+
+=== files
+Makefile: "all: ; @echo upper\n"
+makefile: "all: ; @echo lower\n"
+##### gnumakefile
+=== make
+--- status 0
+--- stdout
+gnu
+--- stderr
+
+=== files
+GNUmakefile: "all: ; @echo gnu\n"
+makefile: "all: ; @echo lower\n"
+##### dash-f
+=== make -f one.mk
+--- status 0
+--- stdout
+a
+--- stderr
+
+=== make -f one.mk -f two.mk a b
+--- status 0
+--- stdout
+a from-two
+b
+--- stderr
+
+=== make --file=two.mk
+--- status 0
+--- stdout
+b
+--- stderr
+
+=== make --makefile two.mk
+--- status 0
+--- stdout
+b
+--- stderr
+
+=== files
+one.mk: "a: ; @echo a $(V)\n"
+two.mk: "V = from-two\nb: ; @echo b\n"
+##### dash-f-stdin
+=== printf 'all:\n\t@echo from stdin\n' | make -f -
+--- status 0
+--- stdout
+from stdin
+--- stderr
+
+=== files
+
+##### dash-f-missing
+=== make -f nope.mk; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: nope.mk: No such file or directory
+make: *** No rule to make target 'nope.mk'.  Stop.
+
+=== files
+
+##### dash-C
+=== make -C sub
+--- status 0
+--- stdout
+make: Entering directory '<DIR>/sub'
+in sub sub
+make: Leaving directory '<DIR>/sub'
+--- stderr
+
+=== make -C sub --no-print-directory
+--- status 0
+--- stdout
+in sub sub
+--- stderr
+
+=== make --directory=sub -s
+--- status 0
+--- stdout
+in sub sub
+--- stderr
+
+=== make -C nonexistent; echo "status $?"
+--- status 0
+--- stdout
+make: Entering directory '<DIR>'
+make: Leaving directory '<DIR>'
+status 2
+--- stderr
+make: *** nonexistent: No such file or directory.  Stop.
+
+=== files
+sub/
+sub/Makefile: "all: ; @echo in sub $(notdir $(CURDIR))\n"
+##### dash-C-twice
+=== make -C a -C b
+--- status 0
+--- stdout
+make: Entering directory '<DIR>/a/b'
+deep
+make: Leaving directory '<DIR>/a/b'
+--- stderr
+
+=== files
+a/
+a/b/
+a/b/Makefile: "all: ; @echo deep\n"
+##### dash-w
+=== make -w
+--- status 0
+--- stdout
+make: Entering directory '<DIR>'
+hi
+make: Leaving directory '<DIR>'
+--- stderr
+
+=== make -w -s
+--- status 0
+--- stdout
+make: Entering directory '<DIR>'
+hi
+make: Leaving directory '<DIR>'
+--- stderr
+
+=== files
+Makefile: "all: ; @echo hi\n"
+##### unknown-option
+=== make -Z 2>/dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+
+=== make --no-such-option 2>/dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+
+=== files
+Makefile: "all: ; @echo hi\n"
+##### command-not-found
+=== make; echo "status $?"
+--- status 0
+--- stdout
+nonexistent-command-xyz arg
+status 2
+--- stderr
+make: nonexistent-command-xyz: No such file or directory
+make: *** [Makefile:2: all] Error 127
+
+=== files
+Makefile: "all:\n\tnonexistent-command-xyz arg\n"
+##### long-line
+=== make
+--- status 0
+--- stdout
+418
+--- stderr
+
+=== files
+Makefile: "X := $(foreach i,1 2 3 4 5 6 7 8 9 10,word$(i)word$(i)word$(i)word$(i)word$(i)word$(i)word$(i)word$(i))\nall: ; @echo $(X) | wc -c\n"

@@ -21,7 +21,7 @@ static long pipe_read(struct file *f, u32 ubuf, u32 len) {
 }
 static long pipe_write(struct file *f, u32 ubuf, u32 len) {
   struct pipe *p = f->priv;
-  if (!p->readers) return -EPIPE;
+  if (!p->readers) return sig_pipe(); /* SIGPIPE, then -EPIPE */
   u32 room = PIPE_SZ - p->len;
   if (!room) {
     if (f->flags & O_NONBLOCK) return -EAGAIN;

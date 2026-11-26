@@ -1,0 +1,629 @@
+##### dry-run
+=== make -n
+--- status 0
+--- stdout
+echo making out
+cp in out
+--- stderr
+
+=== make --just-print
+--- status 0
+--- stdout
+echo making out
+cp in out
+--- stderr
+
+=== make --dry-run
+--- status 0
+--- stdout
+echo making out
+cp in out
+--- stderr
+
+=== make --recon
+--- status 0
+--- stdout
+echo making out
+cp in out
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+in
+--- stderr
+
+=== files
+Makefile: "all: out\nout: in\n\t@echo making out\n\tcp in out\n"
+in: "\n"
+##### dry-run-chain
+=== touch -d '2001-01-01' b c
+--- status 0
+--- stdout
+--- stderr
+
+=== touch a
+--- status 0
+--- stdout
+--- stderr
+
+=== make -n
+--- status 0
+--- stdout
+cp a b
+cp b c
+--- stderr
+
+=== files
+Makefile: "c: b ; cp b c\nb: a ; cp a b\n"
+a: ""
+b: ""
+c: ""
+##### dry-run-make-runs
+=== make -n --no-print-directory
+--- status 0
+--- stdout
+echo plain
+echo plus-line
+plus-line
+make -s -f sub.mk
+echo sub ran
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo plain\n\t+@echo plus-line\n\t$(MAKE) -s -f sub.mk\n"
+sub.mk: "x: ; @echo sub ran\n"
+##### touch
+=== touch -d '2001-01-01' out
+--- status 0
+--- stdout
+--- stderr
+
+=== touch in
+--- status 0
+--- stdout
+--- stderr
+
+=== make -t
+--- status 0
+--- stdout
+touch out
+--- stderr
+
+=== make -t
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== make -t -s
+--- status 0
+--- stdout
+--- stderr
+
+=== files
+Makefile: "out: in ; @echo should not run\n"
+in: ""
+out: ""
+##### touch-missing
+=== make -t
+--- status 0
+--- stdout
+touch a
+touch b
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+a
+b
+--- stderr
+
+=== files
+Makefile: "all: a b\na b: ; echo never\n"
+a: ""
+b: ""
+##### question
+=== make -q; echo "status $?"
+--- status 0
+--- stdout
+status 1
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+--- stderr
+
+=== make -q; echo "status $?"
+--- status 0
+--- stdout
+status 0
+--- stderr
+
+=== make --question; echo "status $?"
+--- status 0
+--- stdout
+status 0
+--- stderr
+
+=== files
+Makefile: "out: in ; @cp in out\n"
+in: "\n"
+out: "\n"
+##### question-phony
+=== make -q; echo "status $?"
+--- status 0
+--- stdout
+status 1
+--- stderr
+
+=== files
+Makefile: ".PHONY: all\nall: ; @echo x\n"
+##### always-make
+=== touch out
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== make -B
+--- status 0
+--- stdout
+remade
+--- stderr
+
+=== make --always-make
+--- status 0
+--- stdout
+remade
+--- stderr
+
+=== files
+Makefile: "out: in ; @echo remade\n"
+in: "\n"
+out: ""
+##### old-file
+=== touch -d '2001-01-01' out
+--- status 0
+--- stdout
+--- stderr
+
+=== touch -d '2001-01-02' mid
+--- status 0
+--- stdout
+--- stderr
+
+=== touch in
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+mid
+out
+--- stderr
+
+=== make -o mid
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== make --old-file=mid
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== make --assume-old=mid
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== files
+Makefile: "out: mid ; @echo out\nmid: in ; @echo mid\n"
+in: ""
+mid: ""
+out: ""
+##### what-if
+=== touch in
+--- status 0
+--- stdout
+--- stderr
+
+=== sleep 0.01
+--- status 0
+--- stdout
+--- stderr
+
+=== touch out
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== make -W in
+--- status 0
+--- stdout
+out
+--- stderr
+
+=== make -n -W in
+--- status 0
+--- stdout
+echo out
+--- stderr
+
+=== make --what-if=in -n
+--- status 0
+--- stdout
+echo out
+--- stderr
+
+=== files
+Makefile: "out: in ; @echo out\n"
+in: ""
+out: ""
+##### silent
+=== make -s
+--- status 0
+--- stdout
+loud
+--- stderr
+
+=== make --silent
+--- status 0
+--- stdout
+loud
+--- stderr
+
+=== make --quiet
+--- status 0
+--- stdout
+loud
+--- stderr
+
+=== make -s --no-silent
+--- status 0
+--- stdout
+echo loud
+loud
+--- stderr
+
+=== files
+Makefile: "all: ; echo loud\n"
+##### keep-going-stop
+=== make -k -S; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:2: a] Error 1
+
+=== files
+Makefile: "all: a b ; @echo all\na: ; @false\nb: ; @echo b\n"
+##### environment-overrides
+=== X=env make
+--- status 0
+--- stdout
+file
+--- stderr
+
+=== X=env make -e
+--- status 0
+--- stdout
+env
+--- stderr
+
+=== X=env make --environment-overrides
+--- status 0
+--- stdout
+env
+--- stderr
+
+=== files
+Makefile: "X = file\nall: ; @echo $(X)\n"
+##### no-builtin-rules
+=== make -n
+--- status 0
+--- stdout
+cc    -c -o x.o x.c
+--- stderr
+
+=== make -r; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'x.o', needed by 'all'.  Stop.
+
+=== make --no-builtin-rules -n; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'x.o', needed by 'all'.  Stop.
+
+=== files
+Makefile: "all: x.o\n"
+x.c: "\n"
+##### no-builtin-variables
+=== make
+--- status 0
+--- stdout
+[cc] [make] [rm -f]
+--- stderr
+
+=== make -R
+--- status 0
+--- stdout
+[] [make] []
+--- stderr
+
+=== make --no-builtin-variables
+--- status 0
+--- stdout
+[] [make] []
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$(CC)] [$(MAKE)] [$(RM)]\"\n"
+##### eval-option
+=== make --eval='X = from-eval'
+--- status 0
+--- stdout
+from-eval
+--- stderr
+
+=== make -E 'X = short'
+--- status 0
+--- stdout
+short
+--- stderr
+
+=== make --eval='extra: ; @echo extra' extra
+--- status 0
+--- stdout
+extra
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(X)\n"
+##### jobs-arg-forms
+=== make -j1
+--- status 0
+--- stdout
+[ -j1]
+--- stderr
+
+=== make -j2
+--- status 0
+--- stdout
+[ -j2]
+--- stderr
+
+=== make -j 3
+--- status 0
+--- stdout
+[ -j3]
+--- stderr
+
+=== make --jobs=4
+--- status 0
+--- stdout
+[ -j4]
+--- stderr
+
+=== make -j
+--- status 0
+--- stdout
+[ -j]
+--- stderr
+
+=== make -kj2
+--- status 0
+--- stdout
+[k -j2]
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$(MAKEFLAGS)]\"\n"
+##### print-directory
+=== make -w
+--- status 0
+--- stdout
+make: Entering directory '<DIR>'
+hi
+make: Leaving directory '<DIR>'
+--- stderr
+
+=== make -w --no-print-directory
+--- status 0
+--- stdout
+hi
+--- stderr
+
+=== make --print-directory -s
+--- status 0
+--- stdout
+make: Entering directory '<DIR>'
+hi
+make: Leaving directory '<DIR>'
+--- stderr
+
+=== files
+Makefile: "all: ; @echo hi\n"
+##### version-help
+=== make --version > /dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 0
+--- stderr
+
+=== make --help > /dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 0
+--- stderr
+
+=== make -v > /dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 0
+--- stderr
+
+=== files
+Makefile: "all: ;\n"
+##### variable-and-goal-mix
+=== make V=1 a W=2 b
+--- status 0
+--- stdout
+a 1 2
+b 1 2
+--- stderr
+
+=== make -- V=3 a
+--- status 0
+--- stdout
+a 3
+--- stderr
+
+=== files
+Makefile: "a b: ; @echo $@ $(V) $(W)\n"
+##### long-option-prefix
+=== make --sil
+--- status 0
+--- stdout
+hi
+--- stderr
+
+=== make --dry
+--- status 0
+--- stdout
+echo hi
+--- stderr
+
+=== files
+Makefile: "all: ; echo hi\n"
+##### ignore-errors-long
+=== make --ignore-errors; echo "status $?"
+--- status 0
+--- stdout
+b
+all
+status 0
+--- stderr
+make: [Makefile:2: a] Error 1 (ignored)
+
+=== make --keep-going; echo "status $?"
+--- status 0
+--- stdout
+b
+status 2
+--- stderr
+make: *** [Makefile:2: a] Error 1
+make: Target 'all' not remade because of errors.
+
+=== files
+Makefile: "all: a b ; @echo all\na: ; @false\nb: ; @echo b\n"
+##### trace
+=== make --trace
+--- status 0
+--- stdout
+Makefile:8: update target 'c' due to: target does not exist
+touch c
+Makefile:4: update target 'a' due to: target does not exist
+echo a; touch a
+a
+Makefile:6: update target 'b' due to: target is .PHONY
+echo b
+b
+Makefile:2: update target 'all' due to: target does not exist
+echo all
+all
+--- stderr
+
+=== touch -d '2001-01-01' a
+--- status 0
+--- stdout
+--- stderr
+
+=== make --trace a
+--- status 0
+--- stdout
+Makefile:4: update target 'a' due to: c
+echo a; touch a
+a
+--- stderr
+
+=== echo z > q.y
+--- status 0
+--- stdout
+--- stderr
+
+=== make --trace q.x
+--- status 0
+--- stdout
+Makefile:11: update target 'q.x' due to: target does not exist
+cp q.y q.x
+--- stderr
+
+=== files
+Makefile: "all: a b\n\t@echo all\na: c\n\t@echo a; touch a\nb:\n\t@echo b\nc:\n\ttouch c\n.PHONY: b\n%.x: %.y\n\t@cp $< $@\n"
+a: ""
+c: ""
+q.x: "z\n"
+q.y: "z\n"
+##### debug-accepted
+=== make -d > /dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 0
+--- stderr
+
+=== make --debug=b > /dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 0
+--- stderr
+
+=== files
+Makefile: "all: ; @true\n"
+##### print-database-runs
+=== make -p | grep -c '^all:'
+--- status 0
+--- stdout
+1
+--- stderr
+
+=== make -p -q > /dev/null; echo "status $?"
+--- status 0
+--- stdout
+status 1
+--- stderr
+
+=== files
+Makefile: "all: ; @echo ran\n"

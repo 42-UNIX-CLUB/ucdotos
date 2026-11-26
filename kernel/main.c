@@ -28,6 +28,7 @@ EXPORT(kmain) int kmain(u8 *initrd, u32 initrd_len, const char *cmdline) {
   pty_init();
   fb_init();
   int files = vfs_load_tar(initrd, initrd_len);
+  store_apply(); /* file system: lay the persistent store over the image (kernel/store.c) */
   kprintf("[kernel] %s %s (wasm32), initrd %u KiB, %d files, up in %.2f ms\n", OS_NAME, OS_RELEASE,
           initrd_len >> 10, files, host_now() - t0);
   /* argv for init: its own name, then any words after " -- " on the command line */

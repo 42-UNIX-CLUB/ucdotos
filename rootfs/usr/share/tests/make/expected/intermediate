@@ -1,0 +1,2 @@
+rm x.b
+Makefile x.a x.c

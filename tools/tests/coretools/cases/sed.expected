@@ -1,0 +1,480 @@
+{"cmd":"sed '' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed p small","out":"x\nx\ny\ny\n","status":0,"err":false}
+{"cmd":"sed -n p small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed d n","out":"","status":0,"err":false}
+{"cmd":"sed 3d n","out":"one\ntwo\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed '$d' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\n","status":0,"err":false}
+{"cmd":"sed '1d;$d' n","out":"two\nthree\nfour\nfive\nsix\nseven\neight\nnine\n","status":0,"err":false}
+{"cmd":"sed -n '3p' n","out":"three\n","status":0,"err":false}
+{"cmd":"sed -n '$p' n","out":"ten\n","status":0,"err":false}
+{"cmd":"sed -n '2,4p' n","out":"two\nthree\nfour\n","status":0,"err":false}
+{"cmd":"sed -n '4,2p' n","out":"four\n","status":0,"err":false}
+{"cmd":"sed -n '/three/,/six/p' n","out":"three\nfour\nfive\nsix\n","status":0,"err":false}
+{"cmd":"sed -n '/three/,+2p' n","out":"three\nfour\nfive\n","status":0,"err":false}
+{"cmd":"sed -n '/two/,~4p' n","out":"two\nthree\nfour\n","status":0,"err":false}
+{"cmd":"sed -n '0,/o/p' n","out":"one\n","status":0,"err":false}
+{"cmd":"sed -n '1,/o/p' n","out":"one\ntwo\n","status":0,"err":false}
+{"cmd":"sed -n '2~3p' n","out":"two\nfive\neight\n","status":0,"err":false}
+{"cmd":"sed -n '0~4p' n","out":"four\neight\n","status":0,"err":false}
+{"cmd":"sed -n '5~0p' n","out":"five\n","status":0,"err":false}
+{"cmd":"sed -n '$!p' small","out":"x\n","status":0,"err":false}
+{"cmd":"sed '2,8!d' n","out":"two\nthree\nfour\nfive\nsix\nseven\neight\n","status":0,"err":false}
+{"cmd":"sed -n '/e$/p' n","out":"one\nthree\nfive\nnine\n","status":0,"err":false}
+{"cmd":"sed -n '/^t/!p' n","out":"one\nfour\nfive\nsix\nseven\neight\nnine\n","status":0,"err":false}
+{"cmd":"sed -n '\\,o,p' n","out":"one\ntwo\nfour\n","status":0,"err":false}
+{"cmd":"sed -n '\\|e|p' n","out":"one\nthree\nfive\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed -n '/HELLO/Ip' t","out":"hello world\nHello World\n","status":0,"err":false}
+{"cmd":"sed -n '/o/,/o/p' n","out":"one\ntwo\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed -n '/seven/,3p' n","out":"seven\n","status":0,"err":false}
+{"cmd":"sed -n '8,$p' n","out":"eight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed -n '$=' n","out":"10\n","status":0,"err":false}
+{"cmd":"sed = small","out":"1\nx\n2\ny\n","status":0,"err":false}
+{"cmd":"sed -n '/e/=' n","out":"1\n3\n5\n7\n8\n9\n10\n","status":0,"err":false}
+{"cmd":"sed s/o/0/ n","out":"0ne\ntw0\nthree\nf0ur\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed s/o/0/g n","out":"0ne\ntw0\nthree\nf0ur\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed s/e/E/2 n","out":"one\ntwo\nthreE\nfour\nfive\nsix\nsevEn\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed s/e/E/2g n","out":"one\ntwo\nthreE\nfour\nfive\nsix\nsevEn\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed 's/[aeiou]/(&)/g' n","out":"(o)n(e)\ntw(o)\nthr(e)(e)\nf(o)(u)r\nf(i)v(e)\ns(i)x\ns(e)v(e)n\n(e)(i)ght\nn(i)n(e)\nt(e)n\n","status":0,"err":false}
+{"cmd":"sed 's/\\(.\\)\\(.\\)/\\2\\1/' n","out":"noe\nwto\nhtree\nofur\nifve\nisx\nesven\nieght\ninne\netn\n","status":0,"err":false}
+{"cmd":"sed -E 's/(.)(.)/\\2\\1/' n","out":"noe\nwto\nhtree\nofur\nifve\nisx\nesven\nieght\ninne\netn\n","status":0,"err":false}
+{"cmd":"sed -E 's/(o+)|(e+)/[\\1|\\2]/g' n","out":"[o|]n[|e]\ntw[o|]\nthr[|ee]\nf[o|]ur\nfiv[|e]\nsix\ns[|e]v[|e]n\n[|e]ight\nnin[|e]\nt[|e]n\n","status":0,"err":false}
+{"cmd":"sed 's/o\\+/O/g' t","out":"hellO wOrld\nfO bar baz\n\nHellO WOrld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/l\\{2\\}/LL/' t","out":"heLLo world\nfoo bar baz\n\nHeLLo World\nthe end\n","status":0,"err":false}
+{"cmd":"sed -E 's/l{2}/LL/' t","out":"heLLo world\nfoo bar baz\n\nHeLLo World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/x*/-/g' small","out":"-\n-y-\n","status":0,"err":false}
+{"cmd":"sed 's/o*/X/g' t","out":"XhXeXlXlX XwXrXlXdX\nXfX XbXaXrX XbXaXzX\nX\nXHXeXlXlX XWXrXlXdX\nXtXhXeX XeXnXdX\n","status":0,"err":false}
+{"cmd":"sed 's/$/;/' n","out":"one;\ntwo;\nthree;\nfour;\nfive;\nsix;\nseven;\neight;\nnine;\nten;\n","status":0,"err":false}
+{"cmd":"sed 's/^/> /' n","out":"> one\n> two\n> three\n> four\n> five\n> six\n> seven\n> eight\n> nine\n> ten\n","status":0,"err":false}
+{"cmd":"sed 's/^$/EMPTY/' t","out":"hello world\nfoo bar baz\nEMPTY\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/.*/[&]/' t","out":"[hello world]\n[foo bar baz]\n[]\n[Hello World]\n[the end]\n","status":0,"err":false}
+{"cmd":"sed 's/\\&/and/' t","out":"hello world\nfoo bar baz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/o/\\&/g' t","out":"hell& w&rld\nf&& bar baz\n\nHell& W&rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/o/\\\\/g' t","out":"hell\\ w\\rld\nf\\\\ bar baz\n\nHell\\ W\\rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's|/|:|g' conf","out":"key1=value1\n# comment\nkey2 = value2\n\nkey3=a=b\n","status":0,"err":false}
+{"cmd":"sed 's,=,: ,' conf","out":"key1: value1\n# comment\nkey2 :  value2\n\nkey3: a=b\n","status":0,"err":false}
+{"cmd":"sed 's/=/\\n/' conf","out":"key1\nvalue1\n# comment\nkey2 \n value2\n\nkey3\na=b\n","status":0,"err":false}
+{"cmd":"sed 's/ /\\t/g' t","out":"hello\tworld\nfoo\tbar\tbaz\n\nHello\tWorld\nthe\tend\n","status":0,"err":false}
+{"cmd":"sed 's/\\t/TAB/' odd","out":"line withTABtab\nback\\slash\n\u0001\u0002ÿ\n","status":0,"err":false}
+{"cmd":"sed 's/\\\\/BS/' odd","out":"line with\ttab\nbackBSslash\n\u0001\u0002ÿ\n","status":0,"err":false}
+{"cmd":"sed 's/[[:space:]]*=[[:space:]]*/=/' conf","out":"key1=value1\n# comment\nkey2=value2\n\nkey3=a=b\n","status":0,"err":false}
+{"cmd":"sed -n 's/^\\([^=]*\\)=\\(.*\\)$/\\2=\\1/p' conf","out":"value1=key1\n value2=key2 \na=b=key3\n","status":0,"err":false}
+{"cmd":"sed 's/[[:upper:]]/\\l&/g' t","out":"hello world\nfoo bar baz\n\nhello world\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/\\w\\+/\\u&/g' t","out":"Hello World\nFoo Bar Baz\n\nHello World\nThe End\n","status":0,"err":false}
+{"cmd":"sed -E 's/(\\w+) (\\w+)/\\U\\1\\E \\2/' t","out":"HELLO world\nFOO bar baz\n\nHELLO World\nTHE end\n","status":0,"err":false}
+{"cmd":"sed 's/.*/\\U&/' t","out":"HELLO WORLD\nFOO BAR BAZ\n\nHELLO WORLD\nTHE END\n","status":0,"err":false}
+{"cmd":"sed 's/.*/\\L&/' t","out":"hello world\nfoo bar baz\n\nhello world\nthe end\n","status":0,"err":false}
+{"cmd":"sed -E 's/(h)(e)/\\u\\1\\U\\2x\\Ey/' t","out":"HEXyllo world\nfoo bar baz\n\nHello World\ntHEXy end\n","status":0,"err":false}
+{"cmd":"sed 's/o/0/gp' t","out":"hell0 w0rld\nhell0 w0rld\nf00 bar baz\nf00 bar baz\n\nHell0 W0rld\nHell0 W0rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed -n 's/o/0/gp' t","out":"hell0 w0rld\nf00 bar baz\nHell0 W0rld\n","status":0,"err":false}
+{"cmd":"sed 's/O/0/gI' t","out":"hell0 w0rld\nf00 bar baz\n\nHell0 W0rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/hello/bye/i' t","out":"bye world\nfoo bar baz\n\nbye World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/a\\|e/_/g' t","out":"h_llo world\nfoo b_r b_z\n\nH_llo World\nth_ _nd\n","status":0,"err":false}
+{"cmd":"sed -E 's/a|e/_/g' t","out":"h_llo world\nfoo b_r b_z\n\nH_llo World\nth_ _nd\n","status":0,"err":false}
+{"cmd":"sed 's/\\<the\\>/THE/' t","out":"hello world\nfoo bar baz\n\nHello World\nTHE end\n","status":0,"err":false}
+{"cmd":"sed 's/\\bfoo\\b/F/' t","out":"hello world\nF bar baz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/o\\B/0/g' t","out":"hello w0rld\nf0o bar baz\n\nHello W0rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/^\\(.*\\)\\1$/dup:\\1/' t","out":"hello world\nfoo bar baz\ndup:\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed -E 's/(.)\\1/<\\1\\1>/g' n","out":"one\ntwo\nthr<ee>\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed 's/a.b/X/' t","out":"hello world\nfoo bar baz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's.o\\.r.X.' t","out":"hello world\nfoo bar baz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/x/y/w out' small; cat out","out":"y\ny\ny\n","status":0,"err":false}
+{"cmd":"sed -n 's/o/0/w out' n; cat out","out":"0ne\ntw0\nf0ur\n","status":0,"err":false}
+{"cmd":"sed 's/e/E/3' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed 's/[^aeiou]//g' n","out":"oe\no\nee\nou\nie\ni\nee\nei\nie\ne\n","status":0,"err":false}
+{"cmd":"sed 's/[]]/X/' t","out":"hello world\nfoo bar baz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/[a-]/X/g' t","out":"hello world\nfoo bXr bXz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/\\x6f/0/g' t","out":"hell0 w0rld\nf00 bar baz\n\nHell0 W0rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/\\o157/0/g' t","out":"hell0 w0rld\nf00 bar baz\n\nHell0 W0rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/\\d111/0/g' t","out":"hell0 w0rld\nf00 bar baz\n\nHell0 W0rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/x/\\x41/' small","out":"A\ny\n","status":0,"err":false}
+{"cmd":"sed 's/./\\cA/' small | od -c","out":"0000000 001  \\n 001  \\n\n0000004\n","status":0,"err":false}
+{"cmd":"sed 's/o/\\n/g' t","out":"hell\n w\nrld\nf\n\n bar baz\n\nHell\n W\nrld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 'N;s/\\n/+/' n","out":"one+two\nthree+four\nfive+six\nseven+eight\nnine+ten\n","status":0,"err":false}
+{"cmd":"sed '$!N;s/\\n/ /' n","out":"one two\nthree four\nfive six\nseven eight\nnine ten\n","status":0,"err":false}
+{"cmd":"sed ':a;N;$!ba;s/\\n/,/g' n","out":"one,two,three,four,five,six,seven,eight,nine,ten\n","status":0,"err":false}
+{"cmd":"sed -e :a -e '$!N;s/\\n//;ta' small","out":"xy\n","status":0,"err":false}
+{"cmd":"sed 's/e/E/;s/E/F/' n","out":"onF\ntwo\nthrFe\nfour\nfivF\nsix\nsFven\nFight\nninF\ntFn\n","status":0,"err":false}
+{"cmd":"sed -e 's/o/0/' -e 's/e/3/' n","out":"0n3\ntw0\nthr3e\nf0ur\nfiv3\nsix\ns3ven\n3ight\nnin3\nt3n\n","status":0,"err":false}
+{"cmd":"sed -f script.sed n","out":"0ne\nf0ur\nfive\nsix\nseven\neight\nnine\n","status":0,"err":false}
+{"cmd":"sed -f quiet.sed n","out":"two\n","status":0,"err":false}
+{"cmd":"sed --expression=s/o/0/ n","out":"0ne\ntw0\nthree\nf0ur\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed y/abc/xyz/ t","out":"hello world\nfoo yxr yxz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed 'y/elo/ELO/' t","out":"hELLO wOrLd\nfOO bar baz\n\nHELLO WOrLd\nthE End\n","status":0,"err":false}
+{"cmd":"sed 'y/\\n/ /' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed 'N;y/\\n/|/' n","out":"one|two\nthree|four\nfive|six\nseven|eight\nnine|ten\n","status":0,"err":false}
+{"cmd":"sed 'y/abc/xy/' t","out":"","status":1,"err":true}
+{"cmd":"sed 'y,a\\,b,x;y,' t","out":"hello world\nfoo yxr yxz\n\nHello World\nthe end\n","status":0,"err":false}
+{"cmd":"sed '2a\\\nappended' small","out":"x\ny\nappended\n","status":0,"err":false}
+{"cmd":"sed '2i\\\ninserted' small","out":"x\ninserted\ny\n","status":0,"err":false}
+{"cmd":"sed '1c\\\nchanged' small","out":"changed\ny\n","status":0,"err":false}
+{"cmd":"sed 'a hello' small","out":"x\nhello\ny\nhello\n","status":0,"err":false}
+{"cmd":"sed 'i\\  indented' small","out":"  indented\nx\n  indented\ny\n","status":0,"err":false}
+{"cmd":"sed '$a\\\nend' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\nend\n","status":0,"err":false}
+{"cmd":"sed '1i\\\nfirst\\\nsecond' small","out":"first\nsecond\nx\ny\n","status":0,"err":false}
+{"cmd":"sed '/two/,/four/c\\\ngone' n","out":"one\ngone\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed '2,4!c X' n","out":"X\ntwo\nthree\nfour\nX\nX\nX\nX\nX\nX\n","status":0,"err":false}
+{"cmd":"sed '$!c X' small","out":"X\ny\n","status":0,"err":false}
+{"cmd":"sed -n '2{p;a\\\nafter\n}' n","out":"two\nafter\n","status":0,"err":false}
+{"cmd":"sed '1a one' -e '1a two' small","out":"x\ntwo\ny\n","status":2,"err":true}
+{"cmd":"sed -e '1a\\' -e 'joined' small","out":"x\njoined\ny\n","status":0,"err":false}
+{"cmd":"sed 'a\\' small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed 'a foo\\tbar' small","out":"x\nfoo\tbar\ny\nfoo\tbar\n","status":0,"err":false}
+{"cmd":"sed '2q;a x' n","out":"one\nx\ntwo\n","status":0,"err":false}
+{"cmd":"sed -n 'h;n;G;p' n","out":"two\none\nfour\nthree\nsix\nfive\neight\nseven\nten\nnine\n","status":0,"err":false}
+{"cmd":"sed -n '1!G;h;$p' n","out":"ten\nnine\neight\nseven\nsix\nfive\nfour\nthree\ntwo\none\n","status":0,"err":false}
+{"cmd":"sed 'x;$!d' n","out":"nine\n","status":0,"err":false}
+{"cmd":"sed '1!G;h;$!d' n","out":"ten\nnine\neight\nseven\nsix\nfive\nfour\nthree\ntwo\none\n","status":0,"err":false}
+{"cmd":"sed -n 'H;${x;s/\\n/,/g;p}' n","out":",one,two,three,four,five,six,seven,eight,nine,ten\n","status":0,"err":false}
+{"cmd":"sed 'G' small","out":"x\n\ny\n\n","status":0,"err":false}
+{"cmd":"sed 'g' small","out":"\n\n","status":0,"err":false}
+{"cmd":"sed -n '/two/{x;p;x;p}' n","out":"\ntwo\n","status":0,"err":false}
+{"cmd":"sed '1h;2,$H;$!d;g' small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed n n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed -n n small","out":"","status":0,"err":false}
+{"cmd":"sed 'n;d' n","out":"one\nthree\nfive\nseven\nnine\n","status":0,"err":false}
+{"cmd":"sed '$!N;P;D' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed 'N;P;D' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed 'N;D' n","out":"ten\n","status":0,"err":false}
+{"cmd":"sed 'N;N;s/\\n/+/g' n","out":"one+two+three\nfour+five+six\nseven+eight+nine\nten\n","status":0,"err":false}
+{"cmd":"sed N small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed -n 'N;l' small","out":"x\\ny$\n","status":0,"err":false}
+{"cmd":"sed '$!N;/^\\(.*\\)\\n\\1$/!P;D' small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"printf 'a\\na\\nb\\nb\\nb\\nc\\n' | sed '$!N;/^\\(.*\\)\\n\\1$/!P;D'","out":"a\nb\nc\n","status":0,"err":false}
+{"cmd":"sed 'P;d' small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed -n 'N;P' n","out":"one\nthree\nfive\nseven\nnine\n","status":0,"err":false}
+{"cmd":"sed ':a;s/^.\\{1,7\\}$/ &/;ta' n","out":"     one\n     two\n   three\n    four\n    five\n     six\n   seven\n   eight\n    nine\n     ten\n","status":0,"err":false}
+{"cmd":"sed -e ':x' -e 's/o/0/' -e 'tx' t","out":"hell0 w0rld\nf00 bar baz\n\nHell0 W0rld\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/o/0/;T;s/$/ (changed)/' t","out":"hell0 world (changed)\nf0o bar baz (changed)\n\nHell0 World (changed)\nthe end\n","status":0,"err":false}
+{"cmd":"sed 's/zzz//;t;s/$/!/' small","out":"x!\ny!\n","status":0,"err":false}
+{"cmd":"sed 'b end;s/./X/;:end' small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed -n '/two/b skip;p;:skip' n","out":"one\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed '/one/b;s/$/ x/' n","out":"one\ntwo x\nthree x\nfour x\nfive x\nsix x\nseven x\neight x\nnine x\nten x\n","status":0,"err":false}
+{"cmd":"sed ':a;$q;N;4,$D;ba' n","out":"eight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed 3q n","out":"one\ntwo\nthree\n","status":0,"err":false}
+{"cmd":"sed 3Q n","out":"one\ntwo\n","status":0,"err":false}
+{"cmd":"sed -n '3{p;q}' n","out":"three\n","status":0,"err":false}
+{"cmd":"sed '2q7' n; echo \"status=$?\"","out":"one\ntwo\nstatus=7\n","status":0,"err":false}
+{"cmd":"sed '2Q3' n; echo \"status=$?\"","out":"one\nstatus=3\n","status":0,"err":false}
+{"cmd":"sed q nonl","out":"no newline\n","status":0,"err":false}
+{"cmd":"sed '1q' small other","out":"x\n","status":0,"err":false}
+{"cmd":"sed -n l odd","out":"line with\\ttab$\nback\\\\slash$\n\\001\\002\\377$\n","status":0,"err":false}
+{"cmd":"sed -n 'l 5' n","out":"one$\ntwo$\nthre\\\ne$\nfour$\nfive$\nsix$\nseve\\\nn$\neigh\\\nt$\nnine$\nten$\n","status":0,"err":false}
+{"cmd":"sed -n 'l 0' t","out":"hello world$\nfoo bar baz$\n$\nHello World$\nthe end$\n","status":0,"err":false}
+{"cmd":"sed -l 8 -n l t","out":"hello w\\\norld$\nfoo bar\\\n baz$\n$\nHello W\\\norld$\nthe end$\n","status":0,"err":false}
+{"cmd":"sed -n '/two/w out' n; cat out","out":"two\n","status":0,"err":false}
+{"cmd":"sed 'w out' small > /dev/null; cat out","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed -n 'W out' small; cat out","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed '1r other' small","out":"x\nA\nB\ny\n","status":0,"err":false}
+{"cmd":"sed 'r other' small","out":"x\nA\nB\ny\nA\nB\n","status":0,"err":false}
+{"cmd":"sed '$r missing' small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed '/x/R other' small","out":"x\nA\ny\n","status":0,"err":false}
+{"cmd":"sed 'R other' n","out":"one\nA\ntwo\nB\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed F small","out":"small\nx\nsmall\ny\n","status":0,"err":false}
+{"cmd":"sed -n '$F' small other","out":"other\n","status":0,"err":false}
+{"cmd":"sed z small","out":"\n\n","status":0,"err":false}
+{"cmd":"sed 'z;s/^$/empty/' small","out":"empty\nempty\n","status":0,"err":false}
+{"cmd":"sed 'w /dev/stdout' small","out":"x\nx\ny\ny\n","status":0,"err":false}
+{"cmd":"sed -n '/t/{/e/p}' n","out":"three\neight\nten\n","status":0,"err":false}
+{"cmd":"sed -n '/t/{/e/!p}' n","out":"two\n","status":0,"err":false}
+{"cmd":"sed '2,4{s/^/[/;s/$/]/}' n","out":"one\n[two]\n[three]\n[four]\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed -n '1!{$!p}' small","out":"","status":0,"err":false}
+{"cmd":"sed -n '/one/,/three/{/two/!p}' n","out":"one\nthree\n","status":0,"err":false}
+{"cmd":"sed '{p};{p}' small","out":"x\nx\nx\ny\ny\ny\n","status":0,"err":false}
+{"cmd":"sed -n '2{p};4{p}' n","out":"two\nfour\n","status":0,"err":false}
+{"cmd":"sed '1 ! d' n","out":"one\n","status":0,"err":false}
+{"cmd":"sed -n '/x/ { p ; p }' small","out":"x\nx\n","status":0,"err":false}
+{"cmd":"sed -n '3,${p;}' n","out":"three\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed -n -e 2p -e 4p n","out":"two\nfour\n","status":0,"err":false}
+{"cmd":"sed -s -n '$p' small other","out":"y\nB\n","status":0,"err":false}
+{"cmd":"sed -n '$p' small other","out":"B\n","status":0,"err":false}
+{"cmd":"sed -s 1d small other","out":"y\nB\n","status":0,"err":false}
+{"cmd":"sed '1d' small other","out":"y\nA\nB\n","status":0,"err":false}
+{"cmd":"sed -E 's/(x|y)+/Z/' small","out":"Z\nZ\n","status":0,"err":false}
+{"cmd":"sed -r 's/(x|y)+/Z/' small","out":"Z\nZ\n","status":0,"err":false}
+{"cmd":"sed --regexp-extended 's/(x)/[\\1]/' small","out":"[x]\ny\n","status":0,"err":false}
+{"cmd":"sed --quiet 1p small","out":"x\n","status":0,"err":false}
+{"cmd":"sed -z 's/\\n/,/g' n","out":"one,two,three,four,five,six,seven,eight,nine,ten,","status":0,"err":false}
+{"cmd":"printf 'a\\000b\\000' | sed -z 's/^/>/' | od -c","out":"0000000   >   a  \\0   >   b  \\0\n0000006\n","status":0,"err":false}
+{"cmd":"sed --posix -n 1p small","out":"x\n","status":0,"err":false}
+{"cmd":"sed -u p small","out":"x\nx\ny\ny\n","status":0,"err":false}
+{"cmd":"sed --separate -n 1p small other","out":"x\nA\n","status":0,"err":false}
+{"cmd":"sed -i 's/x/X/' small; cat small","out":"X\ny\n","status":0,"err":false}
+{"cmd":"sed -i.bak 's/x/X/' small; cat small small.bak","out":"X\ny\nx\ny\n","status":0,"err":false}
+{"cmd":"sed -i -e 1d small other; cat small other","out":"y\nB\n","status":0,"err":false}
+{"cmd":"sed --in-place=.orig 2d n; cat n.orig | wc -l; wc -l < n","out":"10\n9\n","status":0,"err":false}
+{"cmd":"sed -n -i 2p small; cat small","out":"y\n","status":0,"err":false}
+{"cmd":"sed -i 'bak*' 1d small; ls; cat baksmall","out":"conf\nn\nnonl\nnonl2\nodd\nother\nquiet.sed\nscript.sed\nsmall\nt\n","status":1,"err":true}
+{"cmd":"mkdir d; cp small d/f; sed -i'old_*' 's/y/Y/' d/f; cat d/f d/old_f","out":"x\ny\n","status":1,"err":true}
+{"cmd":"sed -i '$a end' nonl; cat nonl","out":"no newline\nend\n","status":0,"err":false}
+{"cmd":"sed -i 1q n; cat n","out":"one\n","status":0,"err":false}
+{"cmd":"sed -i s/a/b/ missing small; echo \"status=$?\"; cat small","out":"status=2\nx\ny\n","status":0,"err":true}
+{"cmd":"sed -s -i '1i top' small other; cat small other","out":"top\nx\ny\ntop\nA\nB\n","status":0,"err":false}
+{"cmd":"sed s/no/yes/ nonl","out":"yes newline","status":0,"err":false}
+{"cmd":"sed p nonl","out":"no newline\nno newline","status":0,"err":false}
+{"cmd":"sed -n p nonl2","out":"a\nb","status":0,"err":false}
+{"cmd":"sed 'a end' nonl","out":"no newline\nend\n","status":0,"err":false}
+{"cmd":"sed '$!d' nonl2","out":"b","status":0,"err":false}
+{"cmd":"sed G nonl","out":"no newline\n\n","status":0,"err":false}
+{"cmd":"sed '' nonl nonl2","out":"no newline\na\nb","status":0,"err":false}
+{"cmd":"sed 'N;N' nonl2","out":"a\nb","status":0,"err":false}
+{"cmd":"sed = nonl","out":"1\nno newline","status":0,"err":false}
+{"cmd":"sed s/o/0/ odd","out":"line with\ttab\nback\\slash\n\u0001\u0002ÿ\n","status":0,"err":false}
+{"cmd":"sed 's/[^[:print:]]/?/g' odd","out":"line with?tab\nback\\slash\n???\n","status":0,"err":false}
+{"cmd":"sed -n '/\\x01/p' odd | od -c","out":"0000000 001 002 377  \\n\n0000004\n","status":0,"err":false}
+{"cmd":": | sed p","out":"","status":0,"err":false}
+{"cmd":"printf '\\n\\n\\n' | sed -n '$='","out":"3\n","status":0,"err":false}
+{"cmd":"printf '\\n' | sed 's/^$/E/'","out":"E\n","status":0,"err":false}
+{"cmd":"seq 1 5000 | sed -n '$p'","out":"5000\n","status":0,"err":false}
+{"cmd":"seq 1 5000 | sed -n '/^49.*9$/p' | wc -l","out":"11\n","status":0,"err":false}
+{"cmd":"seq 1 2000 | tr -d '\\n' | sed 's/9/N/g' | wc -c","out":"6893\n","status":0,"err":false}
+{"cmd":"awk 'BEGIN{for(i=0;i<3000;i++)printf \"ab\";print \"\"}' | sed 's/\\(ab\\)*/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"sed -n '/one/p' - < n","out":"one\n","status":0,"err":false}
+{"cmd":"sed 1d - small < other","out":"B\nx\ny\n","status":0,"err":false}
+{"cmd":"sed","out":"","status":1,"err":true}
+{"cmd":"sed 'k' n","out":"","status":1,"err":true}
+{"cmd":"sed 's/a/b' n","out":"","status":1,"err":true}
+{"cmd":"sed 's/a/b/q' n","out":"","status":1,"err":true}
+{"cmd":"sed 's/\\(a/b/' n","out":"","status":1,"err":true}
+{"cmd":"sed 's/a/\\1/' n","out":"","status":1,"err":true}
+{"cmd":"sed -E 's/(a)/\\2/' n","out":"","status":1,"err":true}
+{"cmd":"sed 'y/ab/c/' n","out":"","status":1,"err":true}
+{"cmd":"sed '3,4{p' n","out":"","status":1,"err":true}
+{"cmd":"sed '}' n","out":"","status":1,"err":true}
+{"cmd":"sed 'b nolabel' n","out":"","status":4,"err":true}
+{"cmd":"sed ':a;:a' n","out":"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n","status":0,"err":false}
+{"cmd":"sed '1,2,3p' n","out":"","status":1,"err":true}
+{"cmd":"sed '0p' n","out":"","status":1,"err":true}
+{"cmd":"sed '0,5p' n","out":"","status":1,"err":true}
+{"cmd":"sed '1,2q' n","out":"","status":1,"err":true}
+{"cmd":"sed 'p x' n","out":"","status":1,"err":true}
+{"cmd":"sed -n p missing; echo \"status=$?\"","out":"status=2\n","status":0,"err":true}
+{"cmd":"sed -n p missing small; echo \"status=$?\"","out":"x\ny\nstatus=2\n","status":0,"err":true}
+{"cmd":"sed -f missing.sed n","out":"","status":4,"err":true}
+{"cmd":"sed -i p","out":"","status":4,"err":true}
+{"cmd":"sed --bogus p n","out":"","status":1,"err":true}
+{"cmd":"sed -X p n","out":"","status":1,"err":true}
+{"cmd":"sed 's/[/x/' n","out":"","status":1,"err":true}
+{"cmd":"sed 's/a\\{3,1\\}/x/' n","out":"","status":1,"err":true}
+{"cmd":"sed '/a/I' n","out":"","status":1,"err":true}
+{"cmd":"sed 'a' n","out":"","status":1,"err":true}
+{"cmd":"sed '1~' n","out":"","status":1,"err":true}
+{"cmd":"sed -n '/[[:nope:]]/p' n","out":"","status":1,"err":true}
+{"cmd":"sed 's/x/y/gg' small","out":"","status":1,"err":true}
+{"cmd":"sed 's/x/y/0' small","out":"","status":1,"err":true}
+{"cmd":"sed '1#comment' small","out":"","status":1,"err":true}
+{"cmd":"sed '#comment\np' small","out":"x\nx\ny\ny\n","status":0,"err":false}
+{"cmd":"sed -n '1{p\n}\n2p' small","out":"x\ny\n","status":0,"err":false}
+{"cmd":"sed -n '/one/,/two/ {\n  s/o/0/\n  p\n}' n","out":"0ne\ntw0\n","status":0,"err":false}
+{"cmd":"sed '1{\na\\\nmulti\\\nline\n}' small","out":"x\nmulti\nline\ny\n","status":0,"err":false}
+{"cmd":"sed '/x/{\ns/x/1/\nb\n}\ns/$/ not x/' small","out":"1\ny not x\n","status":0,"err":false}
+{"cmd":"printf 'VERSION = 1.2.3\\nNAME=foo\\n' | sed -n 's/^VERSION *= *//p'","out":"1.2.3\n","status":0,"err":false}
+{"cmd":"printf '@prefix@/bin\\n@VERSION@\\n' | sed -e 's|@prefix@|/usr|g' -e 's|@VERSION@|1.0|g'","out":"/usr/bin\n1.0\n","status":0,"err":false}
+{"cmd":"printf 'foo.c bar.c\\n' | sed 's/\\.c/.o/g'","out":"foo.o bar.o\n","status":0,"err":false}
+{"cmd":"printf 'a/b/c.txt\\n' | sed 's,.*/,,'","out":"c.txt\n","status":0,"err":false}
+{"cmd":"printf 'a/b/c.txt\\n' | sed 's,/[^/]*$,,'","out":"a/b\n","status":0,"err":false}
+{"cmd":"printf '  lead and trail  \\n' | sed 's/^[ \\t]*//;s/[ \\t]*$//'","out":"lead and trail\n","status":0,"err":false}
+{"cmd":"printf 'x\\n\\n\\ny\\n\\n' | sed '/^$/d'","out":"x\ny\n","status":0,"err":false}
+{"cmd":"printf 'x\\n\\n\\n\\ny\\n' | sed '/^$/N;/\\n$/D'","out":"x\n\ny\n","status":0,"err":false}
+{"cmd":"printf '# c\\nreal\\n  # indented\\n' | sed -e '/^[[:space:]]*#/d'","out":"real\n","status":0,"err":false}
+{"cmd":"printf 'Package: foo\\nVersion: 1.0-2\\nDepends: libc6\\n' | sed -n 's/^Version: //p'","out":"1.0-2\n","status":0,"err":false}
+{"cmd":"printf 'Package: foo\\nStatus: install ok installed\\n\\nPackage: bar\\n' | sed -n '/^Package: foo$/,/^$/p'","out":"Package: foo\nStatus: install ok installed\n\n","status":0,"err":false}
+{"cmd":"printf 'conffile /etc/foo\\n' | sed -e 's/^conffile //'","out":"/etc/foo\n","status":0,"err":false}
+{"cmd":"printf 'CFLAGS=-O2\\n' | sed 's/^CFLAGS=.*/CFLAGS=-O0 -g/'","out":"CFLAGS=-O0 -g\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed -n '$!{h;d};x;G;p'","out":"b\nc\n","status":0,"err":false}
+{"cmd":"printf 'line1\\nline2\\n' | sed = | sed 'N;s/\\n/\\t/'","out":"1\tline1\n2\tline2\n","status":0,"err":false}
+{"cmd":"printf 'one two three\\n' | sed 's/[^ ]* //2'","out":"one three\n","status":0,"err":false}
+{"cmd":"printf 'aaa bbb ccc\\n' | sed 's/\\([a-z]*\\) \\([a-z]*\\)/\\2 \\1/'","out":"bbb aaa ccc\n","status":0,"err":false}
+{"cmd":"printf 'hello\\n' | sed 'y/abcdefghijklmnopqrstuvwxyz/ABCDEFGHIJKLMNOPQRSTUVWXYZ/'","out":"HELLO\n","status":0,"err":false}
+{"cmd":"printf 'path:/usr/bin:/bin\\n' | sed 's/:/\\n/g' | sed -n '2,$p'","out":"/usr/bin\n/bin\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n4\\n5\\n6\\n' | sed -n 'p;n'","out":"1\n3\n5\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n4\\n5\\n6\\n' | sed -n 'n;p'","out":"2\n4\n6\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n4\\n5\\n6\\n' | sed '1~2d'","out":"2\n4\n6\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n4\\n5\\n6\\n' | sed 'n;n;s/$/ third/'","out":"1\n2\n3 third\n4\n5\n6 third\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n4\\n5\\n' | sed -e :a -e '$q;N;3,$D;ba'","out":"4\n5\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n4\\n5\\n' | sed '$!d'","out":"5\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n4\\n5\\n' | sed -n '2{n;p}'","out":"3\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed 's/b*/x/2'","out":"axc\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed 's/b*/x/3'","out":"abcx\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed 's/a/b/3'","out":"aab\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed 's/a/b/4'","out":"aaa\n","status":0,"err":false}
+{"cmd":"printf 'foo123bar\\n' | sed -E 's/[0-9]+/(&)/'","out":"foo(123)bar\n","status":0,"err":false}
+{"cmd":"printf 'foo123bar\\n' | sed 's/[0-9]\\{2\\}/<&>/g'","out":"foo<12>3bar\n","status":0,"err":false}
+{"cmd":"printf 'x=1\\n' | sed \"s/x=\\(.*\\)/\\1/\"","out":"1\n","status":0,"err":false}
+{"cmd":"printf 'a.b.c\\n' | sed 's/\\./\\//g'","out":"a/b/c\n","status":0,"err":false}
+{"cmd":"printf 'tab\\there\\n' | sed 's/\\t/\\\\t/'","out":"tab\\there\n","status":0,"err":false}
+{"cmd":"printf 'A-B\\n' | sed 's/-/\\\n/'","out":"A\nB\n","status":0,"err":false}
+{"cmd":"printf 'one\\n' | sed 's/one/a\\\nb\\\nc/'","out":"a\nb\nc\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed 's/\\(a\\)\\|b/[\\1]/g'","out":"[a][]\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed -E 's/(a)|b/[\\1]/g'","out":"[a][]\n","status":0,"err":false}
+{"cmd":"printf 'aXbXc\\n' | sed 's/X/\\n/2'","out":"aXb\nc\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed -E 's/()/x/g'","out":"xaxbxcx\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed -E 's/b?/x/g'","out":"xaxcx\n","status":0,"err":false}
+{"cmd":"printf 'abcabc\\n' | sed 's/\\(abc\\)\\1/twice/'","out":"twice\n","status":0,"err":false}
+{"cmd":"printf 'xyzxyz\\n' | sed -E 's/(x(y)z)\\1/[\\2]/'","out":"[y]\n","status":0,"err":false}
+{"cmd":"printf 'word word\\n' | sed -E 's/\\b(\\w+) \\1\\b/\\1/'","out":"word\n","status":0,"err":false}
+{"cmd":"printf 'CamelCaseName\\n' | sed 's/\\([A-Z]\\)/_\\l\\1/g;s/^_//'","out":"camel_case_name\n","status":0,"err":false}
+{"cmd":"printf 'snake_case_name\\n' | sed -E 's/_(.)/\\u\\1/g'","out":"snakeCaseName\n","status":0,"err":false}
+{"cmd":"printf 'mixed Case\\n' | sed 's/\\w\\+/\\L\\u&/g'","out":"Mixed Case\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed 's/x/\\U\\x61b\\E c/'","out":"AB c\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed 's/a/b/2g'","out":"abb\n","status":0,"err":false}
+{"cmd":"printf 'hello\\n' | sed 's/./&&/g'","out":"hheelllloo\n","status":0,"err":false}
+{"cmd":"printf 'hello\\n' | sed 's/l*/<&>/g'","out":"<>h<>e<ll>o<>\n","status":0,"err":false}
+{"cmd":"printf 'a b\\n' | sed 's/ */_/g'","out":"_a_b_\n","status":0,"err":false}
+{"cmd":"printf ' \\n' | sed 's/ *$//' | od -c","out":"0000000  \\n\n0000001\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed -n '/x/{s//y/;p}'","out":"y\n","status":0,"err":false}
+{"cmd":"printf 'x1\\nx2\\n' | sed -n '/x/{//p}'","out":"x1\nx2\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed '/b/s//B/'","out":"aBc\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed 's/b/B/;s//X/'","out":"aBc\n","status":0,"err":false}
+{"cmd":"printf 'one\\ntwo\\n' | sed '/one/{n;s/two/2/}'","out":"one\n2\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\n' | sed '/b/,/c/{/b/n;s/^/>/}'","out":"a\nb\n>c\n>d\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\n' | sed -n '/a/,/b/{/b/!p}'","out":"a\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\na\\nb\\n' | sed -n '/a/,/b/p'","out":"a\nb\na\nb\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\na\\nb\\n' | sed '/a/,/b/d'","out":"","status":0,"err":false}
+{"cmd":"printf 'start\\nx\\nend\\nstart\\ny\\n' | sed -n '/start/,/end/p'","out":"start\nx\nend\nstart\ny\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed -n '2,/b/p'","out":"b\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed -n '2,/c/p'","out":"b\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed -n '/a/,1p'","out":"a\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\ne\\n' | sed -n '2,+0p'","out":"b\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\ne\\n' | sed -n '/b/,~2p'","out":"b\nc\nd\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\ne\\n' | sed -n '/c/,~2p'","out":"c\nd\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\ne\\n' | sed '2,3!s/$/!/'","out":"a!\nb\nc\nd!\ne!\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\ne\\n' | sed -n '2,4{=;p}'","out":"2\nb\n3\nc\n4\nd\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed '1!G;$!{h;d}'","out":"b\na\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed '/b/{x;p;x}'","out":"a\n\nb\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed '/b/{x;p;x;}'","out":"a\n\nb\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed -n '/b/{g;p}'","out":"\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed '1{h;d};G'","out":"b\na\nc\na\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed 'x'","out":"\na\nb\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed '$!x'","out":"\na\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed -n 'H;$x;$s/\\n//;$p'","out":"a\nb\nc\n","status":0,"err":false}
+{"cmd":"printf 'k: v\\n' | sed 's/^\\([^:]*\\): *\\(.*\\)$/\\2 <- \\1/'","out":"v <- k\n","status":0,"err":false}
+{"cmd":"printf 'https://example.org/path?q=1\\n' | sed -E 's#^([a-z]+)://([^/]+)(/.*)?$#\\2#'","out":"example.org\n","status":0,"err":false}
+{"cmd":"printf '2026-11-26\\n' | sed -E 's/([0-9]{4})-([0-9]{2})-([0-9]{2})/\\3.\\2.\\1/'","out":"26.11.2026\n","status":0,"err":false}
+{"cmd":"printf 'a,b,,d\\n' | sed 's/,,/,-,/'","out":"a,b,-,d\n","status":0,"err":false}
+{"cmd":"printf 'a,b,c\\n' | sed 's/[^,]*$/LAST/'","out":"a,b,LAST\n","status":0,"err":false}
+{"cmd":"printf 'a  b\\t\\tc\\n' | sed 's/[[:blank:]]\\{1,\\}/ /g'","out":"a b c\n","status":0,"err":false}
+{"cmd":"printf 'ABC\\n' | sed 's/[[:lower:]]/x/g'","out":"ABC\n","status":0,"err":false}
+{"cmd":"printf 'aBc\\n' | sed 's/[[:lower:]]/x/gI'","out":"xxx\n","status":0,"err":false}
+{"cmd":"printf 'a]b\\n' | sed 's/[]]/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a^b\\n' | sed 's/\\^/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a^b\\n' | sed 's/a^b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a$b\\n' | sed 's/a$b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a$b\\n' | sed 's/\\$/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a*b\\n' | sed 's/*/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a*b\\n' | sed 's/a\\*/X/'","out":"Xb\n","status":0,"err":false}
+{"cmd":"printf 'a{1}\\n' | sed 's/a{1}/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'aa\\n' | sed -E 's/a{1}/X/'","out":"Xa\n","status":0,"err":false}
+{"cmd":"printf 'a+b\\n' | sed 's/a+b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'aab\\n' | sed 's/a\\+b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a?b\\n' | sed 's/a?b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a|b\\n' | sed 's/a|b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a|b\\n' | sed -E 's/a\\|b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf '(a)\\n' | sed 's/(a)/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf '(a)\\n' | sed -E 's/\\(a\\)/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a.b\\n' | sed 's/a\\.b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a\\\\b\\n' | sed 's/a\\\\b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a/b\\n' | sed 's/a\\/b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a/b\\n' | sed 's|a/b|X|'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a|b\\n' | sed 's|a\\|b|X|'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a,b\\n' | sed 's,a\\,b,X,'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'axb\\n' | sed 'sxa\\xbxXx'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed 's/a/[&]/;s/\\[/{/'","out":"{a]\n","status":0,"err":false}
+{"cmd":"printf 'A\\n' | sed 's/a/x/I'","out":"x\n","status":0,"err":false}
+{"cmd":"printf 'line\\n' | sed -n '/LINE/Ip'","out":"line\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/^b/X/M'","out":"a\nX\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/a$/X/M'","out":"X\nb\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/a$/X/'","out":"a\nb\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/\\`a/X/M'","out":"X\nb\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed \"N;s/b\\\\'/X/\"","out":"a\nX\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/.*/[&]/'","out":"[a\nb]\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/a.b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/[^x]*/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'one\\n' | sed -e 'a\\' -e 'two' -e 'i\\' -e 'zero'","out":"zero\none\ntwo\n","status":0,"err":false}
+{"cmd":"printf 'one\\n' | sed '1i\\' ","out":"one\n","status":0,"err":false}
+{"cmd":"printf 'one\\ntwo\\n' | sed '1~2a --'","out":"one\n--\ntwo\n","status":0,"err":false}
+{"cmd":"printf 'one\\ntwo\\n' | sed 'a\\\nx\\\ny'","out":"one\nx\ny\ntwo\nx\ny\n","status":0,"err":false}
+{"cmd":"printf 'one\\n' | sed 'c\\'","out":"","status":0,"err":false}
+{"cmd":"printf 'one\\ntwo\\n' | sed '$!{$!a\\\nmid\n}'","out":"one\nmid\ntwo\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed 'a\\\\'","out":"a\n\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed 'a\\\\x'","out":"a\nx\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed 'a  \\  two spaces'","out":"a\n  two spaces\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed 'i\\\n\\  keep'","out":"  keep\na\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed '1{a b\n}'","out":"a\nb\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed '1{N;c\\\nboth\n}'","out":"both\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed '2c\\\nX' -s","out":"a\nX\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed '/b/{i\\\nbefore\na\\\nafter\n}'","out":"a\nbefore\nb\nafter\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed -n '/a/{p;q}'","out":"a\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed '/a/q'","out":"a\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed '/b/Q'","out":"a\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed '1{a appended\nq}'","out":"a\nappended\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed -n '1{a appended\nq}'","out":"appended\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed '1{i inserted\nQ}'","out":"inserted\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed 'q5'; echo \"status=$?\"","out":"a\nstatus=5\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | sed -n '$='","out":"1\n","status":0,"err":false}
+{"cmd":": | sed -n '$='","out":"","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\n' | sed -n '2{=;l}'","out":"2\nb$\n","status":0,"err":false}
+{"cmd":"printf '\\033[1m\\n' | sed -n l","out":"\\033[1m$\n","status":0,"err":false}
+{"cmd":"printf '%%s\\n' x | sed -n l","out":"%s$\n","status":0,"err":false}
+{"cmd":"printf 'aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffgggggggggghhhhhhhhhh\\n' | sed -n l","out":"aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggggggggg\\\nghhhhhhhhhh$\n","status":0,"err":false}
+{"cmd":"printf 'aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggggggggg\\001\\n' | sed -n l","out":"aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggggggggg\\\n\\001$\n","status":0,"err":false}
+{"cmd":"printf 'abcdefgh\\n' | sed -n 'l 4'","out":"abc\\\ndef\\\ngh$\n","status":0,"err":false}
+{"cmd":"printf 'abcdefgh\\n' | sed -n 'l 1'","out":"\\\na\\\nb\\\nc\\\nd\\\ne\\\nf\\\ng\\\nh$\n","status":0,"err":false}
+{"cmd":"printf 'abcdefgh\\n' | sed -n 'l 2'","out":"a\\\nb\\\nc\\\nd\\\ne\\\nf\\\ng\\\nh$\n","status":0,"err":false}
+{"cmd":"printf 'a\\tb\\n' | sed -n 'l 3'","out":"a\\\n\\t\\\nb$\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed 'p;p;p'","out":"x\nx\nx\nx\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed -n '/x/{p;/x/p}'","out":"x\nx\n","status":0,"err":false}
+{"cmd":"printf 'x\\ny\\n' | sed '$!{N};P;D'","out":"x\ny\n","status":0,"err":false}
+{"cmd":"printf 'a b c\\n' | sed 's/ /\\n/g' | sed -n '$p'","out":"c\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\n' | sed 'N;N;N;s/\\n/ /g;P;D'","out":"a b c d\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\nc\\nd\\ne\\n' | sed '1!{N};$!{$!D}'","out":"d\ne\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed ':a;s/a/b/;ta'","out":"bbb\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed -n ':a;s/a/b/p;ta'","out":"baa\nbba\nbbb\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed 's/a/b/;:a;s/x/y/;ta;s/$/!/'","out":"baa!\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed 's/a/A/;tl;s/b/B/;:l;s/$/./'","out":"Ab.\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed 's/q/A/;tl;s/b/B/;:l;s/$/./'","out":"aB.\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed 's/a/A/;Tl;s/b/B/;:l;s/$/./'","out":"AB.\n","status":0,"err":false}
+{"cmd":"printf '1\\n22\\n333\\n' | sed -E ':a;s/^.{1,4}$/ &/;ta'","out":"    1\n   22\n  333\n","status":0,"err":false}
+{"cmd":"printf '1234567\\n' | sed -E ':a;s/([0-9])([0-9]{3})($|,)/\\1,\\2\\3/;ta'","out":"1,234,567\n","status":0,"err":false}
+{"cmd":"printf 'a b\\n' | sed 's/\\(a\\) \\(b\\)/\\2\\n\\1/'","out":"b\na\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed 's/x/a\\tb/'","out":"a\tb\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed 's/x/a\\\\tb/'","out":"a\\tb\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed 's/x/&\\&&/'","out":"x&x\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed 's/\\(a\\)\\(b\\)\\(c\\)/\\3\\2\\1\\0/'","out":"cbaabc\n","status":0,"err":false}
+{"cmd":"printf 'abcdefghij\\n' | sed -E 's/(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)/\\9\\8\\7\\6\\5\\4\\3\\2\\1/'","out":"ihgfedcba\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed -E 's/(a)(x)?(c)?/[\\1|\\2|\\3]/'","out":"[a||]bc\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed -E 's/(a)*/<\\1>/'","out":"<a>\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed -E 's/(a|ab)(b?)/[\\1|\\2]/'","out":"[a|b]\n","status":0,"err":false}
+{"cmd":"printf 'xyz\\n' | sed -E 's/(x|xy)(z|yz)/[\\1|\\2]/'","out":"[x|yz]\n","status":0,"err":false}
+{"cmd":"printf 'aaaa\\n' | sed -E 's/(a*)(a)/[\\1|\\2]/'","out":"[aaa|a]\n","status":0,"err":false}
+{"cmd":"printf 'aaaa\\n' | sed -E 's/(a*?)/x/' ","out":"x\n","status":0,"err":false}
+{"cmd":"printf 'aaaa\\n' | sed 's/\\(a*\\)*/[\\1]/'","out":"[aaaa]\n","status":0,"err":false}
+{"cmd":"printf 'b\\n' | sed 's/\\(a*\\)*/[\\1]/'","out":"[]b\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed -E 's/(a*)+/[\\1]/'","out":"[a]b\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed 's/a**/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a{1}\\n' | sed 's/\\{1\\}a/X/'","out":"a{1}\n","status":0,"err":false}
+{"cmd":"printf 'aa\\n' | sed 's/a\\{1\\}\\{2\\}/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed 's/a\\{1\\}*b/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf '*a\\n' | sed 's/*a/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf '*a\\n' | sed 's/^*a/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'a*\\n' | sed 's/\\(*\\)/X/'","out":"aX\n","status":0,"err":false}
+{"cmd":"printf 'xay\\n' | sed -E 's/a{0}y/X/'","out":"xaX\n","status":0,"err":false}
+{"cmd":"printf 'aaaaa\\n' | sed -E 's/a{2,3}/X/g'","out":"XX\n","status":0,"err":false}
+{"cmd":"printf 'aaaaa\\n' | sed 's/a\\{2,3\\}/X/g'","out":"XX\n","status":0,"err":false}
+{"cmd":"printf 'aaaaa\\n' | sed -E 's/a{,2}/X/g'","out":"XXX\n","status":0,"err":false}
+{"cmd":"printf 'aaa\\n' | sed -E 's/a{1,}/X/'","out":"X\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed -E 's/a{1,2}{3}/X/'","out":"x\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed -E 's/a|b|c/X/2'","out":"aXc\n","status":0,"err":false}
+{"cmd":"printf 'abc\\n' | sed 's/[[:alpha:]]/X/3'","out":"abX\n","status":0,"err":false}
+{"cmd":"printf 'a.b\\n' | sed 's/[.]/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a-b\\n' | sed 's/[a-]/X/g'","out":"XXb\n","status":0,"err":false}
+{"cmd":"printf 'a-b\\n' | sed 's/[-b]/X/g'","out":"aXX\n","status":0,"err":false}
+{"cmd":"printf 'a\\\\b\\n' | sed 's/[\\\\]/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a\\\\nb\\n' | sed 's/[\\n]/X/'","out":"a\\nb\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | sed 'N;s/[\\n]/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a\\tb\\n' | sed 's/[\\t]/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a:b\\n' | sed 's/[[:punct:]]/X/'","out":"aXb\n","status":0,"err":false}
+{"cmd":"printf 'a=b\\n' | sed 's/[[=a=]]/X/'","out":"X=b\n","status":0,"err":false}
+{"cmd":"printf 'a.b\\n' | sed 's/[[.-.]a]/X/'","out":"X.b\n","status":0,"err":false}
+{"cmd":"printf 'ab\\n' | sed 's/[^[:alpha:]]/X/'","out":"ab\n","status":0,"err":false}
+{"cmd":"printf 'a1\\n' | sed 's/[^[:alpha:]]/X/'","out":"aX\n","status":0,"err":false}
+{"cmd":"printf 'x\\n' | sed 's/[[:alpha:]-]/X/'","out":"X\n","status":0,"err":false}

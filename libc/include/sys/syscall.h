@@ -9,9 +9,11 @@ __attribute__((import_module("host"), import_name("syscall")))
 long __host_syscall(long nr, long a, long b, long c, long d, long e, long f);
 __attribute__((import_module("host"), import_name("block"))) void __host_block(void);
 
+/* -ERESTARTSYS: wait (and run signal handlers, libc/src/syswait.c), then make the call again */
+void __syscall_wait(void);
 static inline long __syscall6(long nr, long a, long b, long c, long d, long e, long f) {
   long r;
-  while (__builtin_expect((r = __host_syscall(nr, a, b, c, d, e, f)) == -ERESTARTSYS, 0)) __host_block();
+  while (__builtin_expect((r = __host_syscall(nr, a, b, c, d, e, f)) == -ERESTARTSYS, 0)) __syscall_wait();
   return r;
 }
 #define __syscall0(n) __syscall6(n, 0, 0, 0, 0, 0, 0)

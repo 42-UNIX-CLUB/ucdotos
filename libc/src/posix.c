@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* POSIX odds and ends: ioctl and termios, signals, system information,
+/* POSIX odds and ends: ioctl and termios, system information,
  * process groups, getopt, libgen, select, locale. */
 #include <unistd.h>
 #include <errno.h>
@@ -56,61 +56,11 @@ int setpgid(pid_t pid, pid_t pg) { return __sysret(__syscall2(SYS_setpgid, pid, 
 pid_t getpgid(pid_t pid) { return __sysret(__syscall1(SYS_getpgid, pid)); }
 pid_t getpgrp(void) { return getpgid(0); }
 pid_t setsid(void) { return __sysret(__syscall0(SYS_setsid)); }
-uid_t geteuid(void) { return getuid(); }
-gid_t getgid(void) { return getuid(); }
-gid_t getegid(void) { return getuid(); }
+uid_t geteuid(void) { return __syscall0(SYS_geteuid); }
+gid_t getgid(void) { return __syscall0(SYS_getgid); }
+gid_t getegid(void) { return __syscall0(SYS_getegid); }
 
-/* ---- signals: recorded, never delivered ---- */
-static sighandler_t handlers[NSIG];
-static struct sigaction actions[NSIG];
-sighandler_t signal(int sig, sighandler_t h) {
-  if (sig <= 0 || sig >= NSIG || sig == SIGKILL || sig == SIGSTOP) { errno = EINVAL; return SIG_ERR; }
-  sighandler_t old = handlers[sig];
-  handlers[sig] = h;
-  memset(&actions[sig], 0, sizeof actions[sig]);
-  actions[sig].sa_handler = h;
-  return old;
-}
-int sigaction(int sig, const struct sigaction *act, struct sigaction *old) {
-  if (sig <= 0 || sig >= NSIG || (act && (sig == SIGKILL || sig == SIGSTOP))) { errno = EINVAL; return -1; }
-  if (old) *old = actions[sig];
-  if (act) { actions[sig] = *act; handlers[sig] = act->sa_handler; }
-  return 0;
-}
-int kill(pid_t pid, int sig) { return __sysret(__syscall2(SYS_kill, pid, sig)); }
-int raise(int sig) {
-  if (sig <= 0 || sig >= NSIG) { errno = EINVAL; return -1; }
-  sighandler_t h = handlers[sig];
-  if (h == SIG_IGN) return 0;
-  if (h == SIG_DFL) {
-    if (sig == SIGCHLD || sig == SIGCONT || sig == SIGURG || sig == SIGWINCH) return 0; /* default: ignore */
-    fflush(0);
-    return kill(getpid(), sig);
-  }
-  if (actions[sig].sa_flags & SA_SIGINFO) {
-    siginfo_t si = {sig, 0, 0, getpid(), getuid(), 0, 0};
-    actions[sig].sa_sigaction(sig, &si, 0);
-  } else h(sig);
-  return 0;
-}
-int sigemptyset(sigset_t *s) { *s = 0; return 0; }
-int sigfillset(sigset_t *s) { *s = ~0ull; return 0; }
-static int bad_sig(int n) { if (n <= 0 || n >= NSIG) { errno = EINVAL; return 1; } return 0; }
-int sigaddset(sigset_t *s, int n) { if (bad_sig(n)) return -1; *s |= 1ull << (n - 1); return 0; }
-int sigdelset(sigset_t *s, int n) { if (bad_sig(n)) return -1; *s &= ~(1ull << (n - 1)); return 0; }
-int sigismember(const sigset_t *s, int n) { if (bad_sig(n)) return -1; return (*s >> (n - 1)) & 1; }
-static sigset_t blocked;
-int sigprocmask(int how, const sigset_t *set, sigset_t *old) {
-  if (old) *old = blocked;
-  if (!set) return 0;
-  if (how == SIG_BLOCK) blocked |= *set;
-  else if (how == SIG_UNBLOCK) blocked &= ~*set;
-  else if (how == SIG_SETMASK) blocked = *set;
-  else { errno = EINVAL; return -1; }
-  return 0;
-}
-int sigpending(sigset_t *s) { *s = 0; return 0; }
-int sigsuspend(const sigset_t *s) { (void)s; errno = ENOSYS; return -1; } /* would sleep forever */
+/* signals: libc/src/signal.c */
 
 /* ---- system information ---- */
 int uname(struct utsname *u) { return __sysret(__syscall1(SYS_uname, u)); }

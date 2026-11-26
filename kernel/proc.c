@@ -39,12 +39,25 @@ void wq_wake(waitq *q) {
   *q = 0;
   for (int pid = 0; m; pid++, m >>= 1) if (m & 1) host_wake(pid);
 }
-long block(double timeout_ms) {
+long block_raw(double timeout_ms) {
   cur->block_ms = timeout_ms;
   cur->sleeping = 1;
   cur->slice_start = 0;
   return -ERESTARTSYS;
 }
+/* A wait is cut short by a timer (alarm) and interrupted by a signal with a handler. */
+static long block_sig(double timeout_ms, int norestart) {
+  long r = sig_interrupt(norestart);
+  if (r) return r;
+  if (cur->alarm_at) {
+    double left = cur->alarm_at - host_now();
+    if (left < 0) left = 0;
+    if (timeout_ms < 0 || left < timeout_ms) timeout_ms = left;
+  }
+  return block_raw(timeout_ms);
+}
+long block(double timeout_ms) { return block_sig(timeout_ms, 0); }
+long block_nr(double timeout_ms) { return block_sig(timeout_ms, 1); }
 
 /* ---- files ---- */
 struct file *file_new(const struct fops *ops, struct inode *ino, int flags, void *priv) {
@@ -79,14 +92,20 @@ static int id_in_use(int id) {
     if (procs[i].state != P_FREE && (procs[i].pgid == id || procs[i].sid == id)) return 1;
   return 0;
 }
-int proc_spawn(struct proc *parent, const char *path, u8 *args, u32 args_len, const int *fdmap) {
-  if (parent && parent->state != P_RUN) return -ESRCH;
-  struct inode *exe = vfs_lookup(parent ? parent->cwd : vfs_root, path);
-  if (!exe) return -ENOENT;
-  if ((exe->mode & S_IFMT) != S_IFREG) return -EACCES;
-  if (exe->size < 8 || memcmp(exe->data, "\0asm", 4)) return -ENOEXEC;
+int pid_alloc(void) { /* a free slot, 0 if the table is full */
   int pid = 0;
   for (int i = 1; i < NPROC; i++) if (procs[i].state == P_FREE) { if (!pid) pid = i; if (!id_in_use(i)) { pid = i; break; } }
+  return pid;
+}
+int proc_spawn(struct proc *parent, const char *path, u8 *args, u32 args_len, const int *fdmap) {
+  if (parent && parent->state != P_RUN) return -ESRCH;
+  int lerr;
+  struct inode *exe = vfs_lookup_err(parent ? parent->cwd : vfs_root, path, &lerr);
+  if (!exe) return lerr;
+  if ((exe->mode & S_IFMT) != S_IFREG) return -EACCES;
+  { int e = vfs_may_exec(exe); if (e) return e; } /* file system: no execute bit, or contents still loading (kernel/vfs.c) */
+  if (exe->size < 8 || memcmp(exe->data, "\0asm", 4)) return -ENOEXEC;
+  int pid = pid_alloc();
   if (!pid) return -EAGAIN;
   struct proc *p = &procs[pid];
   memset(p, 0, sizeof *p);
@@ -95,6 +114,7 @@ int proc_spawn(struct proc *parent, const char *path, u8 *args, u32 args_len, co
   p->ppid = parent ? parent->pid : 0;
   p->cwd = parent ? parent->cwd : vfs_root;
   inode_get(p->cwd);
+  vfs_proc_start(pid, parent ? parent->pid : 0, exe); /* file system: credentials, umask, chroot */
   p->pgid = parent ? parent->pgid : pid;
   p->sid = parent ? parent->sid : pid;
   p->args = args; p->args_len = args_len;
@@ -109,6 +129,9 @@ int proc_spawn(struct proc *parent, const char *path, u8 *args, u32 args_len, co
       f->refs++;
       p->fd[i] = f;
     }
+    /* spawn is fork + exec: ignored signals and the mask are inherited, handlers are not */
+    sig_fork_copy(p, parent);
+    sig_exec_reset(p);
   }
   host_spawn(pid, exe->data, exe->size, !exe->owned);
   return pid;
@@ -118,6 +141,7 @@ static void proc_free(struct proc *p) {
   if (p->args) kfree(p->args);
   p->args = NULL;
   if (p->cwd) inode_put(p->cwd);
+  vfs_proc_end(p->pid); /* file system: drop its chroot, exe and /proc entries */
   /* A process killed inside its own call with no parent to wait for it is freed at once
    * but runs until it next blocks: give it a directory that is never freed, not NULL. */
   p->cwd = vfs_root;
@@ -140,9 +164,16 @@ void proc_exit(struct proc *p, int code) {
     if (c->state == P_ZOMBIE) proc_free(c);
   }
   for (int i = 0; i < NFD; i++) if (p->fd[i]) { struct file *f = p->fd[i]; p->fd[i] = NULL; file_put(f); }
+  locks_proc_end(); /* file system: its record locks go with it, and waiters wake */
   if (p->state != P_ZOMBIE) return; /* its parent died meanwhile and it was reaped */
   struct proc *parent = (p->ppid > 0) ? &procs[p->ppid] : NULL;
-  if (parent && parent->state == P_RUN) wq_wake(&parent->child_wq);
+  /* a parent that ignores SIGCHLD (or set SA_NOCLDWAIT) does not get zombies, as on Linux */
+  if (parent && parent->state == P_RUN && (parent->sa[SIGCHLD].handler == 1 || (parent->sa[SIGCHLD].flags & SA_NOCLDWAIT))) {
+    wq_wake(&parent->child_wq);
+    proc_free(p);
+    return;
+  }
+  if (parent && parent->state == P_RUN) { wq_wake(&parent->child_wq); sig_child_exited(p); }
   else proc_free(p); /* nobody will wait for it */
 }
 long proc_wait(int pid, u32 ustatus, int options) {
@@ -152,6 +183,12 @@ long proc_wait(int pid, u32 ustatus, int options) {
     if (c->state == P_FREE || c->ppid != cur->pid) continue;
     if (pid > 0 ? c->pid != pid : pid == 0 ? c->pgid != cur->pgid : pid < -1 && c->pgid != -pid) continue;
     have = 1;
+    if (c->state == P_RUN && c->wait_report && (options & (c->wait_report == 1 ? WUNTRACED : WCONTINUED))) {
+      int status = c->wait_report == 1 ? (c->stop_sig << 8) | 0x7f : 0xffff;
+      if (ustatus && copy_to_user(ustatus, &status, 4)) return -EFAULT;
+      c->wait_report = 0;
+      return c->pid;
+    }
     if (c->state != P_ZOMBIE) continue;
     int status = (c->exit_code & 0xff) << 8;
     if (c->exit_code >= 256) status = c->exit_code - 256; /* killed by signal n: status = n */

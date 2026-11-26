@@ -257,31 +257,18 @@ int system(const char *cmd) {
   while (waitpid(pid, &st, 0) < 0) if (errno != EINTR) return -1;
   return st;
 }
-/* realpath: resolve . and .. textually against the cwd (this system has no
- * symlinks), then require that the result exists. */
+/* realpath: the kernel resolves the path (symbolic links included) when it opens it, and
+ * /proc/self/fd/N reads back as the physical path. */
 char *realpath(const char *path, char *out) {
-  char buf[PATH_MAX];
-  size_t n = 0;
+  char buf[PATH_MAX], link[32];
   if (!path) { errno = EINVAL; return 0; }
-  if (!*path) { errno = ENOENT; return 0; }
-  if (path[0] != '/') { if (!getcwd(buf, sizeof buf)) return 0; n = strlen(buf); if (n == 1) n = 0; }
-  for (const char *p = path; *p;) {
-    while (*p == '/') p++;
-    const char *e = p;
-    while (*e && *e != '/') e++;
-    size_t len = e - p;
-    if (!len || (len == 1 && p[0] == '.')) {}
-    else if (len == 2 && p[0] == '.' && p[1] == '.') { while (n && buf[n - 1] != '/') n--; if (n) n--; }
-    else {
-      if (n + 1 + len >= sizeof buf) { errno = ENAMETOOLONG; return 0; }
-      buf[n++] = '/'; memcpy(buf + n, p, len); n += len;
-    }
-    p = e;
-  }
-  if (!n) buf[n++] = '/';
+  int fd = __sysret(__syscall4(SYS_openat, AT_FDCWD, path, O_PATH | O_CLOEXEC, 0));
+  if (fd < 0) return 0;
+  snprintf(link, sizeof link, "/proc/self/fd/%d", fd);
+  long n = __sysret(__syscall4(SYS_readlinkat, AT_FDCWD, link, buf, sizeof buf - 1));
+  close(fd);
+  if (n < 0) return 0;
   buf[n] = 0;
-  struct stat st;
-  if (stat(buf, &st) < 0) return 0;
   if (!out && !(out = malloc(n + 1))) return 0;
   return memcpy(out, buf, n + 1);
 }

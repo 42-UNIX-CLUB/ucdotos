@@ -1,0 +1,39 @@
+{"cmd":"join a b","out":"1 apple red one\n2 banana yellow two\n5 fig purple five\n5 fig purple cinq\n","status":0,"err":false}
+{"cmd":"join b a","out":"1 one apple red\n2 two banana yellow\n5 five fig purple\n5 cinq fig purple\n","status":0,"err":false}
+{"cmd":"join -a 1 a b","out":"1 apple red one\n2 banana yellow two\n3 cherry red\n5 fig purple five\n5 fig purple cinq\n","status":0,"err":false}
+{"cmd":"join -a 2 a b","out":"1 apple red one\n2 banana yellow two\n4 four\n5 fig purple five\n5 fig purple cinq\n","status":0,"err":false}
+{"cmd":"join -a 1 -a 2 a b","out":"1 apple red one\n2 banana yellow two\n3 cherry red\n4 four\n5 fig purple five\n5 fig purple cinq\n","status":0,"err":false}
+{"cmd":"join -v 1 a b","out":"3 cherry red\n","status":0,"err":false}
+{"cmd":"join -v 2 a b","out":"4 four\n","status":0,"err":false}
+{"cmd":"join -v 1 -v 2 a b","out":"3 cherry red\n4 four\n","status":0,"err":false}
+{"cmd":"join -o 1.2,2.2 a b","out":"apple one\nbanana two\nfig five\nfig cinq\n","status":0,"err":false}
+{"cmd":"join -o 0,2.2,1.3 a b","out":"1 one red\n2 two yellow\n5 five purple\n5 cinq purple\n","status":0,"err":false}
+{"cmd":"join -o 1.1,1.2,2.2 -a 1 -e NONE a b","out":"1 apple one\n2 banana two\n3 cherry NONE\n5 fig five\n5 fig cinq\n","status":0,"err":false}
+{"cmd":"join -a 2 -o 0,1.2,2.2 -e - a b","out":"1 apple one\n2 banana two\n4 - four\n5 fig five\n5 fig cinq\n","status":0,"err":false}
+{"cmd":"join -t: c1 c2","out":"a:1:x:10\nc:3:z:30\n","status":0,"err":false}
+{"cmd":"join -t: -a1 -a2 c1 c2","out":"a:1:x:10\nb:2:y\nc:3:z:30\nd:40\n","status":0,"err":false}
+{"cmd":"join -t: -o 1.3,2.2 c1 c2","out":"x:10\nz:30\n","status":0,"err":false}
+{"cmd":"join -t: -1 1 -2 1 c1 c2","out":"a:1:x:10\nc:3:z:30\n","status":0,"err":false}
+{"cmd":"join -1 2 -2 1 a b","out":"","status":0,"err":false}
+{"cmd":"join dup1 dup2","out":"k v1 w1\nk v1 w2\nk v2 w1\nk v2 w2\n","status":0,"err":false}
+{"cmd":"join -a1 -a2 dup1 dup2","out":"k v1 w1\nk v1 w2\nk v2 w1\nk v2 w2\nm v3\nn w3\n","status":0,"err":false}
+{"cmd":"join sp b","out":"1 spaced out one\n2 x two\n","status":0,"err":false}
+{"cmd":"join -i upper lower","out":"A 1 X\nb 2 Y\n","status":0,"err":false}
+{"cmd":"join upper lower","out":"","status":1,"err":true}
+{"cmd":"join --header h1 h2","out":"id name val\n1 x p\n","status":0,"err":false}
+{"cmd":"join a empty","out":"","status":0,"err":false}
+{"cmd":"join empty b","out":"","status":0,"err":false}
+{"cmd":"join -a1 a empty","out":"1 apple red\n2 banana yellow\n3 cherry red\n5 fig purple\n","status":0,"err":false}
+{"cmd":"join -j 1 a b","out":"1 apple red one\n2 banana yellow two\n5 fig purple five\n5 fig purple cinq\n","status":0,"err":false}
+{"cmd":"join -t '' a b","out":"","status":1,"err":true}
+{"cmd":"join - b < a","out":"1 apple red one\n2 banana yellow two\n5 fig purple five\n5 fig purple cinq\n","status":0,"err":false}
+{"cmd":"join -o auto -a1 a b","out":"1 apple red one\n2 banana yellow two\n3 cherry red \n5 fig purple five\n5 fig purple cinq\n","status":0,"err":false}
+{"cmd":"join a; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"join a b c; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"join -1 0 a b; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"join -a 3 a b; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"join -o 3.1 a b; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"join -t ab a b; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"join a missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"printf 'b 1\\na 2\\n' > uns; join uns b; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"printf 'b 1\\na 2\\n' > uns; join --nocheck-order uns b; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}

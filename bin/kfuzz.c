@@ -127,7 +127,17 @@ static const char *ro_paths[] = { /* paths they may only look at */
   "/", "/dev/null", "/dev/zero", "/dev/urandom", "/dev/ptmx", "/dev/pts/0", "/dev/pts/1", "/dev/pts/2",
   "/dev/pts/15", "/dev/fb0", "/dev/input/event0", "/bin/true", "/etc/motd", "/tmp", "/proc", "/nonexistent",
   "/bin/true/x", "/dev/pts", KDIR, KDIR "/d", "//dev//null", "/dev/../dev/zero",
+  /* symbolic links and /proc (2026-11-26); never /dev/fd/N or /proc/self/fd/N here: case 3
+   * may open "/dev/..." paths read-write, and fd 6 is /etc/motd */
+  "/proc/self", "/proc/self/exe", "/proc/self/cwd", "/proc/self/status", "/proc/cpuinfo", "/proc/meminfo",
+  "/proc/self/fd", "/dev/tty", "/proc/99", KDIR "/a/b/c", KDIR "/d/e/f",
+  /* not /dev/stdin: case 3 may open it read-write, and a worker's fd 0 can be a dup of the
+   * read-only /etc/motd descriptor (reopening it read-write is correct, as on Linux) */
 };
+/* targets for new symbolic links: always inside KDIR (or /dev/null), so that nothing a worker
+ * does through a link can reach the image or leave files outside KDIR */
+/* not ".": a link to KDIR itself followed by ".." reaches /tmp */
+static const char *link_targets[] = {"a", "d", "d/x", "../kfuzz/f", "f", KDIR "/d", KDIR "/g/h", "nonexistent", "/dev/null", "a/../d", "g//h", "s.sock", "d/e"};
 /* never "..": from KDIR that is /tmp, and files made there would outlive the run */
 static const char *cd_paths[] = { KDIR, KDIR "/d", KDIR "/d/e", KDIR "/g", KDIR "/a", "/nonexistent", "d", "e", "." };
 static const char *spawn_paths[] = { "/bin/true", "/bin/false", "/bin/kfuzz", "/etc/motd", "/tmp", "/nonexistent", KDIR "/f", "" };
@@ -219,6 +229,16 @@ static long gen_mut_path(void) {
   }
   return str_ptr(mut_paths[below(sizeof mut_paths / sizeof *mut_paths)]);
 }
+/* paths for chmod, chown, truncate and utimensat: names from mut_paths only, never a random
+ * pointer (it can land on an earlier string such as "/etc/motd"), never "..", "." or "" (a
+ * worker's working directory may still be "/") */
+static long gen_attr_path(void) {
+  for (;;) {
+    const char *p = mut_paths[below(sizeof mut_paths / sizeof *mut_paths)];
+    if (!*p || strstr(p, "..") || !strcmp(p, ".")) continue;
+    return str_ptr(p);
+  }
+}
 static long gen_ro_path(void) {
   if (chance(5)) return gen_ptr();
   return str_ptr(ro_paths[below(sizeof ro_paths / sizeof *ro_paths)]);
@@ -297,6 +317,11 @@ static int path_arg(long nr, int i) { /* which arguments are path strings, for t
   case SYS_chdir: case SYS_spawn: return i == 0;
   case SYS_openat: case SYS_mkdirat: case SYS_unlinkat: case SYS_newfstatat: case SYS_utimensat: return i == 1;
   case SYS_renameat: return i == 1 || i == 3;
+  case SYS_symlinkat: return i == 0 || i == 2;
+  case SYS_linkat: case SYS_renameat2: return i == 1 || i == 3;
+  case SYS_readlinkat: case SYS_fchmodat: case SYS_fchmodat2: case SYS_fchownat: case SYS_statx: case SYS_mknodat:
+  case SYS_faccessat: case SYS_faccessat2: return i == 1;
+  case SYS_truncate: case SYS_chroot: case SYS_statfs: return i == 0;
   }
   return 0;
 }
@@ -324,6 +349,14 @@ static long do_call(const char *name, long nr, int n, long a0, long a1, long a2,
 #define C2(nr, a, b) do_call(#nr, nr, 2, (long)(a), (long)(b), 0, 0)
 #define C3(nr, a, b, c) do_call(#nr, nr, 3, (long)(a), (long)(b), (long)(c), 0)
 #define C4(nr, a, b, c, d) do_call(#nr, nr, 4, (long)(a), (long)(b), (long)(c), (long)(d))
+static long do_call5(const char *name, long nr, long a0, long a1, long a2, long a3, long a4) {
+  long a[4] = {a0, a1, a2, a3};
+  show(name, nr, 4, a);
+  long r = __syscall6(nr, a0, a1, a2, a3, a4, 0);
+  if (verbose) say(" [, %#lx] = %ld\n", (unsigned long)a4, r);
+  return r;
+}
+#define C5(nr, a, b, c, d, e) do_call5(#nr, nr, (long)(a), (long)(b), (long)(c), (long)(d), (long)(e))
 
 /* Short sequences with correct arguments, to reach states random calls rarely reach. */
 static void macro(void) {
@@ -432,7 +465,7 @@ static void one_call(void) {
   if (chance(15)) { macro(); return; }
   long len, n;
   int fd;
-  switch (below(46)) {
+  switch (below(61)) {
   case 0: fd = gen_fd(); if (!is_input(fd)) C3(SYS_read, fd, gen_ptr(), gen_len()); break;
   case 1: C3(SYS_write, gen_fd(), gen_ptr(), gen_len()); break;
   case 2: C4(SYS_openat, gen_mut_dirfd(), gen_mut_path(), gen_int() & (O_ACCMODE | O_CREAT | O_EXCL | O_TRUNC | O_APPEND | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC), gen_int()); break;
@@ -499,7 +532,76 @@ static void one_call(void) {
   case 44: { long cmd = gen_ioctl_cmd(); C3(SYS_ioctl, gen_fd(), cmd, gen_ioctl_arg(cmd)); break; }
   case 45: /* unimplemented or out-of-range numbers; and rarely exit */
     if (chance(3)) C1(SYS_exit, gen_int());
-    else C4(chance(50) ? (long)below(600) : gen_int(), gen_int(), gen_int(), gen_int(), gen_int());
+    else {
+      long nr = chance(50) ? (long)below(600) : gen_int();
+      /* since 2026-11-26 these numbers are real calls that change modes, owners or the root,
+       * and gen_int() is often a descriptor of the image's /etc/motd: leave them to cases 46-60 */
+      if (nr == SYS_fchmod || nr == SYS_fchmodat || nr == SYS_fchownat || nr == SYS_fchown || nr == SYS_fchmodat2 || nr == SYS_chroot || nr == SYS_fchdir) nr = 600;
+      C4(nr, gen_int(), gen_int(), gen_int(), gen_int());
+    }
+    break;
+  /* ---- file system calls added on 2026-11-26: links, modes, owners, locks, statx ---- */
+  /* targets only from the list: a random pointer can land on an earlier string such as
+   * "/etc/motd", and a chmod through the link would then change the image */
+  case 46: C3(SYS_symlinkat, chance(97) ? str_ptr(link_targets[below(sizeof link_targets / sizeof *link_targets)]) : (long)(scratch + 63800), gen_mut_dirfd(), gen_mut_path()); break;
+  case 47: { static const long fl[] = {0, AT_SYMLINK_FOLLOW, AT_EMPTY_PATH, 0x1400, 1}; C5(SYS_linkat, gen_mut_dirfd(), gen_mut_path(), gen_mut_dirfd(), gen_mut_path(), chance(90) ? fl[below(5)] : gen_int()); break; }
+  case 48: C4(SYS_readlinkat, chance(50) ? gen_mut_dirfd() : gen_fd(), chance(50) ? gen_ro_path() : gen_mut_path(), chance(80) ? (long)scratch : gen_ptr(), chance(80) ? (long)below(300) : gen_len()); break;
+  case 49: if (chance(50)) C3(SYS_fchmodat, gen_mut_dirfd(), gen_attr_path(), gen_int());
+           else C4(SYS_fchmodat2, gen_mut_dirfd(), gen_attr_path(), gen_int(), chance(50) ? AT_SYMLINK_NOFOLLOW : gen_int()); break;
+  case 50: C5(SYS_fchownat, gen_mut_dirfd(), gen_attr_path(), chance(50) ? -1 : gen_int(), chance(50) ? -1 : gen_int(), chance(70) ? (chance(50) ? AT_SYMLINK_NOFOLLOW : 0) : gen_int()); break;
+  case 51: C5(SYS_renameat2, gen_mut_dirfd(), gen_mut_path(), gen_mut_dirfd(), gen_mut_path(), chance(80) ? (long)below(4) : gen_int()); break;
+  case 52: C5(SYS_statx, chance(50) ? gen_mut_dirfd() : gen_fd(), chance(50) ? gen_ro_path() : gen_mut_path(), chance(80) ? (long)(below(2) * AT_SYMLINK_NOFOLLOW | below(2) * AT_EMPTY_PATH) : gen_int(), gen_int(), gen_ptr()); break;
+  case 53: { static const long ty[] = {S_IFREG, S_IFIFO, S_IFSOCK, S_IFCHR, S_IFBLK, S_IFDIR, 0, S_IFLNK}; C4(SYS_mknodat, gen_mut_dirfd(), gen_mut_path(), ty[below(8)] | (gen_int() & 07777), gen_int()); break; }
+  case 54: if (chance(50)) C3(SYS_faccessat, gen_mut_dirfd(), chance(50) ? gen_ro_path() : gen_mut_path(), chance(80) ? (long)below(8) : gen_int());
+           else C4(SYS_faccessat2, gen_mut_dirfd(), chance(50) ? gen_ro_path() : gen_mut_path(), below(8), chance(80) ? (long)(below(2) * AT_EACCESS | below(2) * AT_SYMLINK_NOFOLLOW) : gen_int()); break;
+  case 55: C2(SYS_flock, gen_fd(), chance(80) ? (long)(1 + below(8)) : gen_int()); break;
+  case 56: { /* record locks: a valid struct flock most of the time */
+    static const int cmds[] = {F_GETLK, F_SETLK, F_SETLKW, F_GETLK64, F_SETLK64, F_SETLKW64, F_OFD_GETLK, F_OFD_SETLK, F_OFD_SETLKW, F_DUPFD_CLOEXEC};
+    long *fl = (long *)(scratch + 1000);
+    if (chance(80)) { short *sh = (short *)fl; sh[0] = below(3); sh[1] = below(3); fl[1] = chance(50) ? (long)below(100) : gen_int(); fl[2] = chance(50) ? (long)below(100) - 20 : gen_int(); fl[3] = 0; }
+    else fill_random(fl, 32);
+    C3(SYS_fcntl, gen_fd(), chance(90) ? cmds[below(10)] : gen_int(), chance(90) ? (long)fl : gen_ptr());
+    break;
+  }
+  case 57: if (chance(50)) C2(SYS_truncate, gen_attr_path(), chance(80) ? (long)below(70000) : fsize(gen_int()));
+           else C4(SYS_fallocate, gen_fd(), chance(80) ? 0 : gen_int(), chance(80) ? (long)below(70000) : fsize(gen_int()), chance(80) ? (long)below(70000) : fsize(gen_int())); break;
+  case 58: { /* vectored I/O: iovecs that point anywhere */
+    long *iov = (long *)(scratch + 2000);
+    int cnt = chance(90) ? (int)below(20) : gen_int();
+    for (int k = 0; k < 20; k++) { iov[2 * k] = chance(80) ? (long)(scratch + 4096 + below(60000)) : gen_ptr(); iov[2 * k + 1] = chance(80) ? (long)below(1000) : gen_len(); }
+    static const long nrs[] = {SYS_readv, SYS_writev, SYS_preadv, SYS_pwritev};
+    long nr = nrs[below(4)];
+    fd = gen_fd();
+    if ((nr == SYS_readv || nr == SYS_preadv) && is_input(fd)) break;
+    if (nr == SYS_readv) C3(SYS_readv, fd, chance(90) ? (long)iov : gen_ptr(), cnt);
+    else if (nr == SYS_writev) C3(SYS_writev, fd, chance(90) ? (long)iov : gen_ptr(), cnt);
+    else if (nr == SYS_preadv) C4(SYS_preadv, fd, chance(90) ? (long)iov : gen_ptr(), cnt, chance(80) ? (long)below(100000) : gen_int());
+    else C4(SYS_pwritev, fd, chance(90) ? (long)iov : gen_ptr(), cnt, chance(80) ? (long)below(100000) : fsize(gen_int()));
+    break;
+  }
+  case 59: switch (below(6)) {
+    case 0: C1(SYS_fsync, gen_fd()); break;
+    case 1: C1(SYS_fdatasync, gen_fd()); break;
+    case 2: C1(SYS_syncfs, gen_fd()); break;
+    case 3: C0(SYS_sync); break;
+    case 4: C2(SYS_statfs, chance(50) ? gen_ro_path() : gen_mut_path(), gen_ptr()); break;
+    default: C2(SYS_fstatfs, gen_fd(), gen_ptr()); break;
+    }
+    break;
+  case 60: switch (below(9)) {
+    case 0: C1(SYS_umask, gen_int()); break;
+    case 1: C1(SYS_chroot, chance(90) ? str_ptr(cd_paths[below(sizeof cd_paths / sizeof *cd_paths)]) : gen_ptr()); break;
+    case 2: C1(SYS_fchdir, chance(50) ? MYDIR : F_DIR); break; /* only KDIR: relative names must stay inside it */
+    case 3: { static const long n1[] = {SYS_setuid, SYS_setgid, SYS_setfsuid, SYS_setfsgid}; C1(n1[below(4)], chance(50) ? 1000 : gen_int()); break; }
+    case 4: C3(chance(50) ? SYS_setresuid : SYS_setresgid, chance(50) ? -1 : gen_int(), chance(50) ? 1000 : gen_int(), -1); break;
+    case 5: C3(chance(50) ? SYS_getresuid : SYS_getresgid, gen_ptr(), gen_ptr(), gen_ptr()); break;
+    case 6: C2(chance(50) ? SYS_getgroups : SYS_setgroups, chance(80) ? (long)below(20) : gen_int(), gen_ptr()); break;
+    case 7: C4(SYS_utimensat, gen_mut_dirfd(), chance(90) ? gen_attr_path() : 0, chance(50) ? gen_timespec() : 0, chance(80) ? 0 : gen_int()); break;
+    default: { /* only descriptors of KDIR and its files: a worker's own fds may name image files */
+      static const int own[] = {MYDIR, MYFILE, MYDIR, MYFILE, -1, 999, AT_FDCWD, 64}; /* 3..5 can be dup3 targets */
+      fd = own[below(8)];
+      if (chance(50)) C2(SYS_fchmod, fd, gen_int()); else C3(SYS_fchown, fd, chance(50) ? -1 : gen_int(), gen_int()); break; }
+    }
     break;
   }
 }
@@ -592,7 +694,7 @@ static void drain(void) { /* keep shared buffers moving without ever blocking ou
 }
 /* Remove a tree with chdir and relative names: renames can nest it deeper than PATH_MAX. */
 static void remove_tree(const char *name, int depth) {
-  static char names[16][32][72];
+  static char names[16][32][260]; /* names may be 255 bytes since 2026-11-26 */
   if (depth < 16 && chdir(name) == 0) {
     for (int pass = 0; pass < 1000; pass++) { /* collect a batch, close, then remove it */
       DIR *d = opendir(".");
@@ -615,7 +717,7 @@ static void remove_tree(const char *name, int depth) {
   rmdir(name);
 }
 /* names in / and /tmp before the run, to report anything the workers left elsewhere */
-static char before[2][64][72];
+static char before[2][64][260];
 static int nbefore[2], nleft;
 static void snapshot(int which, const char *dir, int report) {
   DIR *d = opendir(dir);
@@ -688,7 +790,17 @@ static int supervisor(long iters, double tlimit, int run_ktest) {
     }
     if (!live) break;
     if (tlimit > 0 && now - t0 > tlimit) { for (int w = 0; w < nworkers; w++) if (slots[w].pid > 0) __syscall2(SYS_kill, slots[w].pid, 9); }
-    if (now - last_report > 5000) { say("[kfuzz] %.0f s: %ld of %ld calls, %ld respawns, heap %ld\n", (now - t0) / 1000, done, total, respawns, heap_used()); last_report = now; }
+    if (now - last_report > 5000) {
+      say("[kfuzz] %.0f s: %ld of %ld calls, %ld respawns, heap %ld\n", (now - t0) / 1000, done, total, respawns, heap_used());
+      static long last_done = -1;
+      if (done == last_done) { /* no progress for 5 s: say what every process is doing */
+        struct procinfo pi;
+        for (int i = 0; __syscall2(SYS_procinfo, i, &pi) == 0; i++) say("[kfuzz]   pid %d ppid %d state %d calls %llu %s\n", pi.pid, pi.ppid, pi.state, pi.syscalls, pi.name);
+        for (int w = 0; w < nworkers; w++) say("[kfuzz]   slot %d: pid %d used %ld of %ld\n", w, slots[w].pid, slots[w].used, slots[w].budget);
+      }
+      last_done = done;
+      last_report = now;
+    }
     drain();
     usleep(20000);
   }

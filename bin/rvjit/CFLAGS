@@ -1,0 +1,1 @@
+-Ilibjit libjit/wasm.c libjit/rvdec.c libjit/xlat.c libjit/rvsem.c libjit/rvfp.c libjit/rvinterp.c libjit/engine.c libjit/fmt.c libjit/port_ucos.c libjit/main.c -Wl,--export-table -Wl,--growable-table

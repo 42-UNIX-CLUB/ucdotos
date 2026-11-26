@@ -3,9 +3,9 @@
 #define _SIGNAL_H
 #include <stddef_extra.h>
 #include <sys/syscall.h>
-/* This system never delivers signals to a program: kill() terminates the target.
- * signal() and sigaction() only record the disposition (it is returned by the
- * next call); handlers run only through raise(). */
+/* Signals are delivered at system call boundaries: a handler runs when the program
+ * next enters the kernel (a loop without system calls never sees one). See
+ * libc/src/signal.c and ARCHITECTURE.md section 5. */
 typedef int sig_atomic_t;
 typedef unsigned long long sigset_t;
 typedef void (*sighandler_t)(int);
@@ -84,4 +84,14 @@ int sigismember(const sigset_t *, int);
 int sigprocmask(int, const sigset_t *, sigset_t *);
 int sigpending(sigset_t *);
 int sigsuspend(const sigset_t *);
+int killpg(pid_t, int);
+int pause(void);
+int siginterrupt(int, int);
+#define SI_USER 0
+#define SI_KERNEL 0x80
+#define CLD_EXITED 1
+#define CLD_KILLED 2
+#define CLD_DUMPED 3
+#define CLD_STOPPED 5
+#define CLD_CONTINUED 6
 #endif

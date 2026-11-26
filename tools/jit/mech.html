@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>translator mechanisms</title>
+<pre id="out"></pre>
+<script type="module">
+import { run } from './mech.mjs';
+const out = document.getElementById('out');
+run((s) => { console.log(s); out.textContent += s + '\n'; });
+</script>

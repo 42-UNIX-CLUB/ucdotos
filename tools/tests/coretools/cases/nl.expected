@@ -1,0 +1,34 @@
+{"cmd":"nl f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n       \n     4\tseven\n","status":0,"err":false}
+{"cmd":"nl -b a f","out":"     1\tone\n     2\ttwo\n     3\t\n     4\tfour\n     5\t\n     6\t\n     7\tseven\n","status":0,"err":false}
+{"cmd":"nl -b n f","out":"       one\n       two\n       \n       four\n       \n       \n       seven\n","status":0,"err":false}
+{"cmd":"nl -b t f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n       \n     4\tseven\n","status":0,"err":false}
+{"cmd":"nl -b 'pe$' f","out":"     1\tone\n       two\n       \n       four\n       \n       \n       seven\n","status":0,"err":false}
+{"cmd":"nl -b p^t f","out":"       one\n     1\ttwo\n       \n       four\n       \n       \n       seven\n","status":0,"err":false}
+{"cmd":"nl -v 10 f","out":"    10\tone\n    11\ttwo\n       \n    12\tfour\n       \n       \n    13\tseven\n","status":0,"err":false}
+{"cmd":"nl -i 5 f","out":"     1\tone\n     6\ttwo\n       \n    11\tfour\n       \n       \n    16\tseven\n","status":0,"err":false}
+{"cmd":"nl -v 0 -i -1 f","out":"     0\tone\n    -1\ttwo\n       \n    -2\tfour\n       \n       \n    -3\tseven\n","status":0,"err":false}
+{"cmd":"nl -w 3 f","out":"  1\tone\n  2\ttwo\n    \n  3\tfour\n    \n    \n  4\tseven\n","status":0,"err":false}
+{"cmd":"nl -w 1 f","out":"1\tone\n2\ttwo\n  \n3\tfour\n  \n  \n4\tseven\n","status":0,"err":false}
+{"cmd":"nl -n ln f","out":"1     \tone\n2     \ttwo\n       \n3     \tfour\n       \n       \n4     \tseven\n","status":0,"err":false}
+{"cmd":"nl -n rz f","out":"000001\tone\n000002\ttwo\n       \n000003\tfour\n       \n       \n000004\tseven\n","status":0,"err":false}
+{"cmd":"nl -n rn f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n       \n     4\tseven\n","status":0,"err":false}
+{"cmd":"nl -s ': ' f","out":"     1: one\n     2: two\n        \n     3: four\n        \n        \n     4: seven\n","status":0,"err":false}
+{"cmd":"nl -s '' f","out":"     1one\n     2two\n      \n     3four\n      \n      \n     4seven\n","status":0,"err":false}
+{"cmd":"nl -b a -l 2 f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n     4\t\n     5\tseven\n","status":0,"err":false}
+{"cmd":"nl -b a -l 3 f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n       \n     4\tseven\n","status":0,"err":false}
+{"cmd":"nl pages","out":"\n       head\n\n     1\tbody1\n     2\tbody2\n\n       foot\n\n       head2\n\n     1\tbody3\n","status":0,"err":false}
+{"cmd":"nl -p pages","out":"\n       head\n\n     1\tbody1\n     2\tbody2\n\n       foot\n\n       head2\n\n     3\tbody3\n","status":0,"err":false}
+{"cmd":"nl -h a -f a pages","out":"\n     1\thead\n\n     1\tbody1\n     2\tbody2\n\n     1\tfoot\n\n     1\thead2\n\n     1\tbody3\n","status":0,"err":false}
+{"cmd":"nl -d '#' f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n       \n     4\tseven\n","status":0,"err":false}
+{"cmd":"nl nonl","out":"     1\tlast\n","status":0,"err":false}
+{"cmd":"nl - < f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n       \n     4\tseven\n","status":0,"err":false}
+{"cmd":"nl f f","out":"     1\tone\n     2\ttwo\n       \n     3\tfour\n       \n       \n     4\tseven\n     5\tone\n     6\ttwo\n       \n     7\tfour\n       \n       \n     8\tseven\n","status":0,"err":false}
+{"cmd":"nl missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"nl -b x f; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"nl -n xx f; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"nl -w 0 f; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"nl -v x f; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"nl -Z f; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":": | nl","out":"","status":0,"err":false}
+{"cmd":"seq 1 12 | nl -w 2 | tail -3","out":"10\t10\n11\t11\n12\t12\n","status":0,"err":false}
+{"cmd":"nl --body-numbering=a --number-width=2 --number-separator=. f","out":" 1.one\n 2.two\n 3.\n 4.four\n 5.\n 6.\n 7.seven\n","status":0,"err":false}

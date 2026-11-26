@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>translator in UC.OS</title>
+<pre id="out"></pre>
+<script type="module">
+// Boot the translator's test image (tools/jit/os/mkimage.sh) in Chromium, console only, with
+// the extension and a persistent store (IndexedDB), type `input` into the console and log
+// everything; "@@DONE" when every process has exited. Query: build=build-NAME, input=...,
+// ext=0 (boot without the extension), store=0 (no store).
+import { boot, checkSupport } from '../../../boot/host.mjs';
+import { openStore } from '../../../boot/store.mjs';
+import { jitExtension } from '../../../boot/jit-proto/ext.mjs';
+const q = new URLSearchParams(location.search);
+const B = '/' + (q.get('build') || 'build');
+const out = document.getElementById('out');
+let line = '';
+const log = (s) => { line += s; const parts = line.split('\n'); line = parts.pop(); for (const p of parts) { console.log(p); out.textContent += p + '\n'; } };
+const missing = checkSupport();
+if (missing.length) { console.log('missing: ' + missing.join(', ')); console.log('@@DONE'); }
+const get = async (u) => new Uint8Array(await (await fetch(u)).arrayBuffer());
+const ext = q.get('ext') === '0' ? null : jitExtension({ log });
+const store = q.get('store') === '0' ? null : await openStore({ kind: 'idb', name: 'ucos-jit', log });
+const t0 = performance.now();
+const sys = await boot({
+  kernel: await get(B + '/kernel.wasm'), initrd: await get(B + '/jit-os/initrd.tar'),
+  cmdline: 'init=/bin/sh', log, store, extend: ext ? ext.extend : null,
+  onIdle: async () => {
+    if (store) await store.flush();
+    if (line) console.log(line);
+    const s = ext ? ext.stats : {};
+    console.log(`@@HOST attached=${s.attached || 0} loads=${s.loads || 0} bytes=${s.bytes || 0} ms=${(s.ms || 0).toFixed(1)} wall=${(performance.now() - t0).toFixed(1)}`);
+    console.log('@@DONE');
+  },
+});
+sys.consoleInput((q.get('input') || 'exit\n').replace(/\\n/g, '\n'));
+sys.consoleEOF();
+</script>

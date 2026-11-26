@@ -1,0 +1,195 @@
+##### shell-features
+=== make
+--- status 0
+--- stdout
+1
+2
+3
+yes
+sub back
+12
+or-branch
+subshell
+a
+f.txt
+--- stderr
+
+=== files
+Makefile: "all:\n\t@for i in 1 2 3; do echo $$i; done\n\t@if [ -f Makefile ]; then echo yes; fi\n\t@echo $$(echo sub) `echo back`\n\t@x=1 && y=2 && echo $$x$$y\n\t@false || echo or-branch\n\t@(echo subshell)\n\t@echo a > f.txt; cat < f.txt\n\t@echo *.txt\n"
+f.txt: "a\n"
+##### each-line-own-shell
+=== make
+--- status 0
+--- stdout
+[1]
+[]
+/
+each-line-own-shell
+--- stderr
+
+=== files
+Makefile: "all:\n\t@x=1; echo \"[$$x]\"\n\t@echo \"[$$x]\"\n\t@cd /; pwd\n\t@pwd | sed 's,.*/,,'\n"
+##### oneshell
+=== make
+--- status 0
+--- stdout
+[1]
+/
+--- stderr
+
+=== files
+Makefile: ".ONESHELL:\nall:\n\t@x=1\n\techo \"[$$x]\"\n\tcd /\n\tpwd\n"
+##### shell-var
+=== make
+--- status 0
+--- stdout
+bash
+--- stderr
+
+=== files
+Makefile: "SHELL = /bin/bash\nall: ; @echo $$BASH_VERSION | cut -c1-1 | grep -q . && echo bash\n"
+##### shellflags
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:3: all] Error 1
+
+=== files
+Makefile: ".SHELLFLAGS = -ec\nall:\n\t@false; echo not reached\n"
+##### posix
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:3: all] Error 1
+
+=== files
+Makefile: ".POSIX:\nall:\n\t@false; echo not reached\n"
+##### quoting
+=== make
+--- status 0
+--- stdout
+single $HOME double back slash
+tab	inside
+percent % sign
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo 'single $$HOME' \"double\" back\\ slash\n\t@echo \"tab\tinside\"\n\t@printf '%s\\n' \"percent % sign\"\n"
+##### prefix-combos
+=== make; echo "status $?"
+--- status 0
+--- stdout
+done
+status 0
+--- stderr
+make: [Makefile:2: all] Error 1 (ignored)
+make: [Makefile:3: all] Error 1 (ignored)
+
+=== files
+Makefile: "all:\n\t@-false\n\t-@false\n\t@echo done\n"
+##### prefix-after-expansion
+=== make
+--- status 0
+--- stdout
+quiet
+end
+--- stderr
+make: [Makefile:4: all] Error 1 (ignored)
+
+=== files
+Makefile: "Q = @\nall:\n\t$(Q)echo quiet\n\t$(Q)-false\n\t@echo end\n"
+##### empty-recipe-line
+=== make
+--- status 0
+--- stdout
+after
+--- stderr
+
+=== files
+Makefile: "E =\nall:\n\t$(E)\n\t@echo after\n"
+##### backslash-recipe
+=== make
+--- status 0
+--- stdout
+one two three
+a\
+b
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo one \\\n\ttwo \\\n\t  three\n\t@echo 'a\\\n\tb'\n"
+##### signal-exit
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:1: all] Terminated
+
+=== files
+Makefile: "all: ; @kill -TERM $$$$\n"
+##### recipe-env
+=== make
+--- status 0
+--- stdout
+[1] []
+--- stderr
+
+=== make -k
+--- status 0
+--- stdout
+[1] [k]
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$$MAKELEVEL] [$$MAKEFLAGS]\"\n"
+##### fast-path-errors
+=== make 2>&1 | sed 's/^.*sh[^:]*: [0-9]*: //; s/^.*sh: line [0-9]*: //'
+--- status 0
+--- stdout
+no-such-prog-1
+make: no-such-prog-1: No such file or directory
+make: [Makefile:2: all] Error 127 (ignored)
+no-such-prog-2 | cat
+no-such-prog-2: command not found
+./not-executable
+make: ./not-executable: Permission denied
+make: [Makefile:4: all] Error 127 (ignored)
+--- stderr
+
+=== files
+Makefile: "all:\n\t-no-such-prog-1\n\t-no-such-prog-2 | cat\n\t-./not-executable\n"
+not-executable: "\n"
+##### recipe-cwd
+=== make -s -C sub
+--- status 0
+--- stdout
+sub
+--- stderr
+
+=== files
+sub/
+sub/Makefile: "all: ; @pwd | sed 's,.*/,,'\n"
+##### long-command
+=== make
+--- status 0
+--- stdout
+2000
+--- stderr
+
+=== files
+Makefile: "W := $(foreach i,$(shell seq 1 2000),word$(i))\nall: ; @echo $(W) | wc -w\n"
+##### dollar-at-in-define
+=== make
+--- status 0
+--- stdout
+compiling x.c into x.o
+--- stderr
+
+=== files
+Makefile: "define compile\n@echo compiling $< into $@\nendef\nall: x.o\nx.o: x.c ; $(compile)\n"
+x.c: "\n"

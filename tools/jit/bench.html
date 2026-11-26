@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>translator benchmark</title>
+<pre id="out"></pre>
+<script type="module">
+// Query: build=build-NAME programs=a,b configs=x,y rounds=N reps=N extra=... gc=1
+import { bench, formatHeader, formatDetail, PROGRAMS, CONFIGS } from './bench-core.mjs';
+const q = new URLSearchParams(location.search);
+const out = document.getElementById('out');
+const log = (s) => { console.log(s); out.textContent += s + '\n'; };
+const dir = `/${q.get('build') || 'build'}/jit/`;
+const configs = (q.get('configs') || Object.keys(CONFIGS).join(',')).replace(/ /g, '+').split(',');   // '+' arrives as a space
+const programs = (q.get('programs') || PROGRAMS.join(',')).split(',');
+log(`# translator benchmark, ${navigator.userAgent.match(/Chrom\S+/)?.[0]}; guest MIPS, best (median)`);
+log(formatHeader(configs));
+try {
+  const results = await bench({ load: async (f) => new Uint8Array(await (await fetch(dir + f)).arrayBuffer()), log, programs, configs,
+    rounds: Number(q.get('rounds') || 2), reps: Number(q.get('reps') || 5), extra: q.get('extra') || '', gc: q.has('gc') });
+  log('\n' + formatDetail(results, configs));
+} catch (e) { log('error: ' + e.stack); }
+log('@@DONE');
+</script>
