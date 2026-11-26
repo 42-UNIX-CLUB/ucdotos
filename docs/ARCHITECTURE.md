@@ -435,7 +435,9 @@ accent on the focused window, 1 px grey on the others), fullscreen, floating win
 workspaces, damage-based compositing at most once per 15 ms, zero work when idle.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
-`layout master|split|toggle`, `open left|right|up|down CMD`,
+`layout master|split|toggle`, `open left|right|up|down CMD`, `toggle APP` (hide or show every
+window whose app_id is APP, like i3's scratchpad; windows that program opens later start the
+same way, and shown ones get a CONFIGURE so they redraw and re-read their files),
 `kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `trace on|off` (print, for each
 `PRESENT`, the time from its first byte to the framebuffer write; used by the latency
 probe), `animation MS`,
@@ -525,6 +527,23 @@ by comparing pointers, never following one to a window that may have closed.
 side DIR of the window focused at the time (in master: before it for left and up, after it
 for right and down). Defaults: $mod CTRL h j k l or the arrows open a terminal left, below,
 above, right.
+
+**Window roles** (`libui/ui.h`): `UI_NORMAL`, `UI_FLOATING`, `UI_BAR`, `UI_FULLSCREEN`,
+`UI_FLOATING_BOTTOM` (centred at the bottom), `UI_FLOATING_TOPLEFT` (top-left corner), plus two
+flags: `UI_STICKY` (shown on every workspace, and left in place during the workspace slide) and
+`UI_NOFOCUS` (never takes the keyboard focus, not even on a click). Bottom and top-left windows
+are placed again on every relayout, so they follow the bar and the screen size.
+
+**keys** (`bin/keys/`, autostarted, $mod /): the keybinding cheat sheet. Two sticky, no-focus
+windows with app_id `keys`: the sheet in the top-left corner lists every `bind` line of
+`~/.config/wm/wm.uconf` as written there (`$mod SHIFT, q` and `kill`; the parser keeps each
+value as written next to the expanded one, `uconf_entry.raw`), with later lines replacing earlier
+ones for the same keys and `unbind` removing them, as in the window manager; the hint at the
+bottom shows the key bound to `toggle keys`. `toggle keys` hides and shows both. They re-read
+the file and the theme whenever the window manager asks them to redraw (a reload, a theme change,
+being shown again) and reopen only when what they show needs another size (comparing with the
+size they last asked for, since the window manager shrinks a window that does not fit). A click
+hides both. Static tables (128 bindings); fonts are read again only when the theme's fonts change.
 
 **themes** (`bin/themes/`, $mod SHIFT t): the theme picker, a strip of cards along the bottom
 of the screen (window role `UI_FLOATING_BOTTOM`), each drawn in its theme's colours. Left and

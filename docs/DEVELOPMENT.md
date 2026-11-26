@@ -122,6 +122,7 @@ Component suites:
 | terminal in the OS | `bin/term/tests/os/*.mjs` | `shot.mjs` | 68 checks |
 | dotfiles | `tools/tests/dotfiles.mjs` | `shot.mjs --init=/bin/wm` | 14 checks; bar and launcher by eye on the screenshots |
 | split layout | `bin/wm/tests/split.mjs` (in `run.sh`) | `shot.mjs --init=/bin/wm` | 9 checks, needs term, ps and awk in the image |
+| keybinding cheat sheet | `bin/keys/shots.mjs` | `shot.mjs --init=/bin/wm` | 15 checks; the window manager tests hide the sheet first (`boot()` in `bin/wm/tests/lib.mjs`) |
 | themes and picker | `bin/themes/shots.mjs` | `shot.mjs --init=/bin/wm` | 19 checks: every theme's colour, Escape, Enter, memory on a second lap |
 | window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 8 scripts, 126 checks (2026-11-26) |
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
