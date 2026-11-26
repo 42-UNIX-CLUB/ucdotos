@@ -80,7 +80,7 @@ int ui_wm_state(ui_window *win, ui_wm_info *out);
 /* Ask the manager to do something, e.g. "workspace 2", "reload", "exec term". 0 on success. */
 int ui_wm_command(ui_window *win, const char *command);
 
-/* Commands the manager understands (the same words as the bind lines of ~/.config/wm/config):
+/* Commands the manager understands (the same words as the bind lines of ~/.config/wm/wm.uconf):
  *   exec CMD ARGS...   workspace N   move N   focus next|prev   swap next|prev|master
  *   master grow|shrink   fullscreen   float   kill   theme next|NAME   reload   exit
  *   zoom in|out|reset (sends UI_EV_ZOOM to the focused window)

@@ -57,6 +57,7 @@ typedef struct {
   int nauto;
   int always[16];       /* autostart line is exec_always */
   int focus_new;
+  unsigned col_focus, col_normal, col_float; /* border colours over the theme's; 0 = not set */
 } wm_config;
 
 /* globals (main.c) */

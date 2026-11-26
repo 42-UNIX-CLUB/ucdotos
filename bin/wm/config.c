@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* ~/.config/wm/config: an i3-style dotfile. See rootfs/home/user/.config/wm/config for the format. */
+/* ~/.config/wm/wm.uconf: the window manager's dotfile, in the .uconf format (libuconf/uconf.h).
+ * See rootfs/home/user/.config/wm/wm.uconf for every setting, with comments. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "wm.h"
+#include "uconf.h"
 
 static const struct { const char *name; int code; } keys[] = {
   {"Escape", 1}, {"minus", 12}, {"equal", 13}, {"BackSpace", 14}, {"Tab", 15},
@@ -80,10 +82,56 @@ static void default_binds(void) {
 }
 
 void apply_geometry(void) {
+  /* border colours set in wm.uconf win over the theme's (0 = not set) */
+  if (cfg.col_focus) theme.border_focus = cfg.col_focus;
+  if (cfg.col_normal) theme.border_normal = cfg.col_normal;
+  if (cfg.col_float) theme.border_float = cfg.col_float;
   G_gap = cfg.gap >= 0 ? cfg.gap : theme.gap;
   G_border = cfg.border >= 0 ? cfg.border : theme.border;
   G_radius = cfg.radius >= 0 ? cfg.radius : theme.radius;
   G_thin = cfg.border_thin >= 0 ? cfg.border_thin : 1;
+}
+
+/* "ALT SHIFT", "SUPER_SHIFT", "CTRL+ALT" or "" -> modifier bits; -1 for an unknown name.
+ * MOD (or $mod, which the parser has already replaced) is the configured modifier. */
+static int mods_of(const char *s) {
+  int m = 0;
+  char part[16];
+  while (*s) {
+    int n = 0;
+    while (*s && *s != ' ' && *s != '\t' && *s != '_' && *s != '+') { if (n < 15) part[n++] = *s; s++; }
+    part[n] = 0;
+    while (*s == ' ' || *s == '\t' || *s == '_' || *s == '+') s++;
+    if (!n) continue;
+    int b = !strcasecmp(part, "Win") || !strcasecmp(part, "Logo") ? UI_SUPER : mod_bit(part);
+    if (!b) return -1;
+    m |= b;
+  }
+  return m;
+}
+/* bind = MODS, key, action, arguments   (hyprlang style; the arguments keep their commas)
+ * unbind = MODS, key */
+static void bind_entry(uconf *c, uconf_entry *e, int unbind) {
+  char v[256], *f[4];
+  strlcpy(v, e->value, sizeof v);
+  int n = uconf_split(v, f, unbind ? 2 : 4);
+  int m = n >= 2 ? mods_of(f[0]) : -1, k = n >= 2 ? key_code(f[1]) : -1;
+  if (n < (unbind ? 2 : 3) || m < 0 || k < 0) {
+    fprintf(stderr, "%s:%d: %s needs MODS, key%s, with known names: '%s'\n", c->name, e->line,
+            unbind ? "unbind" : "bind", unbind ? "" : ", action[, arguments]", e->value);
+    return;
+  }
+  if (unbind) {
+    for (int i = 0; i < cfg.nbinds; i++)
+      if (cfg.binds[i].mods == m && cfg.binds[i].key == k) { cfg.binds[i] = cfg.binds[--cfg.nbinds]; i--; }
+    return;
+  }
+  for (int i = 0; i < cfg.nbinds; i++) /* the same keys again: the later line wins */
+    if (cfg.binds[i].mods == m && cfg.binds[i].key == k) { cfg.binds[i] = cfg.binds[--cfg.nbinds]; break; }
+  if (cfg.nbinds == MAX_BINDS) return;
+  binding *b = &cfg.binds[cfg.nbinds++];
+  b->mods = m; b->key = k;
+  snprintf(b->cmd, sizeof b->cmd, "%s%s%s", f[2], n == 4 && *f[3] ? " " : "", n == 4 ? f[3] : "");
 }
 
 void config_load(int first) {
@@ -95,67 +143,49 @@ void config_load(int first) {
   cfg.master = 0.5f;
   const char *home = getenv("HOME");
   char path[256];
-  snprintf(path, sizeof path, "%s/.config/wm/config", home ? home : "/home/user");
-  char *s = (char *)ui_read_file(path, NULL);
-  if (!s) fprintf(stderr, "wm: no %s, using built-in defaults\n", path);
-  /* pass 0 reads `set mod` first so that later `bind Mod+...` lines know what Mod means */
-  for (int pass = 0; pass < 2 && s; pass++) {
-    if (pass == 1) default_binds();
-    char *copy = strdup(s);
-    if (!copy) break;
-    int lineno = 0;
-    for (char *line = copy, *next; line && *line; line = next) {
-      next = strchr(line, '\n');
-      if (next) *next++ = 0;
-      lineno++;
-      while (*line == ' ' || *line == '\t') line++;
-      if (*line == '#' || !*line) continue;
-      for (char *e = line + strlen(line); e > line && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r');) *--e = 0;
-      char word[32], *rest = line;
-      int n = 0;
-      while (*rest && *rest != ' ' && *rest != '\t' && n < 31) word[n++] = *rest++;
-      word[n] = 0;
-      while (*rest == ' ' || *rest == '\t') rest++;
-      if (pass == 0) {
-        if (!strcmp(word, "set") && !strncmp(rest, "mod", 3) && (rest[3] == ' ' || rest[3] == '\t')) {
-          int m = mod_bit(rest + 4 + strspn(rest + 4, " \t"));
-          if (m && m != cfg.mod) cfg.mod = m;
-        }
-        continue;
-      }
-      if (!strcmp(word, "set")) continue; /* handled in pass 0 */
-      else if (!strcmp(word, "gaps")) cfg.gap = atoi(rest) < 0 ? 0 : atoi(rest) > 100 ? 100 : atoi(rest);
-      else if (!strcmp(word, "border")) cfg.border = atoi(rest) < 0 ? 0 : atoi(rest) > 20 ? 20 : atoi(rest);
-      else if (!strcmp(word, "border_thin")) cfg.border_thin = atoi(rest) < 0 ? 0 : atoi(rest);
-      else if (!strcmp(word, "radius")) cfg.radius = atoi(rest) < 0 ? 0 : atoi(rest) > 40 ? 40 : atoi(rest);
-      else if (!strcmp(word, "workspace_count")) { int k = atoi(rest); cfg.workspace_count = k < 1 ? 1 : k > MAX_WS ? MAX_WS : k; }
-      else if (!strcmp(word, "animation_ms")) cfg.animation_ms = atoi(rest) < 0 ? 0 : atoi(rest) > 5000 ? 5000 : atoi(rest);
-      else if (!strcmp(word, "master_ratio")) {
-        float f = (float)atof(rest); /* accept 0.55 or 55 (percent) */
-        if (f > 1) f /= 100.f;
-        cfg.master = f < 0.1f ? 0.1f : f > 0.9f ? 0.9f : f;
-      } else if (!strcmp(word, "bind")) {
-        char combo[48];
-        int k = 0;
-        while (*rest && *rest != ' ' && *rest != '\t' && k < 47) combo[k++] = *rest++;
-        combo[k] = 0;
-        while (*rest == ' ' || *rest == '\t') rest++;
-        if (*rest) bind(combo, rest);
-      } else if ((!strcmp(word, "exec") || !strcmp(word, "exec_always")) && cfg.nauto < 16 && *rest) {
-        cfg.always[cfg.nauto] = word[4] == '_';
-        strlcpy(cfg.autostart[cfg.nauto++], rest, 128);
-      } else fprintf(stderr, "wm: config line %d: unknown '%s'\n", lineno, word);
-    }
-    free(copy);
+  snprintf(path, sizeof path, "%s/.config/wm/wm.uconf", home ? home : "/home/user");
+  uconf c;
+  int have = uconf_load(&c, path) == 0;
+  if (!have) fprintf(stderr, "wm: no %s, using built-in defaults\n", path);
+  const char *mod = uconf_var(&c, "mod");
+  if (mod) {
+    int m = mods_of(mod);
+    if (m > 0) cfg.mod = m;
+    else fprintf(stderr, "%s: $mod = %s is not a modifier (ALT, SUPER, CTRL, SHIFT)\n", c.name, mod);
   }
-  if (!s) {
-    default_binds();
+  cfg.gap = uconf_int(&c, "general.gaps", -1, 0, 100);
+  cfg.workspace_count = uconf_int(&c, "general.workspaces", 4, 1, MAX_WS);
+  cfg.animation_ms = uconf_int(&c, "general.animation", 160, 0, 5000);
+  float f = (float)uconf_num(&c, "general.master_ratio", 0.5); /* 0.55 or 55 (percent) */
+  if (f > 1) f /= 100.f;
+  cfg.master = f < 0.1f ? 0.1f : f > 0.9f ? 0.9f : f;
+  cfg.border = uconf_int(&c, "general.border.width", -1, 0, 20);
+  cfg.border_thin = uconf_int(&c, "general.border.thin", -1, 0, 20);
+  cfg.radius = uconf_int(&c, "general.border.radius", -1, 0, 40);
+  static const char *col_keys[3] = {"general.border.colors.focus", "general.border.colors.normal", "general.border.colors.float"};
+  unsigned *col_dst[3] = {&cfg.col_focus, &cfg.col_normal, &cfg.col_float};
+  for (int i = 0; i < 3; i++)
+    if (uconf_str(&c, col_keys[i], NULL)) *col_dst[i] = GFX_HEX(uconf_color(&c, col_keys[i], 0));
+  /* bindings: the built-in ones first (unless defaults = false), then the file's, in order */
+  if (!have || uconf_bool(&c, "binds.defaults", 1)) default_binds();
+  for (int i = 0; i < c.n; i++) {
+    uconf_entry *e = &c.e[i];
+    if (!strcmp(e->key, "binds.bind")) { e->used = 1; bind_entry(&c, e, 0); }
+    else if (!strcmp(e->key, "binds.unbind")) { e->used = 1; bind_entry(&c, e, 1); }
+    else if ((!strcmp(e->key, "autostart.exec") || !strcmp(e->key, "autostart.exec_always")) && cfg.nauto < 16) {
+      e->used = 1;
+      cfg.always[cfg.nauto] = e->key[14] == '_';
+      strlcpy(cfg.autostart[cfg.nauto++], e->value, 128);
+    }
+  }
+  if (!have) {
     strcpy(cfg.autostart[cfg.nauto++], "bar");
     strcpy(cfg.autostart[cfg.nauto++], "term");
   }
-  free(s);
+  uconf_warn_unused(&c);
+  uconf_free(&c);
   if (!first) {
-    /* on reload only exec_always lines run again; `exec` lines ran at startup */
+    /* on reload only exec_always lines run again; exec lines ran at startup */
     for (int i = 0; i < cfg.nauto; i++) if (cfg.always[i]) wm_spawn(cfg.autostart[i]);
     cfg.nauto = 0;
     /* fewer workspaces than before: bring the windows of the vanished ones to the last one */
