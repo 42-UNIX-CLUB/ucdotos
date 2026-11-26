@@ -403,3 +403,51 @@ time of `/usr/bin/time`; UC.OS figures come from time stamps on the console unde
 7. The other tools in `tools/bench/`: `callcost.mjs` (where a call's time goes),
    `clockcost.mjs` (the clock import), `spawncost.mjs` (process start, step by step),
    `frames-ab.mjs` and `present-check.mjs` (the screen), `boot-ab.mjs` (boot phases).
+
+## 12. Sound (2026-11-26)
+
+The design (DECISIONS.md 20, SOUND.md) was chosen from benchmarks of each piece, compiled
+to WebAssembly the same way as the real code, median of 7 batches, this machine:
+
+| Work | Node | Chromium |
+|---|---|---|
+| Doom's mix: 8 channels, resample 11025 to 48000 Hz, one frame of sound (1,371 frames) | 28.0 µs | 29.6 µs |
+| Sum 2 streams, one Doom frame of sound (what kernel mixing would cost) | 9.2 µs | 10.6 µs |
+| Sum 4 / 8 streams, 20 ms of sound (audiod) | 7.0 / 10.1 µs | 7.6 / 10.7 µs |
+| `postMessage` of one Doom frame of sound (11 KB, copied) | 3.3 µs | 5.2 µs |
+| Convert one Doom frame of sound from 16-bit to float | 3.8 µs | not run |
+
+A Doom frame at 35 fps lasts 28,571 µs: the whole game path is about 0.15% of it. That is
+why the kernel does not mix (it would add ~11 µs per frame on the main thread) and why
+conversion happens on the audio thread.
+
+Measured on the built system:
+
+- **Doom in headless Chromium** (Freedoom 0.13, its demo, 15 s of presented frames timed in
+  the page, 3 alternating runs each way):
+
+  | | fps | median frame | 95th pct | 99th pct | sd | underruns |
+  |---|---|---|---|---|---|---|
+  | sound | 34.81 / 34.81 / 34.79 | 32.7 / 33.1 / 31.9 ms | 33.7 / 33.6 / 33.6 | 34.0 / 33.8 / 33.8 | 7.05 / 7.51 / 6.46 | 0 / 0 / 0 |
+  | `-nosound` | 34.81 / 34.81 / 34.81 | 33.2 / 33.2 / 32.1 ms | 33.6 / 33.6 / 33.6 | 33.9 / 33.9 / 34.0 | 7.59 / 7.40 / 7.10 | |
+
+  No difference beyond run-to-run noise.
+- **Doom `-timedemo demo1` under Node** (as fast as it can): 1,779 / 1,683 / 1,730 fps with
+  sound, 1,730 / 1,695 / 1,683 without. Sound work is tied to real time (the device takes
+  only so much per second), not to the frame rate, so a faster game does not pay more.
+- **Doom, 20 s in real time under Node**, user CPU of the whole Node process: 2.23 to 2.37 s with
+  sound, 2.02 to 2.06 s without (3 runs each). Most of the difference is the stand-in's own
+  10 ms clock, which exists only under Node; at 5 ms it was 2.42 to 2.50 s. In a browser
+  that work is the worklet's, on the audio thread.
+- **audiod**, two clients for about 1.3 s (one resampled from 24 kHz): 8 to 10 ms of CPU,
+  down from 12.6 ms before its loop decoded each input frame once and dropped the division
+  per sample.
+- **Music** (DECISIONS.md 21, `oplplay` through audiod). Rendering inside UC.OS under Node:
+  30 s of Freedoom's E1M1 in about 285 to 295 ms (the difference of 31 s and 1 s runs, 3
+  each), about 10 ms of CPU per second of music, ~1% of the main thread; 10 s of a 9-voice
+  chord in 82 to 109 ms. Doom on the desktop in headless Chromium, 3 alternating runs each
+  way, 15 s of presented frames: with music 35.83 / 35.81 / 35.81 fps, 95th percentile
+  33.7 / 33.7 / 34.1 ms, 99th 35.1 / 34.5 / 35.6 ms; with `-nomusic` 35.82 / 35.80 / 35.82
+  fps, 33.7 / 33.6 / 33.6 ms, 34.0 / 35.0 / 33.9 ms; 0 underruns either way. The 99th
+  percentile is about 0.8 ms higher on average with music, inside the spread between runs.
+
