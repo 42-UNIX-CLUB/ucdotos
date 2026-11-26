@@ -6,12 +6,15 @@
 //                      [--net-test=http://127.0.0.1:PORT]   the router's host in test mode (boot/hostnet.mjs)
 import fs from 'node:fs';
 import { boot, checkSupport } from '../boot/host.mjs';
+import { openStore } from '../boot/store.mjs';
 import { nodeRemote } from './remote-node.mjs';
 const root = new URL('..', import.meta.url).pathname;
 const args = process.argv.slice(2);
 const opt = (n, d) => { const a = args.find((x) => x.startsWith(`--${n}=`)); return a ? a.slice(n.length + 3) : d; };
 const missing = checkSupport();
 if (missing.length) { console.error('missing: ' + missing.join(', ')); process.exit(2); }
+// --store=FILE keeps the file system in FILE across runs (boot/store.mjs); --store-crash=N stops after N storage writes
+const store = opt('store', null) && await openStore({ kind: 'file', fs, path: opt('store'), crashAfter: Number(opt('store-crash', 0)), log: (s) => process.stdout.write(s) });
 const sys = await boot({
   kernel: fs.readFileSync(root + opt('build', 'build') + '/kernel.wasm'),
   initrd: fs.readFileSync(root + opt('build', 'build') + '/initrd.tar'),
@@ -20,7 +23,8 @@ const sys = await boot({
   log: (s) => process.stdout.write(s),
   debug: args.includes('--debug'),
   remote: nodeRemote(root + opt('build', 'build'), (s) => process.stdout.write(s), { rate: Number(opt('remote-rate', 0)), off: args.includes('--remote-off') }), // remote files: read from the build directory
-  onIdle: () => process.exit(0),
+  store, storeFlags: Number(opt('store-flags', 0)),
+  onIdle: () => store ? store.flush().then(() => process.exit(0)) : process.exit(0),
   sound: { capture: opt('audio-capture', null) },
   net: opt('net-test', null) ? { test: opt('net-test', null) } : {},
 });

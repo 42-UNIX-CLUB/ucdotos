@@ -121,6 +121,9 @@ Notes that go with these:
 | Private system call numbers are kept in ranges: 500-503 base (spawn, getargs, procinfo, intr), 504-519 networking (netstat, ifinfo, ifctl use 504-506), 520-539 processes and memory (pclone 520, sigtake 521, pmigrate 522). | Fork's calls first had 504-506, which the network stack took when it merged. | The comment and numbers in `abi/abi.h`; `bin/lx/host_ucos.c` uses 520 literally. |
 | Fork is opt-in per program: an empty `USE_FORK` file in `bin/NAME/` runs the stack transform after linking; no program but `forktest` has it, and the shell keeps using `spawn`. | The transform makes a program larger and every call that can reach fork a little slower; most programs never fork. | Add or remove the file; `fork_tool` in the `Makefile`. |
 | `vfork()` is `fork()` (a copy of memory, not shared memory). | Memory cannot be shared between instances. | `libc/src/fork.c`. |
+| File system: the image's files are owned by uid 0, gid 0 (`tar --owner=0 --group=0` in the build); new files by the caller (uid 1000 today); umask 022 by default. | What a Linux system image looks like. | The `tar` line in the `Makefile`; `vfs_proc_start` in `kernel/vfs.c`. |
+| File system: atime is "relatime" without the 24-hour rule: reading a file updates atime only when it changed since the last read. | Reading an unchanged file never reads the clock or writes the store. | `kernel/fs_sys.c`. |
+| Persistence: the store's record format is 2 (packed times); a store of another format is left untouched and the system boots without it. | No migration code exists. | `boot/store.mjs`. |
 | A session leader whose action for a terminal signal is the default is not killed by Ctrl-C (it gets the `intr()` flag) and is never stopped by Ctrl-Z. | Keeps the shell alive, as before signals existed. | `tty_sig_leader()` in `kernel/tty.c`. |
 
 ## 3. Open: an owner needs to choose
@@ -132,7 +135,8 @@ Notes that go with these:
 | **`/etc/passwd` and `/etc/group`** | none (now: `whoami` fails, `id` prints numbers); add files naming uid 1000 `user`; make `whoami` fall back to `$USER`; wait for Debian's base-passwd from the package manager | |
 | **Where the core tools' test data lives** | in the image under `/usr/share/tests` (now, about 298 KB); in a separate test image | Image size |
 | **Compressed image** | `make dist` writes `initrd.tar.gz` and the page prefers it (built, in the tree): ship it as built; drop it and let the web server compress; plain tar only. It saves 4 MB of download (3.2 s at 10 Mbit/s) and costs 135 to 175 ms of unpacking (PERFORMANCE.md section 6) | Hosting |
-| **Persistence** | none (now): every reload starts fresh; keep files per browser origin (IndexedDB or OPFS); export and import | |
+| **Persistence** | none: every reload starts fresh; keep files per browser origin (IndexedDB or OPFS; design (a) of `docs/PERSISTENCE.md` is built with IndexedDB and arrives with the file system layer's pull request: merging it is this choice); export and import. The questions inside it (what persists, overlay rules, two tabs, reset, a full store, eviction) are in PERSISTENCE.md section 5 | |
+| **Permission enforcement** | modes and owners stored and reported, nothing refused (now, `VFS_ENFORCE_DEFAULT` 0); level 1, a file with no execute bit cannot run (breaks the shell suite's `./s.sh` case); level 2, full owner, group and other checks | users and groups |
 | **Terminal bell** | silent (now); a short tone; a flash; both | |
 | **minishell** | the owner will provide the repo; it must be adapted from `fork`+`execve` to `spawn` | |
 | **Linking exception** | Every program links our GPL libc statically, so third-party programs must be GPL-compatible unless the libc (and libgfx, libui) get a linking exception. | Non-GPL programs for UC.OS |

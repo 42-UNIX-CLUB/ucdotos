@@ -66,4 +66,7 @@ int setvbuf(FILE *, char *, int, size_t);
 #define FILENAME_MAX 4096
 #define FOPEN_MAX 32
 #define L_tmpnam 20
+/* ---- appended (libc/src/fs_posix.c) ---- */
+int renameat(int, const char *, int, const char *);
+int renameat2(int, const char *, int, const char *, unsigned);
 #endif

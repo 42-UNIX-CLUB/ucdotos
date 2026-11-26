@@ -162,6 +162,13 @@ typedef long ssize;
 #define DT_REG 8
 #define DT_SOCK 12
 
+struct timespec {
+  s64 tv_sec;
+  long tv_nsec;
+};
+/* Times have nanoseconds (st_atim, st_mtim, st_ctim), as Linux; st_atime and friends are the
+ * seconds, through the same macros as glibc. Changed 2026-11-26 (was three s64 seconds):
+ * every program must be rebuilt with this header. */
 struct stat {
   u64 st_dev, st_ino;
   u32 st_mode, st_nlink, st_uid, st_gid;
@@ -169,18 +176,17 @@ struct stat {
   s64 st_size;
   s32 st_blksize;
   s64 st_blocks;
-  s64 st_atime, st_mtime, st_ctime;
+  struct timespec st_atim, st_mtim, st_ctim;
 };
+#define st_atime st_atim.tv_sec
+#define st_mtime st_mtim.tv_sec
+#define st_ctime st_ctim.tv_sec
 struct dirent64 {
   u64 d_ino;
   s64 d_off;
   u16 d_reclen;
   u8 d_type;
   char d_name[];
-};
-struct timespec {
-  s64 tv_sec;
-  long tv_nsec;
 };
 struct utsname {
   char sysname[65], nodename[65], release[65], version[65], machine[65], domainname[65];
@@ -439,5 +445,177 @@ struct k_itimerval {
 #define SA_RESTART 0x10000000
 #define SA_NODEFER 0x40000000
 #define SA_RESETHAND 0x80000000
+
+/* --- file system: links, modes, owners, times, locks, statx (Linux generic values) --- */
+#define SYS_flock 32
+#define SYS_mknodat 33
+#define SYS_symlinkat 36
+#define SYS_linkat 37
+#define SYS_statfs 43
+#define SYS_fstatfs 44
+#define SYS_truncate 45
+#define SYS_fallocate 47
+#define SYS_faccessat 48
+#define SYS_fchdir 50
+#define SYS_chroot 51
+#define SYS_fchmod 52
+#define SYS_fchmodat 53
+#define SYS_fchownat 54
+#define SYS_fchown 55
+#define SYS_readv 65
+#define SYS_writev 66
+#define SYS_preadv 69
+#define SYS_pwritev 70
+#define SYS_sendfile 71
+#define SYS_readlinkat 78
+#define SYS_sync 81
+#define SYS_fsync 82
+#define SYS_fdatasync 83
+#define SYS_setregid 143
+#define SYS_setgid 144
+#define SYS_setreuid 145
+#define SYS_setuid 146
+#define SYS_setresuid 147
+#define SYS_getresuid 148
+#define SYS_setresgid 149
+#define SYS_getresgid 150
+#define SYS_setfsuid 151
+#define SYS_setfsgid 152
+#define SYS_getgroups 158
+#define SYS_setgroups 159
+#define SYS_umask 166
+#define SYS_geteuid 175
+#define SYS_getgid 176
+#define SYS_getegid 177
+#define SYS_syncfs 267
+#define SYS_renameat2 276
+#define SYS_copy_file_range 285
+#define SYS_statx 291
+#define SYS_faccessat2 439
+#define SYS_fchmodat2 452
+
+#define ELOOP 40
+#define EXDEV 18
+#define ENXIO 6
+#define EBUSY 16
+#define EROFS 30
+#define EMLINK 31
+#define EOPNOTSUPP 95
+#define EDQUOT 122
+#define ENODATA 61
+#define EOVERFLOW 75
+#define ETXTBSY 26
+#define ENODEV 19
+#define EFBIG 27
+#define ENOLCK 37
+#define EDEADLK 35
+#define EWOULDBLOCK EAGAIN
+
+#define S_IFLNK 0120000
+#define S_IFBLK 0060000
+#define S_ISUID 04000
+#define S_ISGID 02000
+#define S_ISVTX 01000
+#define DT_UNKNOWN 0
+#define DT_BLK 6
+#define DT_LNK 10
+
+#define O_NOCTTY 0400
+#define O_DSYNC 010000
+#define O_LARGEFILE 0100000
+#define O_NOFOLLOW 0400000
+#define O_NOATIME 01000000
+#define O_SYNC 04010000
+#define O_PATH 010000000
+#define O_TMPFILE 020200000 /* includes O_DIRECTORY, as on Linux */
+
+#define AT_SYMLINK_NOFOLLOW 0x100
+#define AT_EACCESS 0x200 /* faccessat; same value as AT_REMOVEDIR, as on Linux */
+#define AT_SYMLINK_FOLLOW 0x400
+#define AT_NO_AUTOMOUNT 0x800
+#define AT_EMPTY_PATH 0x1000
+#define AT_STATX_SYNC_TYPE 0x6000
+#define RENAME_NOREPLACE 1
+#define RENAME_EXCHANGE 2
+#define RENAME_WHITEOUT 4
+#define UTIME_NOW ((1l << 30) - 1l)
+#define UTIME_OMIT ((1l << 30) - 2l)
+
+/* flock(2) and fcntl(2) record locks */
+#define LOCK_SH 1
+#define LOCK_EX 2
+#define LOCK_NB 4
+#define LOCK_UN 8
+#define F_GETLK 5
+#define F_SETLK 6
+#define F_SETLKW 7
+#define F_GETLK64 12
+#define F_SETLK64 13
+#define F_SETLKW64 14
+#define F_OFD_GETLK 36
+#define F_OFD_SETLK 37
+#define F_OFD_SETLKW 38
+#define F_DUPFD_CLOEXEC 1030
+#define F_RDLCK 0
+#define F_WRLCK 1
+#define F_UNLCK 2
+struct flock {      /* off_t is 32 bits here, as on 32-bit Linux */
+  short l_type, l_whence;
+  long l_start, l_len;
+  int l_pid;
+};
+struct flock64 {
+  short l_type, l_whence;
+  s64 l_start, l_len;
+  int l_pid;
+};
+
+struct iovec {
+  void *iov_base;
+  usize iov_len;
+};
+
+/* statx(2): the same layout on every Linux architecture */
+struct statx_timestamp {
+  s64 tv_sec;
+  u32 tv_nsec;
+  s32 __reserved;
+};
+struct statx {
+  u32 stx_mask, stx_blksize;
+  u64 stx_attributes;
+  u32 stx_nlink, stx_uid, stx_gid;
+  u16 stx_mode, __spare0;
+  u64 stx_ino, stx_size, stx_blocks, stx_attributes_mask;
+  struct statx_timestamp stx_atime, stx_btime, stx_ctime, stx_mtime;
+  u32 stx_rdev_major, stx_rdev_minor, stx_dev_major, stx_dev_minor;
+  u64 stx_mnt_id;
+  u32 stx_dio_mem_align, stx_dio_offset_align;
+  u64 __spare3[12];
+};
+#define STATX_TYPE 0x1
+#define STATX_MODE 0x2
+#define STATX_NLINK 0x4
+#define STATX_UID 0x8
+#define STATX_GID 0x10
+#define STATX_ATIME 0x20
+#define STATX_MTIME 0x40
+#define STATX_CTIME 0x80
+#define STATX_INO 0x100
+#define STATX_SIZE 0x200
+#define STATX_BLOCKS 0x400
+#define STATX_BASIC_STATS 0x7ff
+#define STATX_BTIME 0x800
+#define STATX_MNT_ID 0x1000
+
+/* statfs(2): Linux's statfs64 layout for 32-bit architectures */
+struct statfs {
+  u32 f_type, f_bsize;
+  u64 f_blocks, f_bfree, f_bavail, f_files, f_ffree;
+  int f_fsid[2];
+  u32 f_namelen, f_frsize, f_flags, f_spare[4];
+};
+#define UCOSFS_MAGIC 0x858458f6 /* RAMFS_MAGIC: the tree lives in memory */
+#define PROC_SUPER_MAGIC 0x9fa0
 
 #endif

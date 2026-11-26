@@ -72,6 +72,7 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `pointer_lock(on)` | the window manager captured (1) or released (0) the mouse (`EVIOCGRAB`); the page locks or unlocks the browser's pointer (section 10) |
    | `timer(ms)` | call the kernel export `timer_fire` in ms milliseconds (0: on the next turn of the event loop; below 0: cancel). One timeout at a time; each call replaces the last |
    | `hn_caps hn_open hn_send hn_done hn_more hn_close` | the host half of `/dev/hostnet` (`boot/hostnet.mjs`): DNS, HTTP through `fetch()`, and under Node real TCP. See NETWORKING.md |
+   | `store_kick store_fetch store_wipe` | the host half of persistence (`boot/store.mjs`): the kernel has changes to drain, needs the contents of a stored file, or was told to wipe the store. Without a store they do nothing (section 7) |
    | `clip_out(p, n, flags)` | a piece of text from `/dev/hostclip` for the computer's clipboard (flags: 1 first piece, 2 last, 4 cancel); the host joins the pieces and calls the `onClipboard(text)` option of `boot()` (section 11) |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
@@ -299,7 +300,10 @@ The host tells the kernel how long a process ran each time it parks
   stop and continue. When the last process of a group is freed, any terminal whose
   foreground group it was forgets it (foreground group 0). The kernel does not generate
   `SIGTTIN` and `SIGTTOU`.
-- There are no users or permissions. `getuid` returns 1000.
+- Credentials: real, effective, saved and file-system uid and gid, supplementary groups,
+  umask and the chroot directory, inherited by `spawn` and by a clone. Every process
+  starts as uid and gid 1000; the set*id calls follow Linux's rules. Permissions are not
+  enforced (section 7).
 
 ### Fork, exec and migration (`kernel/fork.c`, `libc/src/fork.c`, `tools/wasmfork.c`)
 
@@ -374,33 +378,65 @@ migration keeping 2 MiB of an 11 MiB memory paused the program for about 2 ms.
 - There is no shared memory between processes. Pixels and data move by copying through
   sockets and pipes.
 
-## 7. Files and devices (`kernel/vfs.c`, `kernel/dev.c`)
+## 7. Files and devices (`kernel/vfs.c`, `kernel/fs_sys.c`, `kernel/procfs.c`, `kernel/store.c`, `kernel/dev.c`)
 
-- One in-memory tree of `struct inode` (name up to 63 bytes, children as a linked list).
-  Paths up to 255 bytes. No symlinks, no hard links, no permissions, no mount points.
-  Creating a name longer than 63 bytes is `ENAMETOOLONG`. An empty path names nothing
-  (`ENOENT`), as on Linux; a relative path with a directory descriptor that is not a
-  directory is `ENOTDIR`.
+The full reference for the file system is `docs/VFS-NOTES.md`; persistence is
+`docs/PERSISTENCE.md`. In short:
+
+- One in-memory tree of `struct inode`. Names up to 255 bytes, paths up to 4096 bytes
+  for file system calls (255 for the program path of `spawn` and `execve`). Symbolic
+  links (at most 40 per walk, then `ELOOP`), hard links (not for directories), FIFO and
+  socket nodes (a FIFO cannot be opened yet: `ENXIO`), `chroot`, no mount points. An empty
+  path names nothing (`ENOENT`), as on Linux; a relative path with a directory descriptor
+  that is not a directory is `ENOTDIR`.
+- **Modes, owners, times.** All 12 mode bits, uid and gid are stored and reported. New
+  files get the caller's fsuid and fsgid, the mode minus the umask (022 by default,
+  inherited), and the directory's group under set-group-ID. Times have nanoseconds (packed
+  into 8 bytes inside the kernel), from the host clock, strictly increasing; atime follows
+  "relatime" without the 24-hour rule. Files from the image keep the tar's mode, owner and
+  mtime. `utimensat` sets the times it is given.
+- **Permissions are stored, not enforced.** One switch, `VFS_ENFORCE_DEFAULT` in
+  `kernel/kernel.h`, is 0: nothing is refused. Level 1 refuses to run a file with no
+  execute bit; level 2 is full owner, group and other checks with the sticky bit. Every
+  process starts as uid and gid 1000 and counts as privileged while the switch is 0.
+- **Locks**, advisory: `flock` (owned by the open file), POSIX record locks with byte ranges
+  (owned by the process; a wait that would close a circle of waiting processes is
+  `EDEADLK`), OFD locks.
+- **`/proc`** (`kernel/procfs.c`): `/proc/self`, `/proc/PID/` (`fd/N` magic links, `exe`,
+  `cwd`, `cmdline`, `comm`, `status`, `mounts`), `cpuinfo`, `meminfo`, `mounts`, `uptime`,
+  `version`, `filesystems`, and `/proc/ucos-store` (the store's state; PERSISTENCE.md).
+  `/dev/fd`, `/dev/stdin`, `/dev/stdout`, `/dev/stderr`, `/dev/tty`, `/dev/random`,
+  `/dev/shm` exist.
 - **Inode lifetime.** An inode has a name (`nlink`) and references (`refs`: open files,
   working directories, a bound socket). Unlinking takes the name away; the inode and its
   data are freed when both are gone. An unlinked file stays readable through open
   descriptors. An unlinked directory becomes its own parent: `..` inside it stays put,
   nothing can be created in it (`ENOENT`), `getcwd` there is `ENOENT`, and removing or
   renaming it again is `ENOENT`.
-- Directories are linked lists: looking up, creating and listing cost time linear in
-  the number of entries, so filling one directory with n entries costs n^2. Measured on
-  2026-11-26 under Node: creating one file in a directory of 2,500 entries takes about
-  80 us, in one of 40,000 about 1.6 ms; listing 40,000 entries with 1 KiB `getdents64`
-  buffers takes 0.76 s (each call walks the list from the start).
+- Each directory has a hash table; directories of up to 16 entries are searched by length
+  and bytes without hashing. Lookups and creates stay flat: about 1.3 us per create at
+  50,000 entries (VFS-NOTES.md). The path walk has a fast loop for plain components and
+  hands anything else (".", "..", a link, `/proc`, a trailing slash) to the full walk.
 - At boot the kernel walks the initrd (ustar) and creates inodes whose data pointers
   point into the archive. A file is copied to the heap the first time it is written.
   The loader stops at the first entry whose size runs past the end of the archive, and
-  ignores `.` and `..` path components.
+  ignores `.` and `..` path components. Symbolic links, hard links, modes, owners and
+  times in the tar arrive as such (the build makes every file uid 0, gid 0).
 - File sizes and offsets are 32-bit. `lseek` refuses results above 2^31 - 1 (`EINVAL`),
   and the heap refuses any single block above 2 GiB, so a write or `ftruncate` that
   would need more fails with `ENOSPC`. Up to that, a file takes as much kernel memory as
   its size (sparse regions are real zeros), and kernel memory never shrinks.
-- **Nothing persists.** A reload starts from the same image.
+- **Persistence** (`kernel/store.c`, `boot/store.mjs`, design (a) of PERSISTENCE.md).
+  The kernel keeps the truth in memory and notes what changed; the host drains the
+  changes in batches into the browser's IndexedDB (under Node, one append-only log file:
+  `tools/run.mjs --store=FILE`). The stored layer lies over the image: at boot only the
+  metadata is read, contents arrive on first open, and a newer image updates every file
+  the user has not changed. Write-behind delay 0.5 s; `fsync`, `fdatasync`, `syncfs` and
+  `sync` wait until the data is stored (park-and-retry) and return `EIO` once storage has
+  failed. One tab owns the store (a Web Lock); a second tab boots from the image and
+  keeps nothing. `?reset` on the page wipes the store, `?nostore` boots without it.
+  Remote files are never stored (they come back from the server); files dropped on the
+  page are stored like any other user file.
 - `struct file` has reference counts, flags, an offset and a `struct fops`
   (`read write poll close ioctl`). Regular files, directories (`getdents64`), devices,
   pipes, sockets and ptys all go through it. `poll(file, add_waiter)` returns the ready
@@ -423,7 +459,8 @@ migration keeping 2 MiB of an 11 MiB memory paused the program for about 2 ms.
 | `/dev/dsp` | sound output, in the shape of OSS (section 15) |
 | `/dev/hostnet` | the router's way out of the machine, through the host (section 16) |
 | `/dev/hostclip` | the clipboard's link to the computer's clipboard (section 11), at most 1 MiB each way. In: text pasted into the page with Ctrl+V; `ioctl(FIONREAD)` gives the waiting paste's size, one read takes it whole (`EINVAL` with less room), then it is gone; a newer paste replaces an unread one; the host fills it with `hostclip_buf` and `hostclip_ready`. Out: one write is one item, handed to the host 1 KiB at a time through the import `host_clip_out`; the page puts it on the computer's clipboard. |
-| `/tmp`, `/run`, `/proc` | empty directories created at boot; `/proc` has nothing in it |
+| `/tmp`, `/run` | empty directories created at boot |
+| `/proc` | process and system information (above) |
 
 **Remote files** (`kernel/remote.c`). Large files the image does not carry (Doom's game
 data) are listed in `/etc/remote-files`, one per line: `PATH SIZE SHA256 URL [gz]`, read
@@ -822,7 +859,8 @@ How it maps onto UC.OS:
 | processes | 64 | `NPROC`, tied to the 64-bit wait queue mask |
 | descriptors per process | 64 | `NFD` |
 | descriptors per `ppoll` | 64 | |
-| path / file name | 255 / 63 bytes | `PATH_MAX`, `struct inode` |
+| path / file name | 4096 / 255 bytes (255 for the program path of `spawn` and `execve`) | `VFS_PATH_MAX`, `VFS_NAME_MAX`, `PATH_MAX` |
+| symbolic links followed in one walk | 40 | `ELOOP` beyond |
 | file size, file offset | just under 2 GiB, 2^31 - 1 | `kmalloc`, `sys_lseek` |
 | one `getrandom` call | 33,554,431 bytes (Linux's figure) | `sys_getrandom` |
 | argv + environment | 64 KiB | `sys_spawn` |
@@ -839,9 +877,8 @@ How it maps onto UC.OS:
 | time slice | 8 ms | `SLICE_MS` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
-threads, shared memory, persistence, networking beyond the machine
-itself (section 16), sound input (recording), `/proc`
-contents, users and permissions, time zones, a clipboard, dynamic linking for UC.OS
+threads, shared memory, networking beyond the machine
+itself (section 16), sound input (recording), users and permission enforcement, time zones, a clipboard, dynamic linking for UC.OS
 programs. Unmodified Linux binaries run through an ordinary program,
 `bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
 on top of this kernel); its design is in `docs/LINUX-BINARIES.md`. It needs nothing from

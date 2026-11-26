@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* cp [-r] [-f] src... dst */
+/* cp [-r] [-f] [-p] [-P] [-a] src... dst  (-a = -r -p -P: links stay links; mode, owner, times kept) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,8 +8,15 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
-static int recursive;
+static int recursive, preserve, noderef;
 static int is_dir(const char *p) { struct stat st; return stat(p, &st) == 0 && S_ISDIR(st.st_mode); }
+static void keep_attrs(const char *dst, const struct stat *st) {
+  if (!preserve) return;
+  struct timespec t[2] = {st->st_atim, st->st_mtim};
+  lchown(dst, st->st_uid, st->st_gid); /* may be refused; the copy stays */
+  if (!S_ISLNK(st->st_mode)) chmod(dst, st->st_mode & 07777);
+  utimensat(AT_FDCWD, dst, t, AT_SYMLINK_NOFOLLOW);
+}
 static int copy_file(const char *src, const char *dst) {
   int in = open(src, O_RDONLY);
   if (in < 0) { fprintf(stderr, "cp: cannot open '%s': %s\n", src, strerror(errno)); return 1; }
@@ -23,11 +30,22 @@ static int copy_file(const char *src, const char *dst) {
   while ((n = read(in, buf, sizeof buf)) > 0) if (write(out, buf, n) != n) { fprintf(stderr, "cp: error writing '%s': %s\n", dst, strerror(errno)); rc = 1; break; }
   close(in);
   close(out);
+  keep_attrs(dst, &st);
   return rc;
 }
 static int copy(const char *src, const char *dst) {
   struct stat st;
-  if (stat(src, &st) != 0) { fprintf(stderr, "cp: cannot stat '%s': %s\n", src, strerror(errno)); return 1; }
+  if ((noderef ? lstat(src, &st) : stat(src, &st)) != 0) { fprintf(stderr, "cp: cannot stat '%s': %s\n", src, strerror(errno)); return 1; }
+  if (S_ISLNK(st.st_mode)) { /* -P or -a: copy the link itself */
+    char t[4096];
+    long n = readlink(src, t, sizeof t - 1);
+    if (n < 0) { fprintf(stderr, "cp: cannot read link '%s': %s\n", src, strerror(errno)); return 1; }
+    t[n] = 0;
+    unlink(dst);
+    if (symlink(t, dst) != 0) { fprintf(stderr, "cp: cannot create link '%s': %s\n", dst, strerror(errno)); return 1; }
+    keep_attrs(dst, &st);
+    return 0;
+  }
   if (!S_ISDIR(st.st_mode)) return copy_file(src, dst);
   if (!recursive) { fprintf(stderr, "cp: -r not specified; omitting directory '%s'\n", src); return 1; }
   if (!is_dir(dst) && mkdir(dst, 0755) != 0) { fprintf(stderr, "cp: cannot create directory '%s': %s\n", dst, strerror(errno)); return 1; }
@@ -44,6 +62,7 @@ static int copy(const char *src, const char *dst) {
     free(s); free(t);
   }
   closedir(d);
+  keep_attrs(dst, &st);
   return rc;
 }
 int main(int argc, char **argv) {
@@ -51,8 +70,11 @@ int main(int argc, char **argv) {
   for (; i < argc && argv[i][0] == '-' && argv[i][1]; i++) {
     if (!strcmp(argv[i], "--")) { i++; break; }
     for (char *f = argv[i] + 1; *f; f++) {
-      if (*f == 'r' || *f == 'R' || *f == 'a') recursive = 1;
-      else if (!strchr("fvip", *f)) { fprintf(stderr, "usage: cp [-r] src... dst\n"); return 1; }
+      if (*f == 'r' || *f == 'R') recursive = 1;
+      else if (*f == 'a') recursive = preserve = noderef = 1;
+      else if (*f == 'p') preserve = 1;
+      else if (*f == 'P' || *f == 'd') noderef = 1;
+      else if (!strchr("fvi", *f)) { fprintf(stderr, "usage: cp [-rpaP] src... dst\n"); return 1; }
     }
   }
   if (argc - i < 2) { fprintf(stderr, "usage: cp [-r] src... dst\n"); return 1; }
