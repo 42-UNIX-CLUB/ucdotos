@@ -629,5 +629,9 @@ ld --crt0=/usr/lib/crt0_2.o,/usr/lib/crt0_3.o objs... -L/usr/lib -lc
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
 `fork`, signals, threads, shared memory, persistence, networking, sound, `/proc`
-contents, users and permissions, time zones, a clipboard, dynamic linking, running
-Linux binaries (see DECISIONS.md for the three "rungs").
+contents, users and permissions, time zones, a clipboard, dynamic linking for UC.OS
+programs. Unmodified Linux binaries run through an ordinary program,
+`bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
+on top of this kernel); its design is in `docs/LINUX-BINARIES.md`. It needs nothing from
+the kernel that other programs do not have, and lists what it would like in section 7.3
+of that file.
