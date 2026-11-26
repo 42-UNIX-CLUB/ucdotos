@@ -47,7 +47,10 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 | Nothing persists | A reload starts from the image. |
 | Times are UTC | No time zone data. |
 | Window manager reaps children late | There is no child-exit notification; it reaps when it next wakes. |
-| Terminal: no clipboard, italic drawn upright, mouse click reporting untested | |
+| Terminal: italic drawn upright | |
+| Clipboard: a big paste into a program that stops reading can lose bytes | The pty keeps 4 KiB of input and drops what does not fit, with no way for the writer to wait. The terminal sends a paste 1 KiB every 4 ms, which `cat` keeps up with up to the 1 MiB limit (measured to 589 KB). |
+| Clipboard: only the terminal copies and pastes | Programs inside a terminal (vi, htop) get copy and paste through it; other windowed programs do not handle Ctrl+Shift+C/V. |
+| Clipboard: copying out to the computer depends on the browser | `navigator.clipboard.writeText` needs a secure page (https or localhost) with the focus; Firefox and Safari also want a recent key press, so a `clip` run from a script long after the last key may be refused (a warning goes to the browser console). Tested in headless Chromium only. |
 | vi | every character is one column wide; with wrapped lines H, M, L and Ctrl-F/B count buffer lines, not screen rows |
 | fetch measures `getppid` in 40 ms | too short for the engine to finish optimising, so it reads 15 to 40 ns where sysbench reports the warm figure |
 | sysbench in a half-height window | its first lines scroll off; the table and footnote stay visible |
@@ -65,7 +68,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
   choice is waiting for the owners.
 - `fork`, signals, threads, shared memory.
 - Persistence, networking, sound.
-- `/proc` contents, users and permissions, time zones, a clipboard.
+- `/proc` contents, users and permissions, time zones.
 - The minishell port (waiting for the repo from an owner).
 - Running Linux programs: no libc port for recompiling them, no binary emulation.
 - Unpacking the compressed image while it downloads (the page unpacks `initrd.tar.gz` after the download; whether to ship the `.gz` at all is open, see PERFORMANCE.md section 6).

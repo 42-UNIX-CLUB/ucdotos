@@ -29,6 +29,11 @@ with its date, the options that were on the table, and who chose.
 | 15 | 2026-11-26 | **Name: UC.OS** ("UC dot OS", UNIX CLUB dot OS). The earlier working name DuxOS is dropped. | EpochOS and a long list of others |
 | 16 | 2026-11-26 | **Repository**: https://github.com/42-UNIX-CLUB/ucdotos, branch `main`. The owners run git themselves. | |
 | 17 | 2026-11-26 | **Licence: GPL-2.0-or-later.** | GPL-3.0 |
+| 18 | 2026-11-26 | **The clipboard is its own program** (`clipd`), like a clipboard manager, not part of the window manager or the kernel. Ctrl+Shift+C copies and Ctrl+Shift+V pastes; each program handles the keys (the terminal first). | the window manager holds it; a kernel device; a kernel device synced with the browser |
+| 19 | 2026-11-26 | **The terminal copies a mouse selection**: drag, double click for a word, triple click for a line; Shift+drag when the program in it uses the mouse. | copy the whole visible screen |
+| 20 | 2026-11-26 | **The clipboard keeps a history with its own window** (and a `clip` command for the shell). | one item and a `clip` command; a history reached from the shell only |
+| 21 | 2026-11-26 | **Ctrl+V in the page brings the computer's clipboard in as the newest clipboard entry**, through a small kernel device, `/dev/hostclip`: the one place the clipboard touches the kernel. Ctrl+V no longer reaches programs. | type the pasted text straight into the focused window (no kernel change, no history); Ctrl+Alt+V or Ctrl+Shift+V with the browser's Clipboard API (permission prompt, secure page only) |
+| 22 | 2026-11-26 | **What is copied in UC.OS also goes to the computer's clipboard**, through the same `/dev/hostclip` and the browser's Clipboard API. | |
 
 Notes that go with these:
 
@@ -66,6 +71,10 @@ Notes that go with these:
 | Source files carry SPDX tags and **no copyright holder line**. | Whose name goes there is the owners' call. | Add a line to the headers and README. |
 | `.gitignore` excludes build output and `bin/doom/wads/`. | Game data licence is undecided. | Edit `.gitignore`. |
 | The club's source documents (guidelines, PDF, PowerPoint, `unix-club-logo/`) are **not in git**. | They contain phone numbers and e-mail addresses. | An owner can add redacted versions. |
+| Clipboard names: `clipd` (the server), `clip` (the command), `clipboard` (the history window), socket `/run/clip.sock`. | Needed names. | Rename the programs in `bin/` and `CLIP_SOCKET` in `libclip/clip.h`. |
+| Clipboard limits: 20 entries, 1 MiB per entry, 4 MiB in all, oldest dropped first; copying the same text twice keeps one entry. `clipd` starts the first time a program uses the clipboard. | Bounded memory, which never shrinks. | `bin/clipd.c`, `libclip/clip.h`. |
+| What goes out to the computer's clipboard: every entry that becomes the newest by a copy (Ctrl+Shift+C, `clip`) or a pick (the clipboard window, `clip -s`). A paste that came from the computer is not sent back. | That is when a user expects the computer's clipboard to change. | `host_out()` calls in `bin/clipd.c`. |
+| The terminal sends a paste to the pty 1 KiB every 4 ms. | The pty keeps 4 KiB of input and drops the rest, with no way to wait for room. | `PASTE_CHUNK`, `PASTE_MS` in `bin/term/main.c`. |
 | OS identity strings: `uname` reports `UC.OS`, release `0.1.0`, machine `wasm32`, host name `42lisboa`, user `user`. | Needed something. | `kernel/kernel.h`, `kernel/syscall.c`, `bin/init.c`. |
 
 ## 3. Open: an owner needs to choose

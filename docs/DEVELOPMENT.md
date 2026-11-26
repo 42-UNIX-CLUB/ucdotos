@@ -119,6 +119,9 @@ Component suites:
 | terminal parser | `bin/term/tests/test_vt.c`, `fuzz_vt.c` | native, `bin/term/tests/run_tests.sh` | 315 checks; 30 MB fuzz clean |
 | terminal vs reference | `bin/term/tests/conformance.py` | native, needs `pyte` in a venv | 0 cell differences |
 | terminal in the OS | `bin/term/tests/os/*.mjs` | `shot.mjs` | 68 checks |
+| clipboard in the terminal | `bin/term/tests/os/clipboard.mjs` | `shot.mjs --init=/bin/term` | 28 checks: selection, copy, paste, mouse reporting, the computer's clipboard both ways, pastes up to 589 KB |
+| clipboard window | `bin/clipboard/shots.mjs` | `shot.mjs --init=/bin/wm` | 4 checks |
+| the computer's clipboard in a real browser | `tools/tests/browser-clipboard.mjs` | `browser.mjs` (needs `make dist`) | in: by eye on 2 screenshots; out: `[test]` lines show what reached the browser's clipboard |
 | window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 8 scripts, 126 checks (2026-11-26) |
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
