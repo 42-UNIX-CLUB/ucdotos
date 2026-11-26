@@ -14,6 +14,7 @@ run() {
 }
 run "kernel   " node tools/run.mjs --build="$B" --init=/bin/ktest
 run "C library" node tools/run.mjs --build="$B" --init=/bin/libctest
+run "uconf    " node tools/run.mjs --build="$B" --init=/bin/uconftest
 run "shell    " node tools/run.mjs --build="$B" --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'
 if [ $fail -eq 0 ]; then echo "all suites passed"; else echo "some suites failed"; fi
 exit $fail
