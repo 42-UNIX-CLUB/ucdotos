@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* Navigation checks for blueprint, native: cc -o /tmp/navtest bin/blueprint/tests/navtest.c && /tmp/navtest */
+/* Navigation checks for blueprint, native: cc -Ilibuconf -o /tmp/navtest bin/blueprint/tests/navtest.c libuconf/uconf.c && /tmp/navtest */
 #define main blueprint_main
 #include "../blueprint.c"
 #undef main

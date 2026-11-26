@@ -1,0 +1,57 @@
+# dracula: Dracula. The classic dark theme: purple, pink and bright greens on deep grey.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = dracula
+
+[colors]
+bg      = #282a36
+fg      = #f8f8f2
+accent  = #bd93f9
+dim     = #6272a4
+desktop = #21222c
+panel   = #44475a
+surface = #44475a
+bar {
+    bg = #21222c
+    fg = #f8f8f2
+}
+border {
+    focus  = #bd93f9
+    normal = #44475a
+    float  = #ff79c6
+}
+
+[terminal]
+black   = #21222c
+red     = #ff5555
+green   = #50fa7b
+yellow  = #f1fa8c
+blue    = #bd93f9
+magenta = #ff79c6
+cyan    = #8be9fd
+white   = #f8f8f2
+bright {
+    black   = #6272a4
+    red     = #ff6e6e
+    green   = #69ff94
+    yellow  = #ffffa5
+    blue    = #d6acff
+    magenta = #ff92df
+    cyan    = #a4ffff
+    white   = #ffffff
+}
+
+[font]
+name    = Fira Code
+regular = FiraCode-Regular.ttf
+bold    = FiraCode-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 12
+border = 2
+radius = 8

@@ -2,7 +2,7 @@
 //   node tools/shot.mjs --build=build-apps2 --out=build-apps2/shots/vi --script=bin/vi/shots.mjs --quiet
 export default async (t) => {
   await t.sleep(2500);
-  await t.type('cp /usr/share/fetch/config /tmp/notes.md\n');
+  await t.type('cp /home/user/.config/fetch/fetch.uconf /tmp/notes.md\n');
   await t.sleep(300);
   await t.type('vi /tmp/demo.c\n');
   await t.sleep(800);

@@ -12,12 +12,25 @@
 #include "ui.h"
 #include "theme.h"
 #include "gfx.h"
+#include "uconf.h"
 
 #define MAXE 256
-#define ROWS 8
 typedef struct { char name[48], exec[96], comment[64]; } entry;
 static entry ents[MAXE];
 static int nents, shown[MAXE], nshown, sel, top;
+/* ~/.config/launcher/launcher.uconf (.uconf, see libuconf/uconf.h): [launcher] width, rows */
+static int rows = 8, width = 600;
+static void load_conf(void) {
+  const char *home = getenv("HOME");
+  char path[256];
+  snprintf(path, sizeof path, "%s/.config/launcher/launcher.uconf", home && *home ? home : "/home/user");
+  uconf c;
+  uconf_load(&c, path); /* no file: the defaults */
+  width = uconf_int(&c, "launcher.width", 600, 240, 2000);
+  rows = uconf_int(&c, "launcher.rows", 8, 1, 40);
+  uconf_warn_unused(&c);
+  uconf_free(&c);
+}
 static char query[64];
 static ui_window *win;
 static ui_theme th;
@@ -88,7 +101,7 @@ static void filter(void) {
     }
   if (sel >= nshown) sel = nshown ? nshown - 1 : 0;
   if (sel < top) top = sel;
-  if (sel >= top + ROWS) top = sel - ROWS + 1;
+  if (sel >= top + rows) top = sel - rows + 1;
 }
 
 static void load_theme(void) {
@@ -124,7 +137,7 @@ static void draw(void) {
   gfx_fill_rect(&s, pad, pad + prompt_h - 4, w - 2 * pad, 1, gfx_blend_px(th.panel, th.dim, 90));
   /* the list */
   int y0 = pad + prompt_h + 4;
-  for (int r = 0; r < ROWS && top + r < nshown; r++) {
+  for (int r = 0; r < rows && top + r < nshown; r++) {
     entry *e = &ents[shown[top + r]];
     int y = y0 + r * row_h, b = y + (row_h + met.ascent - met.descent) / 2;
     int tx = pad + met.advance * 2;
@@ -171,10 +184,11 @@ static void add_text(unsigned cp) {
 }
 
 int main(void) {
+  load_conf();
   load_theme();
   load_apps();
   filter();
-  int w = 600, h = 2 * pad + prompt_h + 4 + ROWS * row_h;
+  int w = width, h = 2 * pad + prompt_h + 4 + rows * row_h;
   win = ui_open("launcher", "launcher", w, h, UI_FLOATING);
   if (!win) { fprintf(stderr, "launcher: no window manager\n"); return 1; }
   ui_event ev;
@@ -192,22 +206,22 @@ int main(void) {
       if (ev.key == 103 || (ev.key == 15 && (ev.mods & UI_SHIFT))) { if (sel > 0) sel--; }          /* Up, Shift+Tab */
       else if (ev.key == 108 || ev.key == 15) { if (sel + 1 < nshown) sel++; }                     /* Down, Tab */
       else if (ev.key == 14) { int l = strlen(query); while (l > 0 && (query[l - 1] & 0xc0) == 0x80) l--; if (l > 0) l--; query[l] = 0; sel = top = 0; filter(); }
-      else if (ev.key == 104) { sel = sel > ROWS ? sel - ROWS : 0; }                                 /* PageUp */
-      else if (ev.key == 109) { sel = sel + ROWS < nshown ? sel + ROWS : (nshown ? nshown - 1 : 0); } /* PageDown */
+      else if (ev.key == 104) { sel = sel > rows ? sel - rows : 0; }                                 /* PageUp */
+      else if (ev.key == 109) { sel = sel + rows < nshown ? sel + rows : (nshown ? nshown - 1 : 0); } /* PageDown */
       else break;
       if (sel < top) top = sel;
-      if (sel >= top + ROWS) top = sel - ROWS + 1;
+      if (sel >= top + rows) top = sel - rows + 1;
       draw();
       break;
     case UI_EV_WHEEL:
       top -= ev.wheel;
-      if (top > nshown - ROWS) top = nshown - ROWS;
+      if (top > nshown - rows) top = nshown - rows;
       if (top < 0) top = 0;
       draw();
       break;
     case UI_EV_MOUSE_DOWN: {
       int r = (ev.y - (pad + prompt_h + 4)) / row_h;
-      if (ev.y >= pad + prompt_h + 4 && r >= 0 && r < ROWS && top + r < nshown) { launch(top + r); goto out; }
+      if (ev.y >= pad + prompt_h + 4 && r >= 0 && r < rows && top + r < nshown) { launch(top + r); goto out; }
       break;
     }
     }

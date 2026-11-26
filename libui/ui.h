@@ -16,6 +16,11 @@ typedef struct ui_window ui_window;
 #define UI_FLOATING 1 /* centred popup above the tiles: launchers, dialogs */
 #define UI_BAR 2      /* a strip docked at the top of the screen, full width, height = h */
 #define UI_FULLSCREEN 4
+#define UI_FLOATING_BOTTOM 8 /* a floating popup centred at the bottom of the screen: the theme picker */
+#define UI_FLOATING_TOPRIGHT 16 /* a floating popup in the top-right corner: the keybinding cheat sheet */
+/* flags to add to a role */
+#define UI_STICKY 32  /* shown on every workspace */
+#define UI_NOFOCUS 64 /* never takes the keyboard focus (an overlay to read, not to type into) */
 
 /* modifier bits in ui_event.mods */
 #define UI_SHIFT 1
@@ -86,13 +91,15 @@ int ui_wm_command(ui_window *win, const char *command);
  * on = 0: never. 0 on success, -1 if the manager refused. */
 int ui_pointer_lock(ui_window *win, int on);
 
-/* Commands the manager understands (the same words as the bind lines of ~/.config/wm/config):
+/* Commands the manager understands (the same words as the bind lines of ~/.config/wm/wm.uconf):
  *   exec CMD ARGS...   workspace N   move N   focus next|prev   swap next|prev|master
  *   master grow|shrink   fullscreen   float   kill   theme next|NAME   reload   exit
+ *   layout master|split|toggle   open left|right|up|down PROGRAM ARGS...
  *   zoom in|out|reset (sends UI_EV_ZOOM to the focused window)
  *   stats (prints counters to the console)   bench (times full-screen composites)
  *   animation MS (length of the workspace slide until the next reload; 0 = none)
- * A window opened with role UI_FLOATING gets the size it asked for; ui_open with
+ * A window opened with role UI_FLOATING gets the size it asked for (UI_FLOATING_BOTTOM: the
+ * same, placed at the bottom of the screen instead of the middle); ui_open with
  * role UI_BAR is docked at the top with height h. */
 
 #endif

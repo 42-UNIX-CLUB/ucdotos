@@ -87,7 +87,7 @@ Chromium is needed only for `tools/browser.mjs`.
 make B=build-NAME                 # kernel, libc, every program, initrd. ALWAYS pass your own B=
 make B=build-NAME PROGS="sh ls"   # only these programs go in the image (others may be mid-edit)
 make B=build-NAME dist            # build-NAME/dist: static folder for any web server
-make B=build-NAME test            # kernel, C library, shell, sound, network and router suites; fails if any check fails
+make B=build-NAME test            # kernel, C library, uconf, shell, sound, network and router suites; fails if any check fails
 
 node tools/run.mjs  --build=build-NAME --init=/bin/ktest            # console only, for tests
 node tools/shot.mjs --build=build-NAME --script=tools/tests/desktop.mjs   # headless, PNG screenshots
@@ -120,6 +120,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 3,980 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
+| `libuconf/` | the `.uconf` dotfile parser every program links | 440 |
 | `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 48,000 + Doom (without tests) |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
 | `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 1,120 (plus the suites under `tests/`) |
