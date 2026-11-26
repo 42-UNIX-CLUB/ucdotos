@@ -282,6 +282,53 @@ struct audio_errinfo {
   long play_errorparm, rec_errorparm;
   int filler[16];
 };
+/* --- links, permissions, owners, special files (added for tar; the kernel may answer ENOSYS) --- */
+#ifndef SYS_mknodat
+#define SYS_mknodat 33
+#endif
+#ifndef SYS_symlinkat
+#define SYS_symlinkat 36
+#endif
+#ifndef SYS_linkat
+#define SYS_linkat 37
+#endif
+#ifndef SYS_fchmod
+#define SYS_fchmod 52
+#endif
+#ifndef SYS_fchmodat
+#define SYS_fchmodat 53
+#endif
+#ifndef SYS_fchownat
+#define SYS_fchownat 54
+#endif
+#ifndef SYS_fchown
+#define SYS_fchown 55
+#endif
+#ifndef SYS_readlinkat
+#define SYS_readlinkat 78
+#endif
+#ifndef AT_SYMLINK_NOFOLLOW
+#define AT_SYMLINK_NOFOLLOW 0x100
+#endif
+#ifndef S_IFLNK
+#define S_IFLNK 0120000
+#endif
+#ifndef S_IFBLK
+#define S_IFBLK 0060000
+#endif
+#ifndef UTIME_NOW
+#define UTIME_NOW ((1l << 30) - 1l)
+#define UTIME_OMIT ((1l << 30) - 2l)
+#endif
+#ifndef EXDEV
+#define EXDEV 18
+#endif
+#ifndef ELOOP
+#define ELOOP 40
+#endif
+#ifndef EOPNOTSUPP
+#define EOPNOTSUPP 95
+#endif
 /* --- sockets (Linux values) --- */
 #define AF_UNIX 1
 #define AF_INET 2

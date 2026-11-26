@@ -1,0 +1,54 @@
+TAR(1)                    UC.OS Manual                    TAR(1)
+
+NAME
+       tar - create, list and extract tape archives
+
+SYNOPSIS
+       tar -c [-vz] [-f file] [-C dir] path...
+       tar -t [-v] [-f file] [member...]
+       tar -x [-vkmOp] [-f file] [-C dir] [member...]
+
+DESCRIPTION
+       tar packs files and directories into one archive, lists an
+       archive, or unpacks it. Without -f it reads standard input or
+       writes standard output. The old form without a dash works too:
+
+              $ tar czf notes.tar.gz notes
+              $ tar tvf notes.tar.gz
+              $ tar xf notes.tar.gz -C /tmp
+
+       When reading, gzip, xz and zstd compression is found by itself.
+       Archives in the ustar, GNU and pax formats are understood,
+       including long names. Archives are written in the GNU format.
+
+OPTIONS
+       -c, -t, -x
+              Create, list or extract.
+       -f FILE
+              The archive. - means standard input or output.
+       -v     Name each file. Twice: long listing.
+       -z     gzip. -J (xz) and --zstd insist on those formats when
+              reading; this version cannot write them.
+       -a     Choose the compression from the archive's name.
+       -C DIR Change to DIR first.
+       -k     Do not replace existing files.
+       -m     Do not restore modification times.
+       -O     Extract file contents to standard output.
+       -p     Restore permission bits exactly.
+       --strip-components=N
+              Drop the first N parts of each name.
+       --owner=ID, --group=ID, --numeric-owner
+              Owner and group to record when creating.
+       --strict
+              Exit with status 2 if links, owners or permissions could
+              not be restored.
+
+NOTES
+       The kernel does not have symbolic links, hard links, chmod or
+       chown yet. tar says so once for each kind and goes on. A hard
+       link is replaced by a copy of the file it points to.
+
+       Names with a .. part are skipped, and a leading / is removed.
+
+SEE ALSO
+       gzip(1)
