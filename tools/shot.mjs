@@ -4,6 +4,7 @@
 //
 //   node tools/shot.mjs [--build=build] [--init=/bin/init] [--size=1280x720] [--out=build/shots]
 //                       [--script=path/to/script.mjs] [--wait=1500] [--debug] [--quiet]
+//                       [--audio-capture=FILE]   save what /dev/dsp plays (raw 16-bit stereo, 48 kHz)
 //
 // Without --script: waits --wait milliseconds and writes <out>/screen.png.
 // With --script: the module's default export is `async (t) => { ... }` where t has:
@@ -36,6 +37,7 @@ fs.mkdirSync(outDir, { recursive: true });
 const quiet = args.includes('--quiet');
 let logText = '';
 
+let audioStats = null;
 const sys = await boot({
   kernel: fs.readFileSync(root + build + '/kernel.wasm'),
   initrd: fs.readFileSync(root + build + '/initrd.tar'),
@@ -44,6 +46,7 @@ const sys = await boot({
   log: (s) => { logText += s; if (!quiet) process.stdout.write(s); },
   debug: args.includes('--debug'),
   onIdle: () => { console.error('[shot] every process has exited'); },
+  sound: { capture: opt('audio-capture', null), expose: (s) => { audioStats = s; } },
 });
 
 function png(rgba, w, h) {
@@ -126,4 +129,5 @@ if (script) {
   await sleep(Number(opt('wait', 1500)));
   t.shot('screen');
 }
+if (audioStats && audioStats.writes) console.error(`[shot] sound: ${audioStats.writes} writes to /dev/dsp, ${audioStats.underruns} underruns`);
 process.exit(0);

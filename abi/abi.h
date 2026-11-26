@@ -78,6 +78,7 @@ typedef long ssize;
 #define ENOMEM 12
 #define EACCES 13
 #define EFAULT 14
+#define EBUSY 16
 #define EEXIST 17
 #define ENOTDIR 20
 #define EISDIR 21
@@ -223,5 +224,33 @@ struct sysinfo {
 #define CLOCK_MONOTONIC 1
 #define CLOCK_PROCESS_CPUTIME_ID 2 /* time this process has spent running */
 #define WNOHANG 1
+
+/* --- sound: OSS, Linux's original sound interface (include/uapi/linux/soundcard.h) ---
+ * /dev/dsp: each open descriptor is one stream. One format: 16-bit little-endian
+ * stereo at the rate the host plays at (SNDCTL_DSP_SPEED reports it). The streams are
+ * mixed by the host, off the kernel's thread. */
+#define SNDCTL_DSP_RESET 0x5000
+#define SNDCTL_DSP_SYNC 0x5001
+#define SNDCTL_DSP_SPEED 0xC0045002
+#define SNDCTL_DSP_STEREO 0xC0045003
+#define SNDCTL_DSP_GETBLKSIZE 0xC0045004
+#define SNDCTL_DSP_SETFMT 0xC0045005
+#define SNDCTL_DSP_CHANNELS 0xC0045006
+#define SNDCTL_DSP_SETFRAGMENT 0xC004500A /* arg: (count << 16) | log2(size) */
+#define SNDCTL_DSP_GETFMTS 0x8004500B
+#define SNDCTL_DSP_GETOSPACE 0x8010500C   /* struct audio_buf_info */
+#define SNDCTL_DSP_GETODELAY 0x80045017   /* bytes written and not yet played */
+#define SNDCTL_DSP_SETPLAYVOL 0xC0045018  /* left | (right << 8), 0 to 100 */
+#define SNDCTL_DSP_GETERROR 0x80685019    /* struct audio_errinfo */
+#define AFMT_U8 0x08
+#define AFMT_S16_LE 0x10
+struct audio_buf_info { int fragments, fragstotal, fragsize, bytes; };
+struct audio_errinfo {
+  int play_underruns, rec_overruns; /* play_underruns: times the stream ran dry while it was being fed */
+  unsigned play_ptradjust, rec_ptradjust;
+  int play_errorcount, rec_errorcount, play_lasterror, rec_lasterror;
+  long play_errorparm, rec_errorparm;
+  int filler[16];
+};
 
 #endif

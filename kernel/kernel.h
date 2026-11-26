@@ -93,11 +93,13 @@ struct file *file_new(const struct fops *ops, struct inode *ino, int flags, void
 void file_put(struct file *f);
 extern const struct fops reg_fops, dir_fops;
 const struct fops *dev_fops(int dev);
-enum { DEV_NULL = 1, DEV_ZERO, DEV_CONSOLE, DEV_RANDOM, DEV_FB, DEV_INPUT, DEV_PTMX, DEV_PTS0 = 100 };
+enum { DEV_NULL = 1, DEV_ZERO, DEV_CONSOLE, DEV_RANDOM, DEV_FB, DEV_INPUT, DEV_PTMX, DEV_DSP, DEV_PTS0 = 100 };
 struct file *pty_open_master(struct inode *ino, int flags);
 struct file *pty_open_slave(struct inode *ino, int flags);
 struct file *fb_open(struct inode *ino, int flags);
 struct file *ev_open(struct inode *ino, int flags);
+struct file *dsp_open(struct inode *ino, int flags);
+void audio_init(void);
 
 /* processes */
 typedef void (*copy_fn)(u32 dst, u32 src, u32 len);

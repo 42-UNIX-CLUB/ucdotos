@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Boot the system under Node, with the console on stdin/stdout. Used for tests.
 //   node tools/run.mjs [--build=build] [--init=/bin/ktest] [--debug] [--input='text typed on the console']
+//                      [--audio-capture=FILE]   save what /dev/dsp plays (raw 16-bit stereo, 48 kHz)
 import fs from 'node:fs';
 import { boot, checkSupport } from '../boot/host.mjs';
 const root = new URL('..', import.meta.url).pathname;
@@ -16,6 +17,7 @@ const sys = await boot({
   log: (s) => process.stdout.write(s),
   debug: args.includes('--debug'),
   onIdle: () => process.exit(0),
+  sound: { capture: opt('audio-capture', null) },
 });
 if (sys.rc) process.exit(1);
 const input = opt('input', null);
