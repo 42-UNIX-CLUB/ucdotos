@@ -65,7 +65,7 @@ export function hostnet(getK, opts = {}) {
         let j = null;
         for (const base of ['https://cloudflare-dns.com/dns-query', 'https://dns.google/resolve']) {
           try {
-            const r = await fetch(`${base}?name=${encodeURIComponent(c.host)}&type=A`, { headers: { accept: 'application/dns-json' }, signal: c.abort.signal });
+            const r = await fetch(`${base}?name=${encodeURIComponent(c.host)}&type=A`, { headers: { accept: 'application/dns-json' }, signal: c.abort.signal, credentials: 'omit' });
             if (r.ok) { j = await r.json(); break; }
           } catch (e) { if (c.closed) return; }
         }
@@ -109,8 +109,11 @@ export function hostnet(getK, opts = {}) {
     } else if (!isNode) { url.protocol = 'https:'; if (url.port === '80') url.port = ''; }
     let res;
     try {
+      // credentials: 'omit': a program's request never carries the browser's cookies or
+      // stored logins, not even to the page's own host. Code inside the OS is not trusted
+      // with the session of whoever opened the page.
       res = await fetch(url, {
-        method, headers, signal: c.abort.signal,
+        method, headers, signal: c.abort.signal, credentials: 'omit',
         body: method === 'GET' || method === 'HEAD' || !body.length ? undefined : body,
         redirect: browser ? 'follow' : 'manual',
       });
