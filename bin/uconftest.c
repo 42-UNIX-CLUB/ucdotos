@@ -62,6 +62,7 @@ int main(void) {
   CHECK("first bind, variables expanded", i >= 0 && is(c.e[i].value, "ALT, Return, exec, term -e sh"));
   i = uconf_next(&c, "binds.bind", i);
   CHECK("a variable defined from another", i >= 0 && is(c.e[i].value, "ALT SHIFT, Q, kill"));
+  CHECK("raw keeps the value as written", i >= 0 && is(c.e[i].raw, "$both, Q, kill"));
   CHECK("no third bind", uconf_next(&c, "binds.bind", i) == -1);
   CHECK("$$ is a dollar sign", is(uconf_str(&c, "binds.price", NULL), "$5"));
   CHECK("uconf_var", is(uconf_var(&c, "mod"), "ALT"));

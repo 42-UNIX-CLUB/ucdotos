@@ -108,7 +108,7 @@ static char *finish_value(uconf *c, const char *raw, size_t n, int line) {
   return kept;
 }
 
-static void add_entry(uconf *c, const char *key, const char *value, int line) {
+static void add_entry(uconf *c, const char *key, const char *value, const char *raw, int line) {
   if (c->n == c->cap) {
     int cap = c->cap ? c->cap * 2 : 32;
     uconf_entry *e = realloc(c->e, (size_t)cap * sizeof *e);
@@ -116,7 +116,7 @@ static void add_entry(uconf *c, const char *key, const char *value, int line) {
     c->e = e;
     c->cap = cap;
   }
-  c->e[c->n++] = (uconf_entry){key, value, line, 0};
+  c->e[c->n++] = (uconf_entry){key, value, raw, line, 0};
 }
 
 /* Does p start ", key =" (after the comma: blanks, a name, blanks, one '=')? */
@@ -220,7 +220,8 @@ void uconf_parse(uconf *c, const char *text, const char *name) {
     if (section[0]) fl += (size_t)snprintf(full + fl, sizeof full - fl, "%s", section);
     for (int i = 0; i < depth && fl < sizeof full; i++) fl += (size_t)snprintf(full + fl, sizeof full - fl, "%s%s", fl ? "." : "", path[i]);
     if (fl < sizeof full) snprintf(full + fl, sizeof full - fl, "%s%s", fl ? "." : "", key);
-    add_entry(c, keep(c, full, strlen(full)), value, line);
+    const char *raw = keep(c, v, (size_t)(e - v));
+    add_entry(c, keep(c, full, strlen(full)), value, raw ? raw : value, line);
   }
   if (depth) complain(c, line, "the file ends inside { }: a } is missing%s", NULL);
 }

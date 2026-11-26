@@ -31,6 +31,7 @@
 typedef struct {
   const char *key;   /* full dotted name */
   const char *value; /* variables expanded, outer quotes removed */
+  const char *raw;   /* the value as written in the file: $variables and quotes kept */
   int line;
   int used;          /* set by the readers below */
 } uconf_entry;
