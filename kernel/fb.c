@@ -133,7 +133,18 @@ static int ev_poll(struct file *f, int add) {
   if (!ev_len && add) wq_add(&ev_wq);
   return ev_len ? POLLIN : 0;
 }
-static const struct fops ev_fops = {ev_read, NULL, ev_poll, NULL, NULL};
+/* EVIOCGRAB: the window manager captures the mouse for a fullscreen window that asked for
+ * it (a game). The page then locks the browser's pointer, hides it, and sends movement as
+ * REL_X and REL_Y instead of positions. */
+static long ev_ioctl(struct file *f, u32 cmd, u32 arg) {
+  (void)f;
+  if (cmd != EVIOCGRAB) return -ENOTTY;
+  int on;
+  if (copy_from_user(&on, arg, 4)) return -EFAULT;
+  host_pointer_lock(on != 0);
+  return 0;
+}
+static const struct fops ev_fops = {ev_read, NULL, ev_poll, NULL, ev_ioctl};
 
 struct file *fb_open(struct inode *ino, int flags) { return fb ? file_new(&fb_fops, ino, flags, NULL) : NULL; }
 struct file *ev_open(struct inode *ino, int flags) { return file_new(&ev_fops, ino, flags, NULL); }
