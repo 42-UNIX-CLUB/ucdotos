@@ -356,7 +356,9 @@ void DG_Init(void) { /* also called early, by DG_FetchFile or DG_ErrorBox: once 
   done = 1;
   int force_fb = M_CheckParm("--fb") || M_CheckParm("-fb");
   if (!force_fb && ui_open && ui_pixels && ui_width && ui_height && ui_present && ui_poll_event)
-    win = ui_open("Doom", "doom", 960, 600, UI_NORMAL);
+    /* -fullscreen (the launcher entries pass it): the window covers the screen from the start;
+     * the window manager's fullscreen key (Mod+f) puts it back among the tiles. */
+    win = ui_open("Doom", "doom", 960, 600, M_CheckParm("-fullscreen") ? UI_FULLSCREEN : UI_NORMAL);
   if (win) {
     win_set_size();
     if (ui_pointer_lock) ui_pointer_lock(win, 1);   /* fullscreen (Alt+f): hide the cursor, keep the buttons in Doom */
