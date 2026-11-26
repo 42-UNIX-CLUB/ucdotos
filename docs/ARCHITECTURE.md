@@ -430,11 +430,12 @@ nonsense, and drops events for a client that stops reading. At most 24 clients.
 **A theme change is delivered as a resize event with the unchanged size.** Every client
 must call `ui_theme_load()` again on every `UI_EV_RESIZE` and redraw.
 
-**wm** (`bin/wm/`): master-and-stack tiling, gaps, rounded anti-aliased borders (2 px
+**wm** (`bin/wm/`): two tiling layouts per workspace (master and stack, or a split tree), gaps, rounded anti-aliased borders (2 px
 accent on the focused window, 1 px grey on the others), fullscreen, floating windows,
 workspaces, damage-based compositing at most once per 15 ms, zero work when idle.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
+`layout master|split|toggle`, `open left|right|up|down CMD`,
 `kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `trace on|off` (print, for each
 `PRESENT`, the time from its first byte to the framebuffer write; used by the latency
 probe), `animation MS`,
@@ -502,8 +503,34 @@ terminal to the foreground group and waits with `WUNTRACED`. Without it (today's
 (not a `.uconf` file). A theme is `/usr/share/themes/NAME.uconf`: `[colors]` (`bg fg accent dim
 desktop panel`, `bar { bg fg }`, `border { focus normal float }`), `[terminal]` (the eight ANSI
 names and `bright { ... }`), `[font]` (`regular bold size`), `[geometry]` (`gap border radius`).
-Two ship: `deck` (Gruvbox + Fira Code) and `brand` (dark green + JetBrains Mono). See BRAND.md.
-fetch, vi, htop and sysbench keep their own colours for `deck` and `brand`, chosen by name.
+Also `[theme] description`, `[colors] surface` and `[font] name` (what fetch shows). Twelve ship:
+`deck` (Gruvbox + Fira Code, the default) and `brand` (dark green + JetBrains Mono), see
+BRAND.md, and ten example themes from the ricing scene: `catppuccin-mocha`, `catppuccin-latte`
+(light), `nord`, `tokyo-night`, `dracula`, `everforest`, `rose-pine`, `kanagawa`, `one-dark`,
+`solarized-dark`, each with its scheme's published colours. fetch, vi, htop and sysbench read
+the same file (`theme_reload` in their `term.h`; deck and brand stay built in for when no file
+can be read), so a theme reaches every program.
+
+**Layouts** (`bin/wm/tree.c`). Each workspace is in `master` (one big window on the left, the
+others stacked on the right) or `split`: a binary tree of splits, like i3 or Hyprland's dwindle,
+where a new window halves the focused one along its longer side, or on the side `open DIR`
+asks for. `layout = master | split` in `wm.uconf` sets the start, `layout toggle` ($mod s)
+switches the workspace in view. Every workspace keeps its tree whatever its layout, so
+switching back restores the arrangement; a fullscreen window keeps its place. In split,
+`master grow|shrink` resizes the focused window in its split and `swap` trades places. The
+nodes come from a static pool of `2 * MAX_CLIENTS`, so the layout never allocates, and
+`tree_sync()` (first thing in `relayout()`) brings the trees in line with the window list
+by comparing pointers, never following one to a window that may have closed.
+`open DIR CMD` starts CMD and remembers its pid for 5 s; the window that pid opens goes on
+side DIR of the window focused at the time (in master: before it for left and up, after it
+for right and down). Defaults: $mod CTRL h j k l or the arrows open a terminal left, below,
+above, right.
+
+**themes** (`bin/themes/`, $mod SHIFT t): the theme picker, a strip of cards along the bottom
+of the screen (window role `UI_FLOATING_BOTTOM`), each drawn in its theme's colours. Left and
+Right preview on the whole desktop once the keys pause for 140 ms, Enter keeps, Escape goes
+back. Its tables are static (64 themes) and it keeps its fonts while previewing, so it
+allocates nothing as you move.
 
 **bar** (`bin/bar/`), **launcher** (`bin/launcher/`): entries are
 `/usr/share/applications/*.app` files (`name=`, `exec=`, `comment=`), then every other

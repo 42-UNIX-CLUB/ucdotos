@@ -30,7 +30,10 @@ abandoned working name).
 
 ## 3. The two themes
 
-Both ship. The user switches with Alt+t or by editing `~/.config/ucos/theme`.
+Both ship, with ten example themes from the ricing scene (Catppuccin, Nord, Tokyo Night and
+others: palettes of their own projects, not the club's). The user switches with the theme
+picker (Alt+Shift+t), with Alt+t, or by editing `~/.config/ucos/theme`. Only `deck` and `brand`
+are the club's looks.
 
 ### `deck` (default): the look of the club's intro deck
 

@@ -121,6 +121,8 @@ Component suites:
 | terminal vs reference | `bin/term/tests/conformance.py` | native, needs `pyte` in a venv | 0 cell differences |
 | terminal in the OS | `bin/term/tests/os/*.mjs` | `shot.mjs` | 68 checks |
 | dotfiles | `tools/tests/dotfiles.mjs` | `shot.mjs --init=/bin/wm` | 14 checks; bar and launcher by eye on the screenshots |
+| split layout | `bin/wm/tests/split.mjs` (in `run.sh`) | `shot.mjs --init=/bin/wm` | 9 checks, needs term, ps and awk in the image |
+| themes and picker | `bin/themes/shots.mjs` | `shot.mjs --init=/bin/wm` | 19 checks: every theme's colour, Escape, Enter, memory on a second lap |
 | window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 8 scripts, 126 checks (2026-11-26) |
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | core tools | `tools/tests/coretools/` | native, against the host's tools: `node tools/tests/coretools/run.mjs [TOOL...]` (`--regen` rewrites expectations from the host, `--emit-os` writes the in-OS script); in the OS: `sh /usr/share/tests/coretools.sh [-v] [TOOL...]`; fuzzing: `node tools/tests/coretools/fuzz.mjs sed\|diff SECONDS` and `tools/tests/coretools/fuzzre.c`. On this machine the host's grep is ugrep and its find is bfs, not GNU | 19,072 native, 1,755 in the OS (2026-11-26; cases marked `@noos` run natively only) |
