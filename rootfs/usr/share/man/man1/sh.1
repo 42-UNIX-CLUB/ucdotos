@@ -4,14 +4,16 @@ NAME
        sh - the UC.OS command shell
 
 SYNOPSIS
-       sh [-ix] [-c command [name [arg...]] | file [arg...]]
+       sh [-abCefimnuvx] [-o option] [-c command [name [arg...]]
+          | -s [arg...] | file [arg...]]
 
 DESCRIPTION
-       sh is a POSIX-style shell written for a system that has no
-       fork and no exec. External programs are started with spawn();
-       builtins, functions and compound commands run inside the shell
-       itself, with redirections applied to the shell's own file
-       descriptors and undone afterwards.
+       sh is a POSIX shell written for UC.OS. External programs are
+       started with spawn(); builtins, functions and compound
+       commands run inside the shell itself, with redirections
+       applied to the shell's own file descriptors and undone
+       afterwards. Subshells, ( list ) and $(list), also run inside
+       the shell: what they change is put back when they end.
 
        With -c, sh runs command. With a file, it runs the script.
        Otherwise it reads standard input. If standard input is a
@@ -21,9 +23,28 @@ DESCRIPTION
        by line with no prompt.
 
 OPTIONS
+       Every letter of set can be given to sh, with - to turn it on
+       and + to turn it off; -o name likewise.
        -c command   run command; the next arguments become $0, $1...
+       -s           read commands from standard input; the operands
+                    become $1...
        -i           interactive even if stdin is not a terminal
-       -x           print each command before running it
+
+SET OPTIONS
+       -a allexport   export every variable that is assigned
+       -C noclobber   > does not overwrite a file (use >|)
+       -e errexit     exit when a command fails, except in an if,
+                      while or until condition, before && or ||,
+                      or after !
+       -f noglob      no file name expansion
+       -m monitor     job control (on in an interactive shell when
+                      the kernel can stop programs)
+       -n noexec      read commands, do not run them
+       -u nounset     an unset variable is an error
+       -v verbose     print input as it is read
+       -x xtrace      print each command before running it
+          pipefail    a pipeline fails if any stage fails
+       set -o lists them; set +o prints commands that restore them.
 
 WORDS AND QUOTING
        'single'     everything literal
@@ -40,6 +61,9 @@ EXPANSIONS
        $name ${name}        a variable
        $? $$ $! $# $0..$9   status, shell pid, last background pid,
                             number of arguments, arguments
+       $- $LINENO $PPID     options in effect, current line, the
+                            parent's pid
+       $OPTIND $OPTARG      for getopts
        "$@" "$*"            all arguments, separately or joined
        ${#name}             length
        ${name:-word}        word if name is unset or empty
@@ -78,15 +102,34 @@ BUILTINS
        cd [dir|-]  pwd  echo [-neE]  printf format [args]
        exit [n]  return [n]  break [n]  continue [n]  shift [n]
        export [name[=value]]  unset [-f] name  local name[=value]
-       set [-x|+x] [-- args]   (no arguments: list variables)
+       readonly [-p] name[=value]...
+       set [options] [-- args]   (no arguments: list variables)
        alias [name=value]  unalias name|-a
        source file [args]  . file [args]  eval args
+                            (. and source look for a name without /
+                            in PATH, then in the current directory)
+       command [-p] [-v|-V] name [args]   run name, skipping
+                            functions; -v / -V say what name is
+       getopts optstring name [args]
        read [-r] [-p prompt] [name...]
        test expr  [ expr ]   (-e -f -d -s -x -z -n = != -eq -lt...)
        true  false  :  type name  history [n|-c]
-       wait [pid]  jobs  umask  help
+       times                this shell's CPU time
+       trap [action] condition...   EXIT (0) and signal names or
+                            numbers; '' ignores, - resets; no
+                            operands lists the traps
+       kill [-s sig | -sig] pid|job...   kill -l [status]
+       wait [pid|job...]  jobs [-l|-p]  fg [job]  bg [job]
+       disown [job]  umask [-S] [mode]  help
        exec >file           make redirections permanent
-       exec command         not possible here (no exec): an error
+       exec command         replace the shell with command; on a
+                            kernel without exec, and inside a
+                            subshell, command runs as a child and
+                            the shell exits with its status
+       A job is %n, %%, %+, %-, %string or %?string. Special builtins
+       (. : break continue eval exec exit export readonly return set
+       shift times trap unset) are found before functions; an error
+       in one ends a script with status 2.
 
 LINE EDITOR
        On a terminal: Left/Right, Home/End, Backspace/Delete,
@@ -112,9 +155,19 @@ JOB CONTROL
        shell. When the shell itself is busy (a loop of builtins, a
        function), Ctrl-C stops the whole command line: $? becomes
        130 and the prompt returns; a script exits with status 130.
-       There are no signals: kill(1) ends a process, and the shell
-       reports it as killed. A background job is only reaped and
-       reported as Done.
+
+       When the kernel can stop programs, Ctrl-Z stops the
+       foreground job and prints [n]+ Stopped; fg brings a job back
+       and bg lets it run in the background; a background job that
+       ends or stops is reported before the next prompt. On a kernel
+       without that support, set -m is refused with a message,
+       Ctrl-Z does nothing, kill(1) ends a process and the shell
+       reports it as killed.
+
+SIGNALS
+       Traps on signals run between commands. On a kernel that
+       delivers no signals only the EXIT trap runs, and a trap for a
+       signal the shell sends to itself with kill.
 
 FILES
        /etc/profile   read first by an interactive shell
@@ -130,8 +183,9 @@ BUGS
        No fork means some things differ from other shells: a
        background & list of builtins or compound commands runs in
        the foreground; the last stage of a pipeline runs in this
-       shell when it is a builtin or a loop, so its variables stay
-       set.
+       shell, so `echo x | read v` sets v; two builtin stages of a
+       pipeline run one after the other, so an endless first stage
+       never ends.
 
 SEE ALSO
        bc(1), unix-club(7)

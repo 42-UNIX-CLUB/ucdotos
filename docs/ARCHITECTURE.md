@@ -460,6 +460,23 @@ i3 style: `set mod Alt`, `gaps`, `border`, `border_thin`, `radius`, `workspace_c
 `animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default autostart: `exec bar`
 and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
 
+**sh** (`bin/sh/`, about 4,500 lines) is a POSIX shell for a system without `fork`.
+External programs are started with `spawn`. Builtins, functions, compound commands and
+subshells (`( list )`, `$(list)`, every pipeline stage but the last) run in the shell's own
+process: what a subshell changes is put back when it ends (variables, functions and
+aliases through a journal, positional parameters, options, traps, `$!`, and the umask,
+directory and descriptors, saved only when the subshell is about to change them).
+`exit`, `break`, `continue` and `return` in a subshell end only the subshell. The last
+stage of a pipeline runs in the shell itself, so `echo x | read v` sets `v` (owner choice
+pending). `exec CMD` calls `execve`; on a kernel without it (`ENOSYS`, today's `main`) and
+inside a subshell, `CMD` runs as a child and the shell exits with its status (`exec_cmd()`
+in `bin/sh/exec.c`). `trap` installs a handler that only marks the signal; the action runs
+between commands. Job control is detected once with `rt_sigprocmask` (`jobs_init()` in
+`bin/sh/exec.c`): with kernel support, an interactive shell turns on `set -m`, sets VSUSP
+to Ctrl-Z for the commands it runs, gives every pipeline its own process group, hands the
+terminal to the foreground group and waits with `WUNTRACED`. Without it (today's `main`),
+`set -m` is refused with a message and the rest behaves as before.
+
 **Themes** (`libui/theme.h`). The active name is the first word of
 `~/.config/ucos/theme`. A theme is `/usr/share/themes/NAME.theme`, lines of
 `key = value`: colours `bg fg accent border_focus border_normal border_float bar_bg

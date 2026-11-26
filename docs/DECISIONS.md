@@ -66,12 +66,15 @@ Notes that go with these:
 | Source files carry SPDX tags and **no copyright holder line**. | Whose name goes there is the owners' call. | Add a line to the headers and README. |
 | `.gitignore` excludes build output and `bin/doom/wads/`. | Game data licence is undecided. | Edit `.gitignore`. |
 | The club's source documents (guidelines, PDF, PowerPoint, `unix-club-logo/`) are **not in git**. | They contain phone numbers and e-mail addresses. | An owner can add redacted versions. |
+| Shell: `.` with a name without `/` looks in PATH, then the current directory (bash outside POSIX mode; POSIX and dash search PATH only); `~name` becomes `/home/name` without a user database; exit status 2 for expansion errors and special-builtin errors, 127 for `command -v` of an unknown name (as dash); `umask` without the kernel call reports an error; a stopped foreground job does not stop the rest of the line; no warning when exiting with stopped jobs; `kill` is also a builtin; `exec CMD` inside a subshell runs `CMD` as a child. | Choices made while closing POSIX gaps (2026-11-26). | `bin/sh/`. |
 | OS identity strings: `uname` reports `UC.OS`, release `0.1.0`, machine `wasm32`, host name `42lisboa`, user `user`. | Needed something. | `kernel/kernel.h`, `kernel/syscall.c`, `bin/init.c`. |
 
 ## 3. Open: an owner needs to choose
 
 | Topic | Options | Blocks |
 |---|---|---|
+| **Shell: last stage of a pipeline** | in the shell itself (now; like ksh and zsh: `echo x \| read v` sets `v`, `echo \| exit 3` exits the shell) or in a subshell (dash and bash; one line in `run_pipeline`). POSIX allows both | Scripts written for dash that rely on a subshell |
+| **Shell: reference for conformance** | bash 5.3 in POSIX mode with 26 overrides written from knowledge of dash (now; dash is not installed on the build machine), or dash itself (`node tools/tests/sh-posix.mjs --gen --shell=dash`) | |
 | **Compressed image** | `make dist` writes `initrd.tar.gz` and the page prefers it (built, in the tree): ship it as built; drop it and let the web server compress; plain tar only. It saves 4 MB of download (3.2 s at 10 Mbit/s) and costs 135 to 175 ms of unpacking (PERFORMANCE.md section 6) | Hosting |
 | **`-Oz` instead of `-O2`** | Kernel 21% and programs 26% smaller, image 2.6% smaller; speed the same within noise except `fib` (faster) and 16-byte `memset` (slower); not measured in Chromium (PERFORMANCE.md section 7) | |
 | **Time-slice check cost** | The check costs about 2.5 ns per `getppid` in Chromium, not explained: keep it (now); skip it for trivial calls (a program looping only on those would never yield); a clock in shared memory written by a Worker (needs cross-origin isolation headers) | |

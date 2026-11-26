@@ -122,6 +122,8 @@ Component suites:
 | window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 8 scripts, 126 checks (2026-11-26) |
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
+| shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 845 of 855; the 10 known failures are in the stream notes of 2026-11-26 |
+| shell job control | `bin/sh/test/jobs.mjs` | `shot.mjs` | 10 checks on a kernel with signals, 2 without |
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs a WAD (not in git) | play, demo, window tests pass |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
