@@ -70,13 +70,17 @@ static int load_font(int i, const char *path) {
   return 0;
 }
 
+static const ttf_font *load_fallback(void) { return load_font(2, FALLBACK_FONT) == 0 ? &T.font[2] : NULL; }
+
 static void setup_fonts(void) {
   if (load_font(0, T.th.font) && load_font(0, "/usr/share/fonts/FiraCode-Regular.ttf")) die("cannot load a font");
   int bold = load_font(1, T.th.font_bold) == 0;
-  /* a Nerd Font supplies powerline and icon glyphs that Fira Code lacks */
-  int fb = !strstr(T.fpath[0], "Nerd") && load_font(2, FALLBACK_FONT) == 0;
+  /* A Nerd Font supplies powerline and icon glyphs that Fira Code lacks. It is 2.5 MB, so it
+   * is read only when the first such glyph shows up (see load_fallback). */
+  int want_fb = !strstr(T.fpath[0], "Nerd"), fb = want_fb && T.fdata[2];
   int px = T.font_size > 0 ? T.font_size : T.th.font_size > 0 ? T.th.font_size : 16;
   if (render_init(&T.r, &T.font[0], bold ? &T.font[1] : NULL, fb ? &T.font[2] : NULL, (float)px)) die("out of memory");
+  if (want_fb && !fb) T.r.load_fallback = load_fallback;
   render_colors(&T.r, T.th.fg, T.th.bg, T.th.accent, T.th.color);
   T.pad = 8; /* padding around the grid */
 }

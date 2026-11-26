@@ -20,6 +20,9 @@ typedef struct {
   vt_cell *shadow;          /* what is on screen, per cell (pad = cursor marker) */
   int full;                 /* next draw repaints everything, padding included */
   uint8_t *missing;         /* 2 bits per BMP code point: 0 unknown, 1 in the font, 2 missing */
+  /* Set after render_init when the fallback font is wanted but not loaded yet: called once,
+   * the first time a glyph is missing from the regular font. May return NULL. */
+  const ttf_font *(*load_fallback)(void);
 } render;
 
 int render_init(render *r, const ttf_font *reg, const ttf_font *bold, const ttf_font *fallback, float px);
