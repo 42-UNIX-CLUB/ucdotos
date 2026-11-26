@@ -67,7 +67,7 @@ static void default_binds(void) {
     {"Mod+j", "focus next"}, {"Mod+k", "focus prev"}, {"Mod+Down", "focus next"}, {"Mod+Up", "focus prev"},
     {"Mod+Right", "focus next"}, {"Mod+Left", "focus prev"},
     {"Mod+Shift+j", "swap next"}, {"Mod+Shift+k", "swap prev"}, {"Mod+Shift+Down", "swap next"}, {"Mod+Shift+Up", "swap prev"},
-    {"Mod+h", "master shrink"}, {"Mod+l", "master grow"}, {"Mod+f", "fullscreen"}, {"Mod+Shift+space", "float"},
+    {"Mod+h", "master shrink"}, {"Mod+l", "master grow"}, {"Mod+f", "fullscreen"}, {"Mod+Shift+space", "float"}, {"Mod+y", "float"},
     {"Mod+t", "theme next"}, {"Mod+Shift+r", "reload"}, {"Mod+Shift+e", "exit"},
     {"Ctrl+equal", "zoom in"}, {"Ctrl+Shift+equal", "zoom in"}, {"Ctrl+minus", "zoom out"}, {"Ctrl+0", "zoom reset"},
   };

@@ -90,10 +90,12 @@ EXPORT(input_event) void input_event(int type, int code, int value) {
 /* The host tells the kernel how big the screen is, at boot and when the window changes. */
 EXPORT(fb_resize) u8 *fb_resize(u32 w, u32 h) {
   if (w != fb_w || h != fb_h) {
-    u8 *n = kzalloc(w * h * 4);
-    if (!n) return fb;
+    /* free first: the old picture is not kept, and wasm memory never shrinks */
     if (fb) kfree(fb);
-    fb = n; fb_w = w; fb_h = h;
+    fb = kzalloc(w * h * 4);
+    fb_w = fb_h = 0;
+    if (!fb) return 0;
+    fb_w = w; fb_h = h;
     dmg[0] = 0; dmg[1] = 0; dmg[2] = w - 1; dmg[3] = h - 1; /* a new buffer: the next frame shows all of it */
     ev_push(4 /* EV_MSC */, 0x11 /* screen resized */, (s32)((w << 16) | h));
     ev_push(0, 0, 0);

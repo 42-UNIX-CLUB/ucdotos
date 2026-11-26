@@ -63,8 +63,7 @@ typedef struct {
 /* globals (main.c) */
 extern wm_config cfg;
 extern ui_theme theme;
-extern int scr_w, scr_h;
-extern unsigned *scr, *wall;  /* composited screen and the wallpaper, scr_w x scr_h */
+extern int scr_w, scr_h;           /* the screen size; compose.c paints it a band of rows at a time */
 extern client *order[MAX_CLIENTS]; /* every client; order = tiling order, later floats on top */
 extern int nclients;
 extern int cur_ws;

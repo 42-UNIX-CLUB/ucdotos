@@ -35,6 +35,8 @@ static int mods, swallow[256], swallow_text;
 static int buttons;
 static client *grab;  /* the window that got the mouse button press receives motion until release */
 static client *locked; /* the window the mouse is captured for: no cursor, movement as UI_EV_MOUSE_REL */
+static client *drag;  /* a floating window being moved with Mod + left button */
+static int drag_dx, drag_dy; /* where the pointer holds it, from its top-left corner */
 static int quit;
 static int state_dirty;
 static int children[64], nchildren;
@@ -292,6 +294,7 @@ void drop_client(client *c) {
   nclients--;
   if (grab == c) grab = NULL;
   if (locked == c) { locked = NULL; int off = 0; __syscall3(SYS_ioctl, ev_fd, EVIOCGRAB, &off); cursor_moved(ptr_x, ptr_y); }
+  if (drag == c) drag = NULL;
   close(c->fd);
   if (c->hello) relayout(); /* repaints the screen and tells the bar */
   free(c->buf); free(c->out);
@@ -359,10 +362,13 @@ static int begin_present(client *c) {
       (unsigned long long)c->cur.len != sizeof *p + (unsigned long long)p->w * p->h * 4)
     return -1;
   if (p->bw != c->pw || p->bh != c->ph) {
-    unsigned *n = calloc((size_t)p->bw * p->bh, 4);
-    if (!n) return -1;
+    /* Free first: the old pixels are dropped anyway, and wasm memory never shrinks, so
+     * allocating before freeing would leave both sizes claimed for good. */
     free(c->buf);
-    c->buf = n; c->pw = p->bw; c->ph = p->bh;
+    c->buf = calloc((size_t)p->bw * p->bh, 4);
+    c->pw = c->ph = 0;
+    if (!c->buf) return -1;
+    c->pw = p->bw; c->ph = p->bh;
   }
   c->in_pixels = 1;
   c->px_got = 0;
@@ -481,10 +487,36 @@ static void handle_key(int code, int value) {
   client *f = focused();
   send_event(f, value ? UI_EV_KEY_DOWN : UI_EV_KEY_UP, code, mods, value == 2, 0, 0, 0, 0, 0);
 }
+/* Move the window being dragged so that its top-left corner is at x, y, kept on the screen. */
+static void drag_to(int x, int y) {
+  client *c = drag;
+  if (!c->floating || !visible(c)) { drag = NULL; return; } /* it stopped floating or left the screen */
+  if (x > scr_w - c->r.w) x = scr_w - c->r.w;
+  if (y > scr_h - c->r.h) y = scr_h - c->r.h;
+  if (x < 0) x = 0;
+  if (y < 0) y = 0;
+  if (x == c->r.x && y == c->r.y) return;
+  damage(c->r.x, c->r.y, c->r.w, c->r.h);
+  c->r.x = x; c->r.y = y;
+  c->placed = 1;
+  damage(c->r.x, c->r.y, c->r.w, c->r.h);
+}
 static void handle_button(int code, int value) {
   int b = code == 0x110 ? 0 : code == 0x112 ? 1 : code == 0x111 ? 2 : -1;
   if (b < 0) return;
+  if (drag) { /* the window being moved gets no clicks; the left button's release ends the move */
+    if (value) buttons |= 1 << b; else buttons &= ~(1 << b);
+    if (!value && b == 0) drag = NULL;
+    return;
+  }
   client *c = value ? client_at(ptr_x, ptr_y) : grab;
+  if (value && b == 0 && (mods & cfg.mod) && c && c->floating && !buttons) {
+    set_focus(c); /* also raises it */
+    buttons |= 1;
+    drag = c;
+    drag_dx = ptr_x - c->r.x; drag_dy = ptr_y - c->r.y;
+    return;
+  }
   if (value) {
     buttons |= 1 << b;
     grab = c;
@@ -546,7 +578,8 @@ static void input_readable(void) {
           if (ptr_y >= scr_h) ptr_y = scr_h - 1;
           if (ox != ptr_x || oy != ptr_y || !ptr_shown) {
             cursor_moved(ox, oy);
-            client *c = grab ? grab : client_at(ptr_x, ptr_y);
+            client *c = drag ? NULL : grab ? grab : client_at(ptr_x, ptr_y);
+            if (drag) drag_to(ptr_x - drag_dx, ptr_y - drag_dy);
             if (c) { int x, y; to_window(c, &x, &y); send_event(c, UI_EV_MOUSE_MOVE, 0, mods, 0, 0, x, y, 0, 0); }
           }
         }

@@ -287,10 +287,13 @@ The host tells the kernel how long a process ran each time it parks
   kfree`. wasm memory never shrinks.
 - Each process has its own linear memory, exported as `memory`. Its `malloc`
   (`libc/src/malloc.c`) is the same allocator and grows its own memory with no system
-  call. A request above 0x7fffffff bytes (PTRDIFF_MAX, glibc's limit too), a `calloc` whose
-  product does not fit, or memory that cannot grow, returns NULL with `errno` ENOMEM. The
-  program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack overflow
-  traps instead of corrupting data.
+  call, at least one 64 KiB page at a time. A request above 0x7fffffff bytes (PTRDIFF_MAX,
+  glibc's limit too), a `calloc` whose product does not fit, or memory that cannot grow,
+  returns NULL with `errno` ENOMEM. The program stack is 1 MiB, placed first in memory
+  (`--stack-first`), so a stack overflow traps instead of corrupting data.
+- Because memory never shrinks, code that replaces a big buffer frees the old one before
+  allocating the new one (window pixels in libui and the wm, the kernel framebuffer, the
+  wallpaper). Allocating first would leave both sizes claimed for good.
 - **User memory access.** The kernel cannot address another instance's memory directly.
   Per process, the host instantiates `SHIM`, a module that imports two memories (kernel
   `k`, process `p`) and exports `i(kdst, usrc, len)`, `o(udst, ksrc, len)` and `s()`
@@ -498,8 +501,14 @@ nonsense, and drops events for a client that stops reading. At most 24 clients.
 must call `ui_theme_load()` again on every `UI_EV_RESIZE` and redraw.
 
 **wm** (`bin/wm/`): master-and-stack tiling, gaps, rounded anti-aliased borders (2 px
-accent on the focused window, 1 px grey on the others), fullscreen, floating windows,
-workspaces, damage-based compositing at most once per 15 ms, zero work when idle.
+accent on the focused window, 1 px grey on the others), fullscreen, floating windows
+(`float` toggles, on Mod+y and Mod+Shift+space; Mod + left-button drag moves a floating
+window, and that click never reaches the program), workspaces, damage-based compositing at
+most once per 15 ms, zero work when idle. It keeps no full-screen buffers: damaged
+rectangles are painted a band of rows at a time into a static 256 KiB strip and each band
+is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made rows
+(plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2 MiB
+plus a copy of every window's pixels.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
 `kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `trace on|off` (print, for each
