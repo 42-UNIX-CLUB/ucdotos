@@ -138,6 +138,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | File | Read it when |
 |---|---|
 | `docs/ARCHITECTURE.md` | you touch the kernel, the host, the ABI, or need to know how anything works |
+| `docs/LINUX-BINARIES.md` | you work on running Linux programs (`bin/lx/`): architecture study, interfaces, what the engine needs from the kernel |
 | `docs/DEVELOPMENT.md` | you build, test, add a program, add a syscall, debug, or run several agents |
 | `docs/DECISIONS.md` | before proposing anything: what the owners decided, what was assumed, what is still open |
 | `docs/STATUS.md` | to know what works today, what is broken, what is not built, and what is in flight |
