@@ -1,0 +1,17 @@
+cd /src/cc
+cc -o /tmp/timeit /src/cc/tests/timeit.c
+cc -o /tmp/cmp /src/cc/tests/cmp.c
+/tmp/timeit cc -c pp.c -o /tmp/pp.o
+/tmp/timeit cc -c parse.c -o /tmp/parse.o
+/tmp/timeit cc -o /tmp/cc2 util.c lex.c pp.c type.c parse.c gen.c wasm.c listing.c main.c
+/tmp/timeit /tmp/cc2 -o /tmp/cc3 util.c lex.c pp.c type.c parse.c gen.c wasm.c listing.c main.c
+/tmp/cmp /tmp/cc2 /tmp/cc3
+/tmp/timeit /tmp/cc3 -o /tmp/ld2 /src/ld/ld.c
+cd /tmp
+cat > t.c <<'XX'
+#include <stdio.h>
+int main(void) { printf("built by cc3, linked by ld2: %d\n", 6 * 7); return 0; }
+XX
+/tmp/cc3 --ld=/tmp/ld2 t.c -o t
+./t
+exit

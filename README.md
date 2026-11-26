@@ -50,7 +50,7 @@ node tools/shot.mjs --script=tools/tests/desktop.mjs    # boots the desktop head
 | `libc/`, `lib/` | the C library |
 | `libgfx/` | TrueType rasterizer and 2D drawing |
 | `libui/` | window protocol client and themes |
-| `bin/` | programs: `sh`, core tools, `wm`, `bar`, `launcher`, `term`, `vi`, `htop`, `fetch`, `bc`, `doom` |
+| `bin/` | programs: `sh`, core tools, `wm`, `bar`, `launcher`, `term`, `vi`, `htop`, `fetch`, `bc`, `doom`, and `cc` and `ld` (a C compiler and linker that run inside UC.OS) |
 | `rootfs/` | files copied into the system image: dotfiles, themes, fonts, man pages, the club's pages |
 | `tools/` | test runners |
 | `docs/` | how it works, how to develop it, what has been decided, current status |

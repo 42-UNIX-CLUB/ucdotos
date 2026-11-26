@@ -54,6 +54,7 @@ Notes that go with these:
 |---|---|---|
 | "Linux-shaped" means Linux's **generic** call table (the one aarch64 and riscv use), not x86-64's. | It is what a new Linux architecture gets. | One header: `abi/abi.h`. |
 | The kernel runs on the page's **main thread**. | Direct canvas access, simplest. | Move `boot()` into a Worker with an OffscreenCanvas. |
+| The C compiler inside UC.OS writes clang-compatible relocatable objects and has its own linker (option A of `docs/CC.md`); the tools are called `cc` and `ld` with no `gcc` alias; headers in `/usr/include` and `/usr/lib/cc/include`, libraries in `/usr/lib`; `long double` is binary128 as with clang; `-O` levels are accepted and change nothing; the compiler makes a cheap system call per statement and per 64 tokens so a long compile can be time-sliced. C++ is out of scope. | Options and reasons in `docs/CC.md` section 3. | `docs/CC.md` section 3 says where each lives. |
 | The window manager's modifier key is **Alt**. | Browsers and host systems take the Super key. | `set mod` in `~/.config/wm/config`. |
 | Tiling layout is **master and stack**, 4 workspaces, 12 px gaps, radius 8. | To match slide 26. | The same config file. |
 | The first terminal runs `sh /etc/welcome` (fetch, then a shell). | So the desktop greets with fetch like the slide and stays open. | The `exec` line at the end of the wm config. |

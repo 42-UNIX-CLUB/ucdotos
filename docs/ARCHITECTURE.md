@@ -494,7 +494,8 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
 ## 13. The toolchain
 
 - `clang --target=wasm32-unknown-unknown -O2 -ffreestanding -nostdlib -fvisibility=hidden`
-  and `wasm-ld`. No Emscripten, no wasi-sdk, no sysroot.
+  and `wasm-ld`. No Emscripten, no wasi-sdk, no sysroot. Inside UC.OS the same job is
+  done by our own `cc` and `ld` (13.1).
 - Kernel link: `--no-entry --export-table --growable-table -z stack-size=262144
   --stack-first`. Programs: `--entry=_start -z stack-size=1048576 --stack-first
   --fatal-warnings`.
@@ -507,6 +508,67 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
 - The browser's engine compiles wasm to machine code. You do not control registers or
   native instructions. What you control: how often you cross into JavaScript, memory
   layout, bulk-memory and SIMD instructions, and algorithmic cost.
+
+### 13.1 The compiler inside UC.OS: `cc` and `ld` (`bin/cc/`, `bin/ld/`)
+
+A C compiler and a linker written for this project, so that a C program can be written,
+compiled and run inside UC.OS with no server. Both are ordinary UC.OS programs (built by
+clang like everything else) and also build with the host `cc` for development.
+
+```
+cc file.c -o prog
+  pp.c      preprocessor (hide-set macro expansion, include guards detected, #pragma once)
+  parse.c   C11 front end: typed syntax tree, constant folding, initialisers
+  gen.c     tree -> WebAssembly function bodies (each function generated twice: the
+            first pass learns the frame size and the state numbers of forward gotos)
+  wasm.c    relocatable object in the tool-conventions "linking" format
+  main.c    gcc-style driver; one translation unit per process; runs ld to link
+ld --crt0=/usr/lib/crt0_2.o,/usr/lib/crt0_3.o objs... -L/usr/lib -lc
+  reads objects and ar archives (from cc or clang), resolves symbols, drops unreachable
+  functions and data, applies relocations, writes the program host.mjs expects
+```
+
+- **Object format.** cc writes the same relocatable WebAssembly objects as clang
+  (`linking` and `reloc.*` custom sections, padded LEB fields). wasm-ld links cc's
+  objects; our ld links clang's objects and the clang-built `libc.a` unchanged, so code
+  built by the two compilers mixes freely (tested: `bin/cc/tests/mix/`).
+- **ABI.** The same as clang on wasm32 (tool-conventions BasicCABI): ILP32, 8-byte
+  `long long` and `double`, signed `char`, 4-byte `wchar_t`, `size_t` is `unsigned long`.
+  A struct holding one scalar is passed and returned as that scalar; other structs and
+  unions go by pointer to a copy (caller-made) and come back through a hidden first
+  pointer argument; empty structs are dropped. Variadic arguments are stored in an area
+  of the caller's frame, each at its natural alignment (aggregates as a pointer to a
+  copy), and a pointer to it is the hidden last argument; `va_list` is a `char *`.
+  `long double` is binary128 in memory and passed as two `i64`, as with clang.
+- **Frames.** Scalars whose address is never taken live in wasm locals. Arrays, structs
+  and address-taken locals live in a frame on the linear-memory stack (`__stack_pointer`,
+  growing down, 16-byte aligned). Leaf functions do not move the stack pointer.
+- **Control flow.** `if`, loops and `switch` map to block/loop/br/br_table (dense switch
+  values use br_table, sparse ones a chain of br_if). `goto` has no wasm equivalent: a
+  function with goto labels, or with a switch whose case labels sit inside nested
+  statements (Duff's device), is flattened. Only the statements that contain a jump
+  target are cut into numbered states, dispatched by one loop around a br_table; the rest
+  stays structured. A goto costs a local.set, a br and a br_table dispatch.
+- **main.** `int main(void)` is emitted as `__original_main` plus a two-argument `main`
+  that calls it, as clang does. ld picks `crt0_3.o` when `main` takes three arguments.
+- **In the image** (Makefile rule `cc-sysroot.stamp`, only when `cc` is in `PROGS`): libc,
+  libui and libgfx headers in `/usr/include` (`sys/syscall.h` is installed with its
+  include of `abi.h` rewritten to `<ucos/abi.h>`), cc's freestanding headers (`stddef.h`,
+  `stdint.h`, `stdarg.h`, `stdbool.h`, `limits.h`, `float.h`, `stdalign.h`, ...) in
+  `/usr/lib/cc/include`, and `libc.a`, `libui.a`, `libgfx.a`, `crt0_2.o`, `crt0_3.o` in
+  `/usr/lib`. `--sysroot=DIR` makes cc look under DIR instead of `/`.
+- **Not supported:** `_Complex`, `__int128`, `_BitInt`; inline assembly other than an
+  empty `asm("")` barrier (and `.s` files: there is no assembler); computed goto and
+  `&&label`; nested functions; `__attribute__((constructor, destructor))` (warned and
+  ignored) and `alias`; `long double` arithmetic and conversions (they call the
+  compiler-rt helpers `__addtf3`, `__extenddftf2` and so on, which our libc does not
+  have: the same link error as with clang); multidimensional variable length arrays,
+  pointers to VLA types and `sizeof` of a VLA type that is not a variable; VLA and
+  `alloca` memory is released when the function returns, not at the end of the block;
+  `_Atomic` and `_Thread_local` are accepted and mean nothing (one thread); trigraphs;
+  `#line` is accepted and ignored; calls to one unprototyped function with different
+  argument types in one file; bit-fields that cross their container in a packed struct.
+  Errors stop at the first one in most cases.
 
 ## 14. Limits, and what does not exist
 
