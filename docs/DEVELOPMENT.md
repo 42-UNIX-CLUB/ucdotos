@@ -114,7 +114,7 @@ Component suites:
 | terminal parser | `bin/term/tests/test_vt.c`, `fuzz_vt.c` | native, `bin/term/tests/run_tests.sh` | 315 checks; 30 MB fuzz clean |
 | terminal vs reference | `bin/term/tests/conformance.py` | native, needs `pyte` in a venv | 0 cell differences |
 | terminal in the OS | `bin/term/tests/os/*.mjs` | `shot.mjs` | 68 checks |
-| window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` | 84 checks |
+| window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 8 scripts, 126 checks (2026-11-26) |
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |

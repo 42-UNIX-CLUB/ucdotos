@@ -142,6 +142,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `docs/DECISIONS.md` | before proposing anything: what the owners decided, what was assumed, what is still open |
 | `docs/STATUS.md` | to know what works today, what is broken, what is not built, and what is in flight |
 | `docs/PERFORMANCE.md` | you measure or quote speed |
+| `docs/WORKER-PROCESSES.md` | you work on running processes off the main thread (study and prototypes; no design chosen) |
 | `docs/BRAND.md` | you write any user-visible text or touch the look: palettes, fonts, voice, logo rules |
 | `CONTRIBUTING.md` | you are asked to commit, name a branch or open a pull request |
 

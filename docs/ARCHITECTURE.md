@@ -422,7 +422,9 @@ accent on the focused window, 1 px grey on the others), fullscreen, floating win
 workspaces, damage-based compositing at most once per 15 ms, zero work when idle.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
-`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `animation MS`,
+`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `trace on|off` (print, for each
+`PRESENT`, the time from its first byte to the framebuffer write; used by the latency
+probe), `animation MS`,
 `zoom in|out|reset` (sends the zoom event to the focused window; bound by default to
 Ctrl+= with or without Shift, Ctrl+- and Ctrl+0, which therefore no longer reach programs.
 Bindings are by key position, so on a non-US keyboard these are the keys in the US
