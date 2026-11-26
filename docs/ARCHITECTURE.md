@@ -68,6 +68,7 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `pointer_lock(on)` | the window manager captured (1) or released (0) the mouse (`EVIOCGRAB`); the page locks or unlocks the browser's pointer (section 10) |
    | `timer(ms)` | call the kernel export `timer_fire` in ms milliseconds (0: on the next turn of the event loop; below 0: cancel). One timeout at a time; each call replaces the last |
    | `hn_caps hn_open hn_send hn_done hn_more hn_close` | the host half of `/dev/hostnet` (`boot/hostnet.mjs`): DNS, HTTP through `fetch()`, and under Node real TCP. See NETWORKING.md |
+   | `clip_out(p, n, flags)` | a piece of text from `/dev/hostclip` for the computer's clipboard (flags: 1 first piece, 2 last, 4 cancel); the host joins the pieces and calls the `onClipboard(text)` option of `boot()` (section 11) |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
    kernel export `boot_alloc`, calls `fb_resize(w, h)` if there is a screen, then
@@ -78,14 +79,17 @@ Kernel command line: `init=/path/to/program -- arg1 arg2`. Default init is `/bin
 Kernel exports the host uses: `kmain boot_alloc syscall_pid proc_attach proc_state
 proc_crashed proc_account proc_resumed block_timeout console_input input_event fb_resize
 fb_addr fb_damage fb_width fb_height audio_played audio_underrun remote_data remote_end
-remote_buf remote_scratch import_begin timer_fire hn_alloc hn_push hn_end memory
+remote_buf remote_scratch import_begin timer_fire hn_alloc hn_push hn_end hostclip_buf
+hostclip_ready memory
 __indirect_function_table`. (`set_current` still exists and is
 harmless; the kernel no longer depends on it.)
 
 The object `boot()` returns: `k` (kernel exports), `memory`, `procs`, `frame()`,
 `damage()` (the rectangle written since the last call), `resize(w, h)`,
 `input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`, `importFile(path, blob)`
-(puts a file from the user's computer into the file system). `boot()` takes a `remote(url)`
+(puts a file from the user's computer into the file system), `hostPaste(str)` (text pasted
+into the page becomes the next record of `/dev/hostclip`, at most 1 MiB) and
+`clipboardOut` (the last text sent out, for tests). `boot()` takes a `remote(url)`
 option, a function returning a Promise of a fetch Response: the page passes `fetch` relative
 to its own folder, the Node tools pass `tools/remote-node.mjs`, which reads the build
 directory.
@@ -345,6 +349,7 @@ The host tells the kernel how long a process ran each time it parks
 | `/dev/ptmx`, `/dev/pts/N` | pseudo-terminals (section 8) |
 | `/dev/fb0` | the screen (section 10) |
 | `/dev/input/event0` | keyboard and pointer (section 10) |
+| `/dev/hostclip` | the clipboard's link to the computer's clipboard (section 11), at most 1 MiB each way. In: text pasted into the page with Ctrl+V; `ioctl(FIONREAD)` gives the waiting paste's size, one read takes it whole (`EINVAL` with less room), then it is gone; a newer paste replaces an unread one; the host fills it with `hostclip_buf` and `hostclip_ready`. Out: one write is one item, handed to the host 1 KiB at a time through the import `host_clip_out`; the page puts it on the computer's clipboard. |
 | `/tmp`, `/run`, `/proc` | empty directories created at boot; `/proc` has nothing in it |
 
 **Remote files** (`kernel/remote.c`). Large files the image does not carry (Doom's game
@@ -552,7 +557,27 @@ file in `/bin`.
 framebuffer back end, `term --fb`), `main.c`. Options: `--fb`, `-e cmd args`, `-T title`,
 `--font-size N`, `--hold`, `--stats`. It sets `TERM=xterm-256color`,
 `COLORTERM=truecolor`, `THEME`. Test hook: Ctrl+Alt+Shift+F12 prints the visible text to
-the console log.
+the console log, with the grid and cell size.
+
+Selection and clipboard in **term**: drag with the left button, double click for a word,
+triple click for a line (Shift+drag when the program asked for the mouse). The selection is
+kept in absolute lines (scrollback plus screen), so scrolling the view does not move it;
+output that changes a selected line or scrolls the screen ends it. Ctrl+Shift+C sends it to
+`clipd`; Ctrl+Shift+V types the newest entry into the pty (line feeds as carriage returns,
+inside `ESC [200~ ... ESC [201~` when bracketed paste is on), 1 KiB every 4 ms.
+
+**The clipboard** is its own program, not part of the window manager or the kernel.
+`clipd` (`bin/clipd.c`) keeps up to 20 entries (1 MiB each, 4 MiB in all) and answers on
+the socket `/run/clip.sock`, one request per connection (`PUT GET LIST SELECT REMOVE
+CLEAR`, format in `libclip/clip.h`). `libclip` is the client; the first call that finds no
+`clipd` starts one. `clip` (`bin/clip/`) is the shell side (`ls | clip`, `clip -o`,
+`clip -l`, `clip -s N`, `clip -d N`, `clip -c`), and `clipboard` (`bin/clipboard/`) a
+launcher-style window over the history (Enter makes an entry the newest, Delete removes
+it). The computer's clipboard comes in through the page: Ctrl+V there is the browser's own
+paste, `boot/page.mjs` hands the text to `/dev/hostclip`, and `clipd` adds it. The other
+way, whatever becomes the newest entry by a copy or a pick, `clipd` writes to
+`/dev/hostclip`; the host joins the pieces and calls `onClipboard(text)`, and the page passes
+it to `navigator.clipboard.writeText` (secure page with the focus only).
 
 **libgfx** (`libgfx/`): `ttf.c` parses TrueType (`glyf` outlines, cmap formats 4 and 12,
 composite glyphs) and rasterizes with exact area coverage; a glyph cache stretches
