@@ -15,8 +15,10 @@ It is not a Linux port and not an emulator. The kernel is one WebAssembly module
 program is its own WebAssembly module with its own memory. A system call is a direct
 wasm-to-wasm call from the program into the kernel. The window manager, terminal
 emulator, font rasterizer, shell and tools are ordinary C programs written for this
-kernel. The only JavaScript is `boot/` (about 400 lines), which plays the role of
-firmware: it loads the kernel, starts programs, and copies the framebuffer to a canvas.
+kernel. The only JavaScript is `boot/` (about 840 lines), which plays the role of
+firmware: it loads the kernel, starts programs, copies the framebuffer to a canvas, and
+hands sound to the browser's audio thread, and carries the router's network requests
+(`boot/hostnet.mjs`).
 
 ## Rules of engagement (these come from the project owners)
 
@@ -67,7 +69,10 @@ browser page (boot/page.mjs)        canvas, keyboard, mouse; shows the kernel's 
 - One thread. Preemption happens only at system call boundaries (8 ms time slice). A
   program that loops without making any system call still freezes the tab.
 - No fork (only `spawn`), no signals delivered to programs (kill terminates), no
-  setjmp/longjmp, no threads, no shared memory, no persistence, no network, no sound.
+  setjmp/longjmp, no threads, no shared memory, no persistence. Sound plays through
+  `/dev/dsp`, mixed on the browser's audio thread (`docs/SOUND.md`). The network stack is
+  our own TCP/IP in the kernel; beyond the machine it reaches only what the router
+  (`routerd`) can carry: see `docs/NETWORKING.md`.
 - System call numbers and structures are Linux's generic ("asm-generic") ones, in
   `abi/abi.h`, plus four private calls (spawn, getargs, procinfo, intr).
 
@@ -82,20 +87,23 @@ Chromium is needed only for `tools/browser.mjs`.
 make B=build-NAME                 # kernel, libc, every program, initrd. ALWAYS pass your own B=
 make B=build-NAME PROGS="sh ls"   # only these programs go in the image (others may be mid-edit)
 make B=build-NAME dist            # build-NAME/dist: static folder for any web server
-make B=build-NAME test            # kernel, C library and shell suites; fails if any check fails
+make B=build-NAME test            # kernel, C library, shell, sound, network and router suites; fails if any check fails
 
 node tools/run.mjs  --build=build-NAME --init=/bin/ktest            # console only, for tests
 node tools/shot.mjs --build=build-NAME --script=tools/tests/desktop.mjs   # headless, PNG screenshots
 node tools/browser.mjs --build=build-NAME --script=tools/tests/browser-desktop.mjs  # real Chromium
 ```
 
-The four suites that must stay green (counts as of 2026-11-26):
+The seven suites that must stay green (counts as of 2026-11-26):
 
 | Suite | Command (add `--build=...`) | Result |
 |---|---|---|
-| Kernel | `node tools/run.mjs --init=/bin/ktest` | 109 checks, 0 failed |
-| C library | `node tools/run.mjs --init=/bin/libctest` | 290 checks, 0 failed |
+| Kernel | `node tools/run.mjs --init=/bin/ktest` | 124 checks, 0 failed |
+| C library | `node tools/run.mjs --init=/bin/libctest` | 298 checks, 0 failed |
 | Shell and tools | `node tools/run.mjs --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | 238 passed |
+| Sound | `node tools/tests/audio.mjs` | 37 checks, 0 failed |
+| Network | `node tools/run.mjs --init=/bin/nettest` | 89 checks, 0 failed |
+| Router | `node tools/tests/router-http.mjs` | 24 checks, 0 failed |
 | Desktop | `node tools/shot.mjs --script=tools/tests/desktop.mjs` | look at the 6 screenshots |
 
 Component suites (terminal, window manager, editor, htop, fetch, Doom) are listed in
@@ -106,15 +114,15 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | Path | What | Lines (approx.) |
 |---|---|---|
 | `abi/abi.h` | syscall numbers, errno, structs shared by kernel and programs | 230 |
-| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c` | 1,850 |
-| `boot/` | `host.mjs` (the machine), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 390 |
+| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c audio.c`, and the network stack `net.h timer.c netif.c ip.c udp.c tcp.c inet.c hostnet.c` | 4,040 |
+| `boot/` | `host.mjs` (the machine), `audio.mjs` + `audio-worklet.js` (sound), `hostnet.mjs` (the router's way out), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 840 |
 | `lib/` | `string.c`, `fmt.c` (vsnprintf): shared by kernel and libc; `mem.s` (kernel) and `umem.s` (libc): memcpy, memmove, memset | 530 |
-| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 2,860 |
+| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 3,980 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
-| `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 16,700 + Doom |
+| `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 48,000 + Doom (without tests) |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
-| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 960 |
+| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 1,120 (plus the suites under `tests/`) |
 | `docs/` | the detailed context files listed below | |
 
 ## Traps that have already cost time (details in `docs/DEVELOPMENT.md`)
@@ -138,9 +146,12 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | File | Read it when |
 |---|---|
 | `docs/ARCHITECTURE.md` | you touch the kernel, the host, the ABI, or need to know how anything works |
+| `docs/LINUX-BINARIES.md` | you work on running Linux programs (`bin/lx/`): architecture study, interfaces, what the engine needs from the kernel |
 | `docs/DEVELOPMENT.md` | you build, test, add a program, add a syscall, debug, or run several agents |
 | `docs/DECISIONS.md` | before proposing anything: what the owners decided, what was assumed, what is still open |
 | `docs/STATUS.md` | to know what works today, what is broken, what is not built, and what is in flight |
+| `docs/SOUND.md` | you touch sound: `/dev/dsp`, `audiod`, the audio thread |
+| `docs/NETWORKING.md` | you touch the network: what the router reaches, what a full connection still needs |
 | `docs/PERFORMANCE.md` | you measure or quote speed |
 | `docs/WORKER-PROCESSES.md` | you work on running processes off the main thread (study and prototypes; no design chosen) |
 | `docs/BRAND.md` | you write any user-visible text or touch the look: palettes, fonts, voice, logo rules |

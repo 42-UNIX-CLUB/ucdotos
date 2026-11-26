@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// The "machine" the kernel runs on. This file is the only JavaScript in the
-// system besides the page itself. It does what firmware and a CPU would do:
-// load the kernel, start programs (a program is its own WebAssembly instance
-// with its own memory), and suspend/resume their stacks. It is never on the
-// path of a system call: programs call the kernel's wasm export directly.
+// The "machine" the kernel runs on. This file, the page, boot/audio.mjs (where sound
+// samples leave) and boot/hostnet.mjs (the router's way out) are the only JavaScript in
+// the system. This file does what firmware and a CPU would do: load the kernel, start
+// programs (a program is its own WebAssembly instance with its own memory), and
+// suspend/resume their stacks. It is never on the path of a system call: programs call
+// the kernel's wasm export directly.
+import { audio } from './audio.mjs';
+import { hostnet } from './hostnet.mjs';
 
 const EXIT = Symbol('exit');
 const P_RUN = 1;
@@ -59,8 +62,10 @@ export function checkSupport() {
 
 // extend: research hook, off by default. extend(hostImports, ctx) returns the imports the
 // kernel gets instead (boot/worker-proto/ext.mjs uses it to run some processes in Workers).
+// remote(url): how remote files are fetched (kernel/remote.c); a Promise of a fetch Response.
+// The page passes fetch relative to its own folder; the Node tools read the build directory.
 // onClipboard(text): the clipboard (clipd) has text for the computer's clipboard.
-export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onClipboard = () => {}, debug = false, extend = null }) {
+export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onPointerLock = () => {}, onClipboard = () => {}, debug = false, extend = null, sound = {}, net = {}, remote = (url) => fetch(url) }) {
   const dec = new TextDecoder();
   let clipParts = null, clipLast = null; // pieces of the text on its way out, and the last whole one
   // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
@@ -89,6 +94,7 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   let k, table;
   const mem = () => new Uint8Array(k.memory.buffer);
   const rnd = new Uint32Array(1);
+  let ktimer = 0, kgen = 0;
 
   function stop(P) {              // let a parked stack unwind
     P.dead = true;
@@ -103,6 +109,27 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     random() { crypto.getRandomValues(rnd); return rnd[0]; },
     memory: () => deviceMemory,
     fb_dirty() { onFrame(); },
+    // /dev/dsp: samples go to the browser's audio thread, or a stand-in (boot/audio.mjs)
+    ...audio(() => k, { log, ...sound }),
+    // Remote files: the kernel asks once per file, on its first open (see the block below).
+    fetch(id, p, n, dst, size, gz) {
+      const url = new TextDecoder().decode(mem().slice(p, p + n));
+      queueMicrotask(() => fetchRemote(id, url, dst, size, gz)); // never call back into the kernel from inside an import
+    },
+    // The window manager captured (1) or released (0) the mouse for a fullscreen game: the
+    // page locks or unlocks the browser's pointer (boot/page.mjs).
+    pointer_lock(on) { onPointerLock(!!on); },
+    // /dev/hostnet: what the page can do on the router's behalf (boot/hostnet.mjs)
+    ...hostnet(() => k, net),
+    // The kernel's timers (TCP retransmission, loopback delivery): call timer_fire in ms
+    // milliseconds, 0 = on the next turn of the event loop, <0 = cancel. One at a time.
+    timer(ms) {
+      clearTimeout(ktimer);
+      const g = ++kgen;
+      if (ms < 0) return;
+      const fire = () => { if (g === kgen) k.timer_fire(); };
+      if (ms === 0) yieldTask(fire); else ktimer = setTimeout(fire, ms);
+    },
     clip_out(p, n, flags) {
       if (flags & 1) clipParts = [];
       if (!clipParts) return;
@@ -194,6 +221,64 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     }
   }
 
+  // ---- remote files and imports (kernel/remote.c) ----
+  // Bytes go straight from the response (or the dropped file) into a kernel buffer, one chunk
+  // at a time; the kernel hashes them as they arrive. No copy of the whole file is kept here.
+  // pump() resolves 1 when the stream ended, 0 when it failed, -1 when the kernel refused the
+  // bytes (it has then ended the transfer itself: do not call remote_end, the id may be reused).
+  async function pump(id, stream, dst, size) {
+    const reader = stream.getReader();
+    let got = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return 1;
+        if (got + value.length > size) { reader.cancel().catch(() => {}); return 0; }
+        mem().set(value, dst + got); // a fresh view each time: kernel memory may have grown meanwhile
+        if (k.remote_data(id, value.length) < 0) { reader.cancel().catch(() => {}); return -1; }
+        got += value.length;
+      }
+    } catch { return 0; }
+  }
+  // A .gz copy unpacked with the browser's own decoder. A server that already sent it with
+  // Content-Encoding: gzip hands over the plain bytes, so look at the first two bytes.
+  async function gunzip(body) {
+    const reader = body.getReader();
+    let first = await reader.read(); // before the stream exists: it starts pulling at once
+    const plain = new ReadableStream({
+      async pull(c) { const r = first || await reader.read(); first = null; if (r.done) c.close(); else c.enqueue(r.value); },
+      cancel(why) { return reader.cancel(why); },
+    });
+    return !first.done && first.value[0] === 0x1f && first.value[1] === 0x8b ? plain.pipeThrough(new DecompressionStream('gzip')) : plain;
+  }
+  async function fetchRemote(id, url, dst, size, gz) {
+    let ok = 0;
+    try {
+      let r = gz ? await remote(url + '.gz').catch(() => null) : null;
+      let body;
+      if (r && r.ok) body = await gunzip(r.body);
+      else {
+        r = await remote(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        body = r.body;
+      }
+      ok = await pump(id, body, dst, size);
+    } catch (e) { log(`[host] ${url}: ${e && e.message || e}\n`); }
+    if (ok >= 0) k.remote_end(id, ok);
+  }
+  // A file from outside (dropped onto the page): becomes the regular file at path.
+  // Resolves 0, or a negative errno (-5 EIO if the bytes did not arrive or the name is taken).
+  async function importFile(path, blob) {
+    const name = new TextEncoder().encode(path);
+    if (name.length >= 256) return -36;
+    mem().set(name, k.remote_scratch());
+    const id = k.import_begin(name.length, blob.size);
+    if (id < 0) return id;
+    const ok = await pump(id, blob.stream(), k.remote_buf(id), blob.size);
+    return ok < 0 || k.remote_end(id, ok) < 0 ? -5 : 0;
+  }
+  // ---- end of remote files ----
+
   const imports = extend ? extend(host, { get k() { return k; }, procs, log, debug }) : host;
   const { instance } = await WebAssembly.instantiate(kernel, { host: imports });
   k = instance.exports;
@@ -218,6 +303,7 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     input(type, code, value) { k.input_event(type, code, value); },
     consoleInput(str) { for (const b of new TextEncoder().encode(str)) k.console_input(b); },
     consoleEOF() { k.console_input(-1); },
+    importFile,
     // The last text the clipboard sent out for the computer's clipboard (tests read it).
     get clipboardOut() { return clipLast; },
     // Text pasted into the page: becomes /dev/hostclip's next record (clipd adds it to the

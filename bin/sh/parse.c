@@ -133,7 +133,7 @@ static int lex_redir(struct parser *p, long i, int fd) {
   } else {
     if (s[i + 1] == '>') t = R_APPEND, i += 2;
     else if (s[i + 1] == '&') t = R_DUPOUT, i += 2;
-    else if (s[i + 1] == '|') t = R_OUT, i += 2;
+    else if (s[i + 1] == '|') t = R_CLOBBER, i += 2;
     else t = R_OUT, i++;
     if (fd < 0) fd = 1;
   }
@@ -153,6 +153,7 @@ static int lex(struct parser *p) {
   }
   if (s[i] == '#') while (s[i] && s[i] != '\n') i++;
   p->tokstr = NULL;
+  p->tokstart = i;
   char c = s[i];
   p->pos = i + 1;
   switch (c) {
@@ -211,6 +212,13 @@ int is_special_word(const char *s) {
 static int at_terminator(struct parser *p) {
   int t = peek(p);
   return t == T_EOF || t == T_RP || t == T_DSEMI || (t == T_WORD && is_special_word(p->tokstr));
+}
+/* the line of the current token, for $LINENO: newlines counted as the parser moves on */
+static int line_at(struct parser *p, size_t pos) {
+  if (p->lns != p->s) { p->lns = p->s; p->lnpos = 0; if (!p->lnline) p->lnline = 1; } /* new text (an alias): keep the line */
+  if (!p->lnline) p->lnline = 1;
+  for (; p->lnpos < pos && p->s[p->lnpos]; p->lnpos++) p->lnline += p->s[p->lnpos] == '\n';
+  return p->lnline;
 }
 static node *mk(struct parser *p, int type) { node *n = amalloc(p->ar, sizeof *n); n->type = type; return n; }
 static node *mk2(struct parser *p, int type, node *a, node *b) { node *n = mk(p, type); n->a = a; n->b = b; return n; }
@@ -308,17 +316,25 @@ static node *parse_simple(struct parser *p) {
   node *n = mk(p, N_CMD);
   struct vec words = {0}, assigns = {0};
   p->nalias_seen = 0;
+  p->alias_next = 0;
+  if (peek(p) != T_EOF) n->lineno = line_at(p, p->tokstart);
   for (;;) {
     int t = peek(p);
     if (t == T_REDIR) { parse_redir(p, &n->redir); if (p->status) break; continue; }
     if (t != T_WORD) break;
     char *w = p->tokstr;
-    if (!words.n) {
-      if (is_assignment(w)) { vpush(&assigns, w); consume(p); continue; }
+    /* an alias whose value ends in a blank makes the word after it an alias candidate too */
+    int after_alias = p->alias_next && p->tokstart >= p->alias_end;
+    if (!words.n || after_alias) {
+      if (!words.n && is_assignment(w)) { vpush(&assigns, w); consume(p); continue; }
+      if (after_alias) p->alias_next = 0;
       char *al = (p->noalias || strpbrk(w, "'\"\\")) ? NULL : getalias(w);
       int seen = 0;
       for (int i = 0; i < p->nalias_seen; i++) if (!strcmp(p->alias_seen[i], w)) seen = 1;
       if (al && !seen && p->nalias_seen < 16) {
+        size_t al_n = strlen(al);
+        p->alias_next = al_n && (al[al_n - 1] == ' ' || al[al_n - 1] == '\t');
+        p->alias_end = al_n;
         p->alias_seen[p->nalias_seen++] = w;
         size_t al_len = strlen(al), rest = strlen(p->s + p->pos);
         char *ns = amalloc(p->ar, al_len + rest + 1);

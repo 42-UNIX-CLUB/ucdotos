@@ -23,6 +23,7 @@ HOST(random) u32 host_random(void);
 HOST(memory) double host_memory(void);                   /* bytes of memory the device reports */
 #define SLICE_MS 8.0 /* longest a process runs before the kernel makes it yield at a system call */
 HOST(fb_dirty) void host_fb_dirty(void);                 /* framebuffer changed, present it */
+HOST(pointer_lock) void host_pointer_lock(int on);       /* capture the mouse (1) or release it (0) */
 /* one piece of text for the computer's clipboard; flags: 1 first piece, 2 last, 4 abandon */
 HOST(clip_out) void host_clip_out(const u8 *p, u32 len, int flags);
 
@@ -95,11 +96,14 @@ struct file *file_new(const struct fops *ops, struct inode *ino, int flags, void
 void file_put(struct file *f);
 extern const struct fops reg_fops, dir_fops;
 const struct fops *dev_fops(int dev);
-enum { DEV_NULL = 1, DEV_ZERO, DEV_CONSOLE, DEV_RANDOM, DEV_FB, DEV_INPUT, DEV_PTMX, DEV_HOSTCLIP, DEV_PTS0 = 100 };
+enum { DEV_NULL = 1, DEV_ZERO, DEV_CONSOLE, DEV_RANDOM, DEV_FB, DEV_INPUT, DEV_PTMX, DEV_DSP, DEV_HOSTNET, DEV_HOSTCLIP, DEV_PTS0 = 100 };
 struct file *pty_open_master(struct inode *ino, int flags);
 struct file *pty_open_slave(struct inode *ino, int flags);
 struct file *fb_open(struct inode *ino, int flags);
 struct file *ev_open(struct inode *ino, int flags);
+struct file *dsp_open(struct inode *ino, int flags);
+void audio_init(void);
+struct file *hostnet_open(struct inode *ino, int flags);
 
 /* processes */
 typedef void (*copy_fn)(u32 dst, u32 src, u32 len);
@@ -144,8 +148,24 @@ void console_init(void);
 long sys_socket(int domain, int type, int proto);
 long sys_bind(int fd, u32 uaddr, u32 len);
 long sys_listen(int fd, int backlog);
-long sys_accept(int fd);
+long sys_accept(int fd, u32 uaddr, u32 ulen);
 long sys_connect(int fd, u32 uaddr, u32 len);
+long inet_socket(int domain, int type, int proto); /* inet.c: AF_INET and AF_PACKET */
+long inet_bind(int fd, u32 uaddr, u32 len);
+long inet_listen(int fd, int backlog);
+long inet_connect(int fd, u32 uaddr, u32 len);
+long inet_accept(int fd, u32 uaddr, u32 ulen);
+long sys_getsockname(int fd, u32 uaddr, u32 ulen);
+long sys_getpeername(int fd, u32 uaddr, u32 ulen);
+long sys_sendto(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 alen);
+long sys_recvfrom(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 ulen);
+long sys_setsockopt(int fd, int level, int opt, u32 uval, u32 len);
+long sys_getsockopt(int fd, int level, int opt, u32 uval, u32 ulen);
+long sys_shutdown(int fd, int how);
+long sys_netstat(int index, u32 uinfo);
+long sys_ifinfo(int index, u32 uinfo);
+long sys_ifctl(int index, int op, long value);
+void net_init(void);
 void fb_init(void);
 void input_init(void);
 void pty_init(void);

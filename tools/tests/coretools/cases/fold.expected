@@ -1,0 +1,25 @@
+{"cmd":"fold long","out":"The quick brown fox jumps over the lazy dog and keeps running far away from here\n","status":0,"err":false}
+{"cmd":"fold -w 20 long","out":"The quick brown fox \njumps over the lazy \ndog and keeps runnin\ng far away from here\n","status":0,"err":false}
+{"cmd":"fold -w 20 -s long","out":"The quick brown fox \njumps over the lazy \ndog and keeps \nrunning far away \nfrom here\n","status":0,"err":false}
+{"cmd":"fold -w 1 short","out":"s\nh\no\nr\nt\n\ne\nm\np\nt\ny\n \na\nb\no\nv\ne\n","status":0,"err":false}
+{"cmd":"fold -w 10 short","out":"short\n\nempty abov\ne\n","status":0,"err":false}
+{"cmd":"fold -w 5 tabs","out":"a\n\t\nb\n\t\nc\n\t\nd\n\t\ne\n","status":0,"err":false}
+{"cmd":"fold -b -w 5 tabs","out":"a\tb\tc\n\td\te\n","status":0,"err":false}
+{"cmd":"fold -w 9 tabs","out":"a\tb\n\tc\n\td\n\te\n","status":0,"err":false}
+{"cmd":"fold -w 10 nonl","out":"nonewline \nat the end\n of this r\nather long\n line of t\next","status":0,"err":false}
+{"cmd":"fold -s -w 10 nonl","out":"nonewline \nat the \nend of \nthis \nrather \nlong line \nof text","status":0,"err":false}
+{"cmd":"fold -w 3 ctl","out":"abc\bd\re\n","status":0,"err":false}
+{"cmd":"fold -b -w 3 ctl","out":"abc\n\bd\r\ne\n","status":0,"err":false}
+{"cmd":"fold -10 long","out":"The quick \nbrown fox \njumps over\n the lazy \ndog and ke\neps runnin\ng far away\n from here\n","status":0,"err":false}
+{"cmd":"fold --width=15 long","out":"The quick brown\n fox jumps over\n the lazy dog a\nnd keeps runnin\ng far away from\n here\n","status":0,"err":false}
+{"cmd":"fold -sw 7 long","out":"The \nquick \nbrown \nfox \njumps \nover \nthe \nlazy \ndog \nand \nkeeps \nrunning\n far \naway \nfrom \nhere\n","status":0,"err":false}
+{"cmd":"fold -w 0 long; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"fold -w x long; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"fold missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"fold -q long; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":": | fold","out":"","status":0,"err":false}
+{"cmd":"fold -w 4 - < short","out":"shor\nt\n\nempt\ny ab\nove\n","status":0,"err":false}
+{"cmd":"printf 'aaaaaaaaaaaaaaaaaaaaaaaaaa\\n' | fold -s -w 5","out":"aaaaa\naaaaa\naaaaa\naaaaa\naaaaa\na\n","status":0,"err":false}
+{"cmd":"printf 'a b c d e f g h\\n' | fold -s -w 4","out":"a b \nc d \ne f \ng h\n","status":0,"err":false}
+{"cmd":"printf 'ab  cd\\n' | fold -s -w 3","out":"ab \n cd\n","status":0,"err":false}
+{"cmd":"seq 1 200 | tr '\\n' ' ' | fold -w 50 -s | wc -l","out":"14\n","status":0,"err":false}

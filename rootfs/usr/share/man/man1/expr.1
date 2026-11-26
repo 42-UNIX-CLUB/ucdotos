@@ -1,0 +1,27 @@
+EXPR(1)                   UC.OS Manual                   EXPR(1)
+
+NAME
+       expr - evaluate an expression
+
+SYNOPSIS
+       expr EXPRESSION
+
+DESCRIPTION
+       Evaluate and print. Operators, lowest precedence first:
+       |   &   = != < <= > >=   + -   * / %   :   match substr
+       index length + ( ) Comparisons are numeric when both
+       sides are integers, else byte strings. STRING : REGEX
+       matches a basic regular expression anchored at the
+       start. Exit status: 0 result neither empty nor 0, 1 it
+       is, 2 invalid expression, 3 other error. Integers are
+       64-bit; overflow is an error.
+
+NOTES
+       Integers are 64-bit: a result beyond that prints
+       "result too large" and exits 2 (GNU expr uses arbitrary
+       precision).
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                EXPR(1)

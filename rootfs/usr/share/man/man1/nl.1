@@ -1,0 +1,22 @@
+NL(1)                     UC.OS Manual                     NL(1)
+
+NAME
+       nl - number lines
+
+SYNOPSIS
+       nl [-p] [-b TYPE] [-h TYPE] [-f TYPE] [-v START] [-i
+          INCR] [-l N] [-n ln|rn|rz] [-s SEP] [-w WIDTH] [-d
+          CC] [file...]
+
+DESCRIPTION
+       Number lines. TYPE: a all, t non-empty (default for the
+       body), n none, pREGEX lines matching a basic regular
+       expression. Lines made only of the delimiter (\: by
+       default) three, two or one times start a header, body
+       or footer section; a header restarts the numbering
+       unless -p.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                  NL(1)

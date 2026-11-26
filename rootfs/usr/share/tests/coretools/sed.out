@@ -1,0 +1,1343 @@
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+x
+x
+y
+y
+x
+y
+one
+two
+four
+five
+six
+seven
+eight
+nine
+ten
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+two
+three
+four
+five
+six
+seven
+eight
+nine
+three
+ten
+two
+three
+four
+four
+three
+four
+five
+six
+three
+four
+five
+two
+three
+four
+one
+one
+two
+two
+five
+eight
+four
+eight
+five
+x
+two
+three
+four
+five
+six
+seven
+eight
+one
+three
+five
+nine
+one
+four
+five
+six
+seven
+eight
+nine
+one
+two
+four
+one
+three
+five
+seven
+eight
+nine
+ten
+hello world
+Hello World
+one
+two
+four
+five
+six
+seven
+eight
+nine
+ten
+seven
+eight
+nine
+ten
+10
+1
+x
+2
+y
+1
+3
+5
+7
+8
+9
+10
+0ne
+tw0
+three
+f0ur
+five
+six
+seven
+eight
+nine
+ten
+0ne
+tw0
+three
+f0ur
+five
+six
+seven
+eight
+nine
+ten
+one
+two
+threE
+four
+five
+six
+sevEn
+eight
+nine
+ten
+one
+two
+threE
+four
+five
+six
+sevEn
+eight
+nine
+ten
+(o)n(e)
+tw(o)
+thr(e)(e)
+f(o)(u)r
+f(i)v(e)
+s(i)x
+s(e)v(e)n
+(e)(i)ght
+n(i)n(e)
+t(e)n
+noe
+wto
+htree
+ofur
+ifve
+isx
+esven
+ieght
+inne
+etn
+noe
+wto
+htree
+ofur
+ifve
+isx
+esven
+ieght
+inne
+etn
+[o|]n[|e]
+tw[o|]
+thr[|ee]
+f[o|]ur
+fiv[|e]
+six
+s[|e]v[|e]n
+[|e]ight
+nin[|e]
+t[|e]n
+hellO wOrld
+fO bar baz
+
+HellO WOrld
+the end
+heLLo world
+foo bar baz
+
+HeLLo World
+the end
+heLLo world
+foo bar baz
+
+HeLLo World
+the end
+-
+-y-
+XhXeXlXlX XwXrXlXdX
+XfX XbXaXrX XbXaXzX
+X
+XHXeXlXlX XWXrXlXdX
+XtXhXeX XeXnXdX
+one;
+two;
+three;
+four;
+five;
+six;
+seven;
+eight;
+nine;
+ten;
+> one
+> two
+> three
+> four
+> five
+> six
+> seven
+> eight
+> nine
+> ten
+hello world
+foo bar baz
+EMPTY
+Hello World
+the end
+[hello world]
+[foo bar baz]
+[]
+[Hello World]
+[the end]
+hello world
+foo bar baz
+
+Hello World
+the end
+hell& w&rld
+f&& bar baz
+
+Hell& W&rld
+the end
+hell\ w\rld
+f\\ bar baz
+
+Hell\ W\rld
+the end
+key1=value1
+# comment
+key2 = value2
+
+key3=a=b
+key1: value1
+# comment
+key2 :  value2
+
+key3: a=b
+key1
+value1
+# comment
+key2 
+ value2
+
+key3
+a=b
+hello	world
+foo	bar	baz
+
+Hello	World
+the	end
+line withTABtab
+back\slash
+ÿ
+line with	tab
+backBSslash
+ÿ
+key1=value1
+# comment
+key2=value2
+
+key3=a=b
+value1=key1
+ value2=key2 
+a=b=key3
+hello world
+foo bar baz
+
+hello world
+the end
+Hello World
+Foo Bar Baz
+
+Hello World
+The End
+HELLO world
+FOO bar baz
+
+HELLO World
+THE end
+HELLO WORLD
+FOO BAR BAZ
+
+HELLO WORLD
+THE END
+hello world
+foo bar baz
+
+hello world
+the end
+HEXyllo world
+foo bar baz
+
+Hello World
+tHEXy end
+hell0 w0rld
+hell0 w0rld
+f00 bar baz
+f00 bar baz
+
+Hell0 W0rld
+Hell0 W0rld
+the end
+hell0 w0rld
+f00 bar baz
+Hell0 W0rld
+hell0 w0rld
+f00 bar baz
+
+Hell0 W0rld
+the end
+bye world
+foo bar baz
+
+bye World
+the end
+h_llo world
+foo b_r b_z
+
+H_llo World
+th_ _nd
+h_llo world
+foo b_r b_z
+
+H_llo World
+th_ _nd
+hello world
+foo bar baz
+
+Hello World
+THE end
+hello world
+F bar baz
+
+Hello World
+the end
+hello w0rld
+f0o bar baz
+
+Hello W0rld
+the end
+hello world
+foo bar baz
+dup:
+Hello World
+the end
+one
+two
+thr<ee>
+four
+five
+six
+seven
+eight
+nine
+ten
+hello world
+foo bar baz
+
+Hello World
+the end
+hello world
+foo bar baz
+
+Hello World
+the end
+y
+y
+y
+0ne
+tw0
+f0ur
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+oe
+o
+ee
+ou
+ie
+i
+ee
+ei
+ie
+e
+hello world
+foo bar baz
+
+Hello World
+the end
+hello world
+foo bXr bXz
+
+Hello World
+the end
+hell0 w0rld
+f00 bar baz
+
+Hell0 W0rld
+the end
+hell0 w0rld
+f00 bar baz
+
+Hell0 W0rld
+the end
+hell0 w0rld
+f00 bar baz
+
+Hell0 W0rld
+the end
+A
+y
+0000000 001  \n 001  \n
+0000004
+hell
+ w
+rld
+f
+
+ bar baz
+
+Hell
+ W
+rld
+the end
+one+two
+three+four
+five+six
+seven+eight
+nine+ten
+one two
+three four
+five six
+seven eight
+nine ten
+one,two,three,four,five,six,seven,eight,nine,ten
+xy
+onF
+two
+thrFe
+four
+fivF
+six
+sFven
+Fight
+ninF
+tFn
+0n3
+tw0
+thr3e
+f0ur
+fiv3
+six
+s3ven
+3ight
+nin3
+t3n
+0ne
+f0ur
+five
+six
+seven
+eight
+nine
+two
+0ne
+tw0
+three
+f0ur
+five
+six
+seven
+eight
+nine
+ten
+hello world
+foo yxr yxz
+
+Hello World
+the end
+hELLO wOrLd
+fOO bar baz
+
+HELLO WOrLd
+thE End
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+one|two
+three|four
+five|six
+seven|eight
+nine|ten
+hello world
+foo yxr yxz
+
+Hello World
+the end
+x
+y
+appended
+x
+inserted
+y
+changed
+y
+x
+hello
+y
+hello
+  indented
+x
+  indented
+y
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+end
+first
+second
+x
+y
+one
+gone
+five
+six
+seven
+eight
+nine
+ten
+X
+two
+three
+four
+X
+X
+X
+X
+X
+X
+X
+y
+two
+after
+x
+two
+y
+x
+joined
+y
+x
+y
+x
+foo	bar
+y
+foo	bar
+one
+x
+two
+two
+one
+four
+three
+six
+five
+eight
+seven
+ten
+nine
+ten
+nine
+eight
+seven
+six
+five
+four
+three
+two
+one
+nine
+ten
+nine
+eight
+seven
+six
+five
+four
+three
+two
+one
+,one,two,three,four,five,six,seven,eight,nine,ten
+x
+
+y
+
+
+
+
+two
+x
+y
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+one
+three
+five
+seven
+nine
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+ten
+one+two+three
+four+five+six
+seven+eight+nine
+ten
+x
+y
+x\ny$
+x
+y
+a
+b
+c
+x
+y
+one
+three
+five
+seven
+nine
+     one
+     two
+   three
+    four
+    five
+     six
+   seven
+   eight
+    nine
+     ten
+hell0 w0rld
+f00 bar baz
+
+Hell0 W0rld
+the end
+hell0 world (changed)
+f0o bar baz (changed)
+
+Hell0 World (changed)
+the end
+x!
+y!
+x
+y
+one
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+one
+two x
+three x
+four x
+five x
+six x
+seven x
+eight x
+nine x
+ten x
+eight
+nine
+ten
+one
+two
+three
+one
+two
+three
+one
+two
+status=7
+one
+status=3
+no newline
+x
+line with\ttab$
+back\\slash$
+\001\002\377$
+one$
+two$
+thre\
+e$
+four$
+five$
+six$
+seve\
+n$
+eigh\
+t$
+nine$
+ten$
+hello world$
+foo bar baz$
+$
+Hello World$
+the end$
+hello w\
+orld$
+foo bar\
+ baz$
+$
+Hello W\
+orld$
+the end$
+two
+x
+y
+x
+y
+x
+A
+B
+y
+x
+A
+B
+y
+A
+B
+x
+y
+x
+A
+y
+one
+A
+two
+B
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+small
+x
+small
+y
+other
+
+
+empty
+empty
+x
+x
+y
+y
+three
+eight
+ten
+two
+one
+[two]
+[three]
+[four]
+five
+six
+seven
+eight
+nine
+ten
+one
+three
+x
+x
+x
+y
+y
+y
+two
+four
+one
+x
+x
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+two
+four
+y
+B
+B
+y
+B
+y
+A
+B
+Z
+Z
+Z
+Z
+[x]
+y
+x
+one,two,three,four,five,six,seven,eight,nine,ten,0000000   >   a  \0   >   b  \0
+0000006
+x
+x
+x
+y
+y
+x
+A
+X
+y
+X
+y
+x
+y
+y
+B
+10
+9
+y
+conf
+n
+nonl
+nonl2
+odd
+other
+quiet.sed
+script.sed
+small
+t
+x
+y
+no newline
+end
+one
+status=2
+x
+y
+top
+x
+y
+top
+A
+B
+yes newlineno newline
+no newlinea
+bno newline
+end
+bno newline
+
+no newline
+a
+ba
+b1
+no newlineline with	tab
+back\slash
+ÿ
+line with?tab
+back\slash
+???
+0000000 001 002 377  \n
+0000004
+3
+E
+5000
+11
+6893
+X
+one
+B
+x
+y
+one
+two
+three
+four
+five
+six
+seven
+eight
+nine
+ten
+status=2
+x
+y
+status=2
+x
+x
+y
+y
+x
+y
+0ne
+tw0
+x
+multi
+line
+y
+1
+y not x
+1.2.3
+/usr/bin
+1.0
+foo.o bar.o
+c.txt
+a/b
+lead and trail
+x
+y
+x
+
+y
+real
+1.0-2
+Package: foo
+Status: install ok installed
+
+/etc/foo
+CFLAGS=-O0 -g
+b
+c
+1	line1
+2	line2
+one three
+bbb aaa ccc
+HELLO
+/usr/bin
+/bin
+1
+3
+5
+2
+4
+6
+2
+4
+6
+1
+2
+3 third
+4
+5
+6 third
+4
+5
+5
+3
+axc
+abcx
+aab
+aaa
+foo(123)bar
+foo<12>3bar
+1
+a/b/c
+tab\there
+A
+B
+a
+b
+c
+[a][]
+[a][]
+aXb
+c
+xaxbxcx
+xaxcx
+twice
+[y]
+word
+camel_case_name
+snakeCaseName
+Mixed Case
+AB c
+abb
+hheelllloo
+<>h<>e<ll>o<>
+_a_b_
+0000000  \n
+0000001
+y
+x1
+x2
+aBc
+aBc
+one
+2
+a
+b
+>c
+>d
+a
+a
+b
+a
+b
+start
+x
+end
+start
+y
+b
+c
+b
+c
+a
+b
+b
+c
+d
+c
+d
+a!
+b
+c
+d!
+e!
+2
+b
+3
+c
+4
+d
+b
+a
+a
+
+b
+c
+a
+
+b
+c
+
+b
+a
+c
+a
+
+a
+b
+
+a
+c
+a
+b
+c
+v <- k
+example.org
+26.11.2026
+a,b,-,d
+a,b,LAST
+a b c
+ABC
+xxx
+aXb
+aXb
+X
+X
+aXb
+aXb
+Xb
+X
+Xa
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+X
+{a]
+x
+line
+a
+X
+X
+b
+a
+b
+X
+b
+a
+X
+[a
+b]
+X
+X
+zero
+one
+two
+one
+one
+--
+two
+one
+x
+y
+two
+x
+y
+one
+mid
+two
+a
+
+a
+x
+a
+  two spaces
+  keep
+a
+a
+b
+both
+a
+X
+c
+a
+before
+b
+after
+c
+a
+a
+a
+a
+appended
+appended
+inserted
+a
+status=5
+1
+2
+b$
+\033[1m$
+%s$
+aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggggggggg\
+ghhhhhhhhhh$
+aaaaaaaaaabbbbbbbbbbccccccccccddddddddddeeeeeeeeeeffffffffffggggggggg\
+\001$
+abc\
+def\
+gh$
+\
+a\
+b\
+c\
+d\
+e\
+f\
+g\
+h$
+a\
+b\
+c\
+d\
+e\
+f\
+g\
+h$
+a\
+\t\
+b$
+x
+x
+x
+x
+x
+x
+x
+y
+c
+a b c d
+d
+e
+bbb
+baa
+bba
+bbb
+baa!
+Ab.
+aB.
+AB.
+    1
+   22
+  333
+1,234,567
+b
+a
+a	b
+a\tb
+x&x
+cbaabc
+ihgfedcba
+[a||]bc
+<a>
+[a|b]
+[x|yz]
+[aaa|a]
+x
+[aaaa]
+[]b
+[a]b
+X
+a{1}
+X
+X
+X
+X
+aX
+xaX
+XX
+XX
+XXX
+X
+x
+aXc
+abX
+aXb
+XXb
+aXX
+aXb
+a\nb
+aXb
+aXb
+aXb
+X=b
+X.b
+ab
+aX
+X

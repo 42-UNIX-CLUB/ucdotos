@@ -1,0 +1,4 @@
+make
+echo status $?
+make -i
+echo status $?

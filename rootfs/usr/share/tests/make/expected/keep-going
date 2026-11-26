@@ -1,0 +1,6 @@
+make: *** [Makefile:2: bad] Error 1
+status 2
+make: *** [Makefile:2: bad] Error 1
+good
+make: Target 'all' not remade because of errors.
+status 2

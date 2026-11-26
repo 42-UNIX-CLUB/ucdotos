@@ -93,8 +93,8 @@ static void latency_probe(void) {
 
 static const char *evname(int t) {
   static const char *n[] = {"NONE", "KEY_DOWN", "KEY_UP", "TEXT", "MOUSE_MOVE", "MOUSE_DOWN", "MOUSE_UP", "WHEEL",
-                            "RESIZE", "FOCUS", "BLUR", "CLOSE", "WM_STATE", "ZOOM"};
-  return t >= 0 && t <= UI_EV_ZOOM ? n[t] : "?";
+                            "RESIZE", "FOCUS", "BLUR", "CLOSE", "WM_STATE", "ZOOM", "MOUSE_REL"};
+  return t >= 0 && t <= UI_EV_MOUSE_REL ? n[t] : "?";
 }
 
 int main(int argc, char **argv) {
@@ -118,6 +118,7 @@ int main(int argc, char **argv) {
       printf("uidemo %d: %s key=%d mods=%d%s\n", getpid(), evname(ev.type), ev.key, ev.mods, ev.repeat ? " repeat" : ""); break;
     case UI_EV_TEXT: printf("uidemo %d: TEXT U+%04X\n", getpid(), ev.codepoint); break;
     case UI_EV_ZOOM: printf("uidemo %d: ZOOM %d\n", getpid(), ev.wheel); break; /* told, and ignores it */
+    case UI_EV_MOUSE_REL: printf("uidemo %d: MOUSE_REL x=%d y=%d\n", getpid(), ev.x, ev.y); break;
     case UI_EV_MOUSE_DOWN: case UI_EV_MOUSE_UP: case UI_EV_WHEEL:
       printf("uidemo %d: %s x=%d y=%d button=%d wheel=%d\n", getpid(), evname(ev.type), ev.x, ev.y, ev.button, ev.wheel); break;
     default: printf("uidemo %d: %s %dx%d\n", getpid(), evname(ev.type), ev.w, ev.h);
@@ -136,6 +137,7 @@ int main(int argc, char **argv) {
       case 16: goto out; /* q */
       case 23: stubborn = 1; break; /* i: ignore UI_EV_CLOSE from now on */
       case 49: ui_wm_command(win, "exec uidemo"); break; /* n */
+      case 38: { static int lock; lock = !lock; ui_pointer_lock(win, lock); printf("uidemo %d: pointer-lock %s\n", getpid(), lock ? "on" : "off"); break; } /* l */
       case 25: ui_wm_command(win, "exec uidemo --float 600 400 --latency --title probe"); break; /* p */
       case 31: ui_wm_command(win, "stats"); break; /* s */
       case 48: ui_wm_command(win, "bench 30"); break; /* b */

@@ -1,0 +1,32 @@
+{"cmd":"paste n l","out":"1\ta\n2\tb\n3\t\n","status":0,"err":false}
+{"cmd":"paste l n","out":"a\t1\nb\t2\n\t3\n","status":0,"err":false}
+{"cmd":"paste n l m","out":"1\ta\tx\n2\tb\ty\n3\t\tz\n\t\tw\n","status":0,"err":false}
+{"cmd":"paste -d, n l","out":"1,a\n2,b\n3,\n","status":0,"err":false}
+{"cmd":"paste -d ',;' n l m","out":"1,a;x\n2,b;y\n3,;z\n,;w\n","status":0,"err":false}
+{"cmd":"paste -d '' n l","out":"1a\n2b\n3\n","status":0,"err":false}
+{"cmd":"paste -d '\\n' n l","out":"1\na\n2\nb\n3\n\n","status":0,"err":false}
+{"cmd":"paste -d '\\t-' n l m","out":"1\ta-x\n2\tb-y\n3\t-z\n\t-w\n","status":0,"err":false}
+{"cmd":"paste -d '\\0' n l","out":"1a\n2b\n3\n","status":0,"err":false}
+{"cmd":"paste -d '\\\\' n l","out":"1\\a\n2\\b\n3\\\n","status":0,"err":false}
+{"cmd":"paste -s n","out":"1\t2\t3\n","status":0,"err":false}
+{"cmd":"paste -s n l","out":"1\t2\t3\na\tb\n","status":0,"err":false}
+{"cmd":"paste -s -d, n l m","out":"1,2,3\na,b\nx,y,z,w\n","status":0,"err":false}
+{"cmd":"paste -s -d ',;' m","out":"x,y;z,w\n","status":0,"err":false}
+{"cmd":"paste -sd '\\0' m","out":"xyzw\n","status":0,"err":false}
+{"cmd":"paste n empty","out":"1\t\n2\t\n3\t\n","status":0,"err":false}
+{"cmd":"paste empty n","out":"\t1\n\t2\n\t3\n","status":0,"err":false}
+{"cmd":"paste -s empty","out":"\n","status":0,"err":false}
+{"cmd":"paste nonl l","out":"no\ta\nnewline\tb\n","status":0,"err":false}
+{"cmd":"paste -s nonl","out":"no\tnewline\n","status":0,"err":false}
+{"cmd":"paste - - < m","out":"x\ty\nz\tw\n","status":0,"err":false}
+{"cmd":"paste - - - < m","out":"x\ty\tz\nw\t\t\n","status":0,"err":false}
+{"cmd":"paste -s - < n","out":"1\t2\t3\n","status":0,"err":false}
+{"cmd":"paste n - < l","out":"1\ta\n2\tb\n3\t\n","status":0,"err":false}
+{"cmd":"paste --serial --delimiters=: n","out":"1:2:3\n","status":0,"err":false}
+{"cmd":"paste n missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"paste -x n; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"paste -d; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"paste -z n | od -c","out":"0000000   1  \\n   2  \\n   3  \\n  \\0\n0000007\n","status":0,"err":false}
+{"cmd":"printf 'a\\000b\\000' | paste -z -s -d, | od -c","out":"0000000   a   ,   b  \\0\n0000004\n","status":0,"err":false}
+{"cmd":"seq 1 10 | paste - - - - -","out":"1\t2\t3\t4\t5\n6\t7\t8\t9\t10\n","status":0,"err":false}
+{"cmd":"seq 1 10 | paste -sd+ | sed 's/+/ + /g'","out":"1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10\n","status":0,"err":false}

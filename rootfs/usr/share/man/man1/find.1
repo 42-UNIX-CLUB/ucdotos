@@ -1,0 +1,31 @@
+FIND(1)                   UC.OS Manual                   FIND(1)
+
+NAME
+       find - search for files in a directory tree
+
+SYNOPSIS
+       find [-H | -L | -P] [path...] [expression]
+
+DESCRIPTION
+       Walks each path depth first and evaluates the
+       expression for every file. Tests: -name -iname -path
+       -ipath -wholename -regex -iregex -type -size -empty
+       -newer -anewer -cnewer -mtime -atime -ctime -mmin -amin
+       -cmin -perm -user -group -uid -gid -nouser -nogroup
+       -links -inum -samefile -readable -writable -executable
+       -true -false. Options: -maxdepth -mindepth -depth -xdev
+       -mount -daystart -regextype -follow -noleaf. Actions:
+       -print -print0 -printf -fprint -ls -exec ... ; -exec
+       ... {} + -execdir -delete -prune -quit. Operators: ( )
+       ! -not -a -and -o -or , Without an action, -print is
+       implied. -ok is not supported (no prompt).
+
+NOTES
+       -regex uses emacs syntax by default, as GNU find does,
+       approximated through POSIX basic syntax. -exec ... +
+       passes about 6 KB of arguments per command.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                FIND(1)

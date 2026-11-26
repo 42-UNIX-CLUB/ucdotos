@@ -4,6 +4,8 @@
 long proc_wait(int pid, u32 ustatus, int options);
 int reg_truncate(struct inode *i, u32 size);
 struct file *dev_open(struct inode *i, int flags);
+long remote_open(struct inode *i, int flags); /* remote.c: fetch a remote file on first open */
+u32 remote_blocks(struct inode *i);
 
 static struct inode *at_base(int dirfd, const char *path, long *err) {
   if (!path[0]) { *err = -ENOENT; return NULL; } /* checked before the descriptor, as on Linux */
@@ -35,6 +37,7 @@ static long sys_openat(int dirfd, u32 upath, int flags, int mode) {
     if (!f) return -ENOENT;
   } else if (type == S_IFDIR) f = file_new(&dir_fops, i, flags, NULL);
   else if (type == S_IFREG) {
+    if (i->priv) { long r = remote_open(i, flags); if (r) return r; } /* a remote file not fetched yet */
     if ((flags & O_TRUNC) && (flags & O_ACCMODE) != O_RDONLY) reg_truncate(i, 0);
     f = file_new(&reg_fops, i, flags, NULL);
   } else return -EACCES;
@@ -77,7 +80,7 @@ static void fill_stat(struct stat *st, struct inode *i) {
   if (!i) { st->st_mode = S_IFIFO | 0600; return; }
   st->st_ino = i->ino; st->st_mode = i->mode; st->st_nlink = i->nlink; st->st_size = i->size;
   st->st_uid = st->st_gid = 1000; st->st_rdev = i->dev; st->st_blksize = 4096;
-  st->st_blocks = (i->size + 511) / 512;
+  st->st_blocks = ((i->mode & S_IFMT) == S_IFREG && i->priv) ? remote_blocks(i) : (i->size + 511) / 512;
   st->st_atime = st->st_mtime = st->st_ctime = i->mtime;
 }
 static long sys_fstat(int fd, u32 ust) {
@@ -401,7 +404,7 @@ static long sys_getrandom(u32 ubuf, u32 len) {
 
 /* Every call except the four hottest. Kept out of syscall_pid so that the hot path has no
  * stack frame: several of these cases need large buffers on the kernel stack. */
-static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long c, long d) {
+static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long c, long d, long e, long f) {
   switch (nr) {
   case SYS_openat: return sys_openat(a, b, c, d);
   case SYS_close: return sys_close(a);
@@ -449,8 +452,18 @@ static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long
   case SYS_socket: return sys_socket(a, b, c);
   case SYS_bind: return sys_bind(a, b, c);
   case SYS_listen: return sys_listen(a, b);
-  case SYS_accept: return sys_accept(a);
+  case SYS_accept: return sys_accept(a, b, c);
   case SYS_connect: return sys_connect(a, b, c);
+  case SYS_getsockname: return sys_getsockname(a, b, c);
+  case SYS_getpeername: return sys_getpeername(a, b, c);
+  case SYS_sendto: return sys_sendto(a, b, c, d, e, f);
+  case SYS_recvfrom: return sys_recvfrom(a, b, c, d, e, f);
+  case SYS_setsockopt: return sys_setsockopt(a, b, c, d, e);
+  case SYS_getsockopt: return sys_getsockopt(a, b, c, d, e);
+  case SYS_shutdown: return sys_shutdown(a, b);
+  case SYS_netstat: return sys_netstat(a, b);
+  case SYS_ifinfo: return sys_ifinfo(a, b);
+  case SYS_ifctl: return sys_ifctl(a, b, c);
   case SYS_spawn: return sys_spawn(a, b, c, d);
   case SYS_getargs: return sys_getargs(a, b);
   case SYS_procinfo: return sys_procinfo(a, b);
@@ -481,7 +494,6 @@ static __attribute__((noinline)) long preempt(void) {
  * who is calling without depending on the order in which the host resumes stacks.
  * The system call counter doubles as the time slice counter. */
 EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, long d, long e, long f) {
-  (void)e; (void)f;
   struct proc *p = &procs[pid]; /* a local, so the cases below need not reload cur */
   cur = p;
   p->sleeping = 0;
@@ -492,5 +504,5 @@ EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, l
   case SYS_read: return sys_read(a, b, c);
   case SYS_write: return sys_write(a, b, c);
   }
-  return syscall_slow(nr, a, b, c, d);
+  return syscall_slow(nr, a, b, c, d, e, f);
 }

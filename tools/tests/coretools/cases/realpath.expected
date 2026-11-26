@@ -1,0 +1,29 @@
+{"cmd":"realpath d | sed \"s|^$PWD|.|\"","out":"./d\n","status":0,"err":false}
+{"cmd":"realpath d/e/../f | sed \"s|^$PWD|.|\"","out":"./d/f\n","status":0,"err":false}
+{"cmd":"realpath ./d//e/ | sed \"s|^$PWD|.|\"","out":"./d/e\n","status":0,"err":false}
+{"cmd":"realpath d/missing | sed \"s|^$PWD|.|\"","out":"./d/missing\n","status":0,"err":false}
+{"cmd":"realpath d/missing/x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"realpath -e d/missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"realpath -m d/missing/x/../y | sed \"s|^$PWD|.|\"","out":"./d/missing/y\n","status":0,"err":false}
+{"cmd":"realpath -m /a/../b/./c","out":"/b/c\n","status":0,"err":false}
+{"cmd":"realpath /","out":"/\n","status":0,"err":false}
+{"cmd":"realpath //","out":"/\n","status":0,"err":false}
+{"cmd":"realpath /usr/../usr/./bin","out":"/usr/bin\n","status":0,"err":false}
+{"cmd":"realpath -s d/./e | sed \"s|^$PWD|.|\"","out":"./d/e\n","status":0,"err":false}
+{"cmd":"realpath -q d/missing/x; echo \"st=$?\"","out":"st=1\n","status":0,"err":false}
+{"cmd":"realpath --relative-to=d/e d/f","out":"../f\n","status":0,"err":false}
+{"cmd":"realpath --relative-to=d d/e","out":"e\n","status":0,"err":false}
+{"cmd":"realpath --relative-to=d d","out":".\n","status":0,"err":false}
+{"cmd":"realpath --relative-to=/ /usr/bin","out":"usr/bin\n","status":0,"err":false}
+{"cmd":"realpath --relative-to=/usr/bin /usr/lib","out":"../lib\n","status":0,"err":false}
+{"cmd":"realpath --relative-to=/usr /","out":"..\n","status":0,"err":false}
+{"cmd":"realpath -m --relative-to=/a/b /a/c/d","out":"../c/d\n","status":0,"err":false}
+{"cmd":"realpath -m --relative-to=/a/b/c /a/b","out":"..\n","status":0,"err":false}
+{"cmd":"realpath -m --relative-base=/a /a/b /c/d","out":"b\n/c/d\n","status":0,"err":false}
+{"cmd":"realpath -z d | tr '\\0' '\\n' | sed \"s|^$PWD|.|\"","out":"./d\n","status":0,"err":false}
+{"cmd":"realpath d/f/x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"realpath -m d/f/x | sed \"s|^$PWD|.|\"","out":"./d/f/x\n","status":0,"err":false}
+{"cmd":"realpath ''; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"realpath; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"realpath -X d; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"realpath d d/e | sed \"s|^$PWD|.|\"","out":"./d\n./d/e\n","status":0,"err":false}
