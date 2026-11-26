@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Timer Units
+DefaultDependencies=no
+Conflicts=shutdown.target

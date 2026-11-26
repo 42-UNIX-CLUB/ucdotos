@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Ordering cycle
+Wants=svct-cyc1.service svct-cyc2.service

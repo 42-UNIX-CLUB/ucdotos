@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Ordering test
+Wants=svct-a.service svct-b.service

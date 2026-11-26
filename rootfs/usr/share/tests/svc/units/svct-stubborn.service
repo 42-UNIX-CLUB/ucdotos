@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Its stop command hangs
+[Service]
+ExecStart=/bin/svctest run 0
+ExecStop=/bin/sleep 100
+TimeoutStopSec=1s

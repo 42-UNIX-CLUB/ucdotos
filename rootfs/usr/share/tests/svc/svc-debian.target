@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Boot target of the Debian unit file test (libsvc/tests/mkdebian.sh builds the image).
+[Unit]
+Description=Debian unit file test
+Wants=svc-debian.service

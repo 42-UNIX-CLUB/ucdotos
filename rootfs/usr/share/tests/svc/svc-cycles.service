@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Service manager cycle test
+[Service]
+ExecStart=/bin/sh /usr/share/tests/svc/svc-cycles.sh
+StandardOutput=inherit
+StandardError=inherit

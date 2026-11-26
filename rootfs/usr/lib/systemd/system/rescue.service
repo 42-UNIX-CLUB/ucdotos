@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# A shell on the kernel console: the last fallback, and rescue.target's service.
+[Unit]
+Description=Rescue shell on the console
+DefaultDependencies=no
+SuccessAction=poweroff
+[Service]
+ExecStart=/bin/sh
+WorkingDirectory=/home/user
+StandardInput=tty
+StandardOutput=inherit
+StandardError=inherit

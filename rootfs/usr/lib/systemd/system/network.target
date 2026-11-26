@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# UC.OS has no network on main. The target exists so units ordered after it start.
+[Unit]
+Description=Network
+After=network-pre.target

@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Boot target of the service manager's in-OS test (see svc-tests.sh).
+[Unit]
+Description=Service manager self-test
+Wants=svc-selftest.service

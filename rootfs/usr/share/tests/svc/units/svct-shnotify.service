@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Ready through systemd-notify from a shell script
+[Service]
+Type=notify
+NotifyAccess=all
+ExecStart=/bin/sh -c 'systemd-notify --ready --status=from-sh; sleep 1000'

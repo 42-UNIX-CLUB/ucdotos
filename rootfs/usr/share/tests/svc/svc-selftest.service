@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Service manager test script
+[Service]
+Type=simple
+ExecStart=/bin/sh /usr/share/tests/svc/svc-tests.sh
+StandardOutput=inherit
+StandardError=inherit
+Environment=SYSTEMD_UNIT_PATH=/usr/share/tests/svc

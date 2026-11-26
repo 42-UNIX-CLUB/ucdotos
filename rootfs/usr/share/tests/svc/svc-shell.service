@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# A shell on the console under the manager, for debugging the tests by hand:
+#   node tools/run.mjs --build=B --init=/bin/svcd --args="--unit-path=/usr/share/tests/svc --unit=svc-shell.service" --input='...'
+[Unit]
+Description=Shell on the console
+[Service]
+ExecStart=/bin/sh
+StandardInput=tty
+StandardOutput=inherit
+StandardError=inherit
+Environment=SYSTEMD_UNIT_PATH=/usr/share/tests/svc

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Fallback when the window manager cannot run: a terminal on the bare framebuffer.
+[Unit]
+Description=Terminal on the framebuffer
+Conflicts=wm.service
+OnFailure=rescue.service
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+SuccessAction=poweroff
+[Service]
+ExecStart=/bin/term --fb
+WorkingDirectory=/home/user
+Environment=COLORTERM=truecolor
+Restart=on-failure
+RestartSec=0

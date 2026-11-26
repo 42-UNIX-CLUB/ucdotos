@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Too much memory
+[Service]
+ExecStart=/bin/svctest mem 8
+MemoryMax=4M

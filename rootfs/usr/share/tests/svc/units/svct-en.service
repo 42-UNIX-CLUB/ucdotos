@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Enable test service
+[Service]
+ExecStart=/bin/svctest run 0
+[Install]
+WantedBy=svct-en.target

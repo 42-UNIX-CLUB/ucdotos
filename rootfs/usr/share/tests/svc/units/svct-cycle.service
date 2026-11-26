@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Started and stopped many times
+StartLimitIntervalSec=0
+[Service]
+ExecStartPre=/bin/svctest append /tmp/svct-cycles x
+ExecStart=/bin/svctest run 0

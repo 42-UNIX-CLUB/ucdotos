@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=System Time Synchronized
+After=time-set.target

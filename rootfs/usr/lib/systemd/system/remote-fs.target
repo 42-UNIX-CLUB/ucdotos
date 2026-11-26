@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# UC.OS has no network file systems; the target exists for ordering only.
+[Unit]
+Description=Remote File Systems

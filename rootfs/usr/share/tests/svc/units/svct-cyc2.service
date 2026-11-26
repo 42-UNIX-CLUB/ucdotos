@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+After=svct-cyc1.service
+[Service]
+ExecStart=/bin/svctest run 0

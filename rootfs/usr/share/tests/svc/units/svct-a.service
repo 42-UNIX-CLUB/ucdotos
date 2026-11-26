@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Ordered after b
+After=svct-b.service
+[Service]
+ExecStartPre=/bin/svctest append /tmp/svct-order a
+ExecStart=/bin/svctest run 0

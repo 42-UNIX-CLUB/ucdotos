@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Debian unit file test script
+[Service]
+ExecStart=/bin/sh /usr/share/tests/svc/deb-tests.sh
+StandardOutput=inherit
+StandardError=inherit

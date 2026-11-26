@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# The window manager, as a unit. Used only when the service manager is pid 1
+# (kernel command line init=/bin/svcd); the default boot runs bin/init.c instead.
+# This mirrors bin/init.c: three tries, then a terminal on the bare framebuffer,
+# then a shell on the console. A clean exit (wm's "exit" command) ends the session.
+# The wm still starts the bar and the first terminal itself (exec lines in its config).
+[Unit]
+Description=Window manager
+After=basic.target
+OnFailure=term-fb.service
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+SuccessAction=poweroff
+[Service]
+ExecStart=/bin/wm
+WorkingDirectory=/home/user
+Environment=COLORTERM=truecolor
+Restart=on-failure
+RestartSec=0
+StandardOutput=journal+console
+[Install]
+Alias=display-manager.service

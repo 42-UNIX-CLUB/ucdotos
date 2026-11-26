@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Daemonizes
+[Service]
+Type=forking
+PIDFile=/run/svct-fork.pid
+ExecStart=/bin/svctest daemonize /run/svct-fork.pid

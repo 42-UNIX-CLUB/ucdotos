@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+[Unit]
+Description=Ready after 500 ms
+[Service]
+Type=notify
+ExecStart=/bin/svctest notify 500
+ExecStartPost=/bin/svctest append /tmp/svct-order b

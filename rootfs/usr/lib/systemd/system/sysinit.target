@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Early set-up. On UC.OS there is nothing to mount: the file system is in memory.
+[Unit]
+Description=System Initialization
+Documentation=man:systemd.special(7)
+Wants=local-fs.target
+After=local-fs.target
