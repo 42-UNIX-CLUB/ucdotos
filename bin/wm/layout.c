@@ -175,9 +175,12 @@ int layout_command(const char *verb, const char *arg) {
     if (n < 0 || n >= cfg.workspace_count) return -1;
     if (n == cur_ws) return 0;
     if (f) send_event(f, UI_EV_BLUR, 0, 0, 0, 0, 0, 0, 0, 0);
+    int dir = n > cur_ws ? 1 : -1;
+    anim_begin();
     cur_ws = n;
     f = focused();
     if (f) send_event(f, UI_EV_FOCUS, 0, 0, 0, 0, 0, 0, 0, 0);
+    anim_go(dir);
     damage_all();
     state_changed();
     return 0;

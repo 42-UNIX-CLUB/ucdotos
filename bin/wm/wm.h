@@ -103,6 +103,9 @@ void damage_client_border(client *c);
 int damage_pending(void);
 void compose(void);
 void render_wallpaper(void);
+void anim_begin(void);      /* before a workspace switch: remember what is on screen */
+void anim_go(int dir);      /* after it: slide to the new one; dir +1 for a higher workspace, -1 for a lower */
+void anim_end(void);
 int fb_setup(int fd);
 void cursor_moved(int ox, int oy);
 double bench_compose(int n);

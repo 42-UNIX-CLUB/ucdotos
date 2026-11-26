@@ -173,7 +173,9 @@ static void draw_cursor(const rect *D) {
 }
 
 /* ---------- frames ---------- */
-static void paint(const rect *D) {
+#define SCENE_NO_BARS 1
+/* Paint the desktop in D into scr: wallpaper, then windows from bottom to top, then the cursor. */
+static void paint_scene(const rect *D, int flags) {
   for (int y = D->y; y < D->y + D->h; y++)
     memcpy(scr + (size_t)y * scr_w + D->x, wall + (size_t)y * scr_w + D->x, (size_t)D->w * 4);
   /* bottom to top: tiles, bars, the fullscreen window, floating windows */
@@ -181,9 +183,13 @@ static void paint(const rect *D) {
     for (int i = 0; i < nclients; i++) {
       client *c = order[i];
       if (!visible(c)) continue;
+      if ((flags & SCENE_NO_BARS) && c->role == UI_BAR) continue;
       int kind = c->floating ? 3 : c->fullscreen ? 2 : c->role == UI_BAR ? 1 : 0;
       if (kind == pass) draw_window(c, D);
     }
+}
+static void paint(const rect *D) {
+  paint_scene(D, 0);
   draw_cursor(D);
 }
 static void put(const rect *D) {
@@ -199,7 +205,74 @@ static void put(const rect *D) {
     stats_writes++; stats_bytes += D->w * 4;
   }
 }
+/* ---------- workspace slide ---------- */
+/* On a workspace switch, anim_begin() takes a picture of the old workspace and anim_go() one of
+ * the new one (both without the bar and the cursor). compose() then pans from one to the other
+ * while ANIM_MS pass, with the bar and the cursor drawn fresh on top. The pictures are still:
+ * a window on the incoming workspace shows its first frame until the slide ends. */
+#define ANIM_MS 160
+static unsigned *anim_a, *anim_b;
+static int anim_on, anim_dir, anim_w, anim_h;
+static double anim_t0;
+
+static void render_scene(unsigned *dst) {
+  unsigned *keep = scr;
+  rect all = {0, 0, scr_w, scr_h};
+  scr = dst;
+  paint_scene(&all, SCENE_NO_BARS);
+  scr = keep;
+}
+void anim_end(void) {
+  int was = anim_on;
+  free(anim_a); free(anim_b);
+  anim_a = anim_b = NULL;
+  anim_on = 0;
+  if (was) damage_all();
+}
+void anim_begin(void) {
+  anim_end();
+  if (!scr) return;
+  anim_w = scr_w; anim_h = scr_h;
+  anim_a = malloc((size_t)scr_w * scr_h * 4);
+  anim_b = malloc((size_t)scr_w * scr_h * 4);
+  if (!anim_a || !anim_b) { free(anim_a); free(anim_b); anim_a = anim_b = NULL; return; } /* no memory: no slide */
+  render_scene(anim_a);
+}
+/* dir +1: the viewer moves right along the workspaces, so the picture moves left. -1: the other way. */
+void anim_go(int dir) {
+  if (!anim_a) return;
+  render_scene(anim_b);
+  anim_dir = dir;
+  anim_t0 = now_ms();
+  anim_on = 1;
+  damage_all();
+}
+static void compose_anim(void) {
+  double p = (now_ms() - anim_t0) / ANIM_MS;
+  if (p >= 1 || anim_w != scr_w || anim_h != scr_h) { anim_end(); return; } /* the next frame paints normally */
+  double q = 1 - p;
+  int off = (int)((1 - q * q * q) * scr_w); /* ease out */
+  if (off > scr_w) off = scr_w;
+  int rest = scr_w - off;
+  double t0 = now_ms();
+  for (int y = 0; y < scr_h; y++) {
+    unsigned *row = scr + (size_t)y * scr_w, *a = anim_a + (size_t)y * scr_w, *b = anim_b + (size_t)y * scr_w;
+    if (anim_dir > 0) { memcpy(row, a + off, (size_t)rest * 4); memcpy(row + rest, b, (size_t)off * 4); }
+    else { memcpy(row, b + rest, (size_t)off * 4); memcpy(row + off, a, (size_t)rest * 4); }
+  }
+  rect all = {0, 0, scr_w, scr_h};
+  for (int i = 0; i < nclients; i++)
+    if (order[i]->role == UI_BAR && visible(order[i])) draw_window(order[i], &all);
+  draw_cursor(&all);
+  double t1 = now_ms();
+  put(&all);
+  stats_frames++;
+  stats_compose_ms += t1 - t0;
+  write_ms += now_ms() - t1;
+  damage_all(); /* keep the frames coming */
+}
 void compose(void) {
+  if (anim_on) { compose_anim(); return; }
   double t0 = now_ms();
   int n = ndmg;
   for (int i = 0; i < n; i++) paint(&dmg[i]);

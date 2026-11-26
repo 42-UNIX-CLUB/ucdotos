@@ -15,7 +15,7 @@ in Chromium to a tiling desktop.
 | C library | stdio, scanf, math, time, termios, getopt and the rest | `libctest`: 290 of 290 |
 | Shell and 30 tools, `bc` | pipelines, redirections, control flow, functions, substitution, globbing; line editor, history, Tab completion, Ctrl-C (also stops shell loops) and Ctrl-D verified in the desktop | `sh-tests`: 238 of 238; `bin/sh/test/interactive.mjs`: 33 of 33 |
 | Font rasterizer, drawing | bitmaps match FreeType's size and position; fuzzed | `tools/ttftest.c` |
-| Window manager, bar, launcher | tiling, workspaces, fullscreen, floating, themes, bad clients survive | 84 of 84 |
+| Window manager, bar, launcher | tiling, workspaces with a 160 ms slide (up: picture moves left; down: right; bar stays fixed; incoming windows are a still picture until it ends), fullscreen, floating, themes, bad clients survive | `bin/wm/tests/run.sh`: 7 of 7 scripts, 97 checks (90 older + 7 in `slide.mjs`). The tests close the welcome terminal at boot because they expect an empty desktop |
 | Terminal emulator | xterm-compatible; matches a reference emulator cell for cell on real program output | 315 + 68 checks |
 | vi, htop, fetch, sysbench | work in the desktop at one, two and three tiled windows, in both themes, and follow a theme switch live; sysbench and fetch adapt to coarse browser clocks | 360 native checks (those scripts are not in the repo); desktop scripts `bin/htop/shots.mjs`, `bin/vi/shots.mjs`, `bin/fetch/shots.mjs`, `bin/fetch/sysbench-shots.mjs` |
 | Doom | runs full-screen and in a window, 35 fps, saves and loads | needs a WAD: none is in the image |
