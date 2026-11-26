@@ -51,7 +51,10 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 
 ## 3. Not built
 
-- The Worker half of the hybrid process model (real preemption, several cores).
+- The Worker half of the hybrid process model (real preemption, several cores). A design
+  study with working prototypes (shared memory, messages, yield points, the whole OS in a
+  Worker) and measurements is in `docs/WORKER-PROCESSES.md`; nothing is integrated, and the
+  choice is waiting for the owners.
 - `fork`, signals, threads, shared memory.
 - Persistence, networking, sound.
 - `/proc` contents, users and permissions, time zones, a clipboard.
