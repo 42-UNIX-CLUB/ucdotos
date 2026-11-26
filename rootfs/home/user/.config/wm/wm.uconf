@@ -55,6 +55,7 @@ border {
 #     workspace N  move N   switch workspace / send the window to workspace N
 #     zoom in|out|reset     make the focused window's text bigger, smaller, normal
 #     theme next|NAME       switch theme (writes ~/.config/ucos/theme)
+#     toggle APP            hide or show every window of a program (keys: the cheat sheet)
 #     reload  exit          re-read this file / leave the desktop
 # unbind = MODS, key        removes a binding (also a built-in one)
 #
@@ -96,6 +97,9 @@ bind = $mod CTRL, Right, open, right term
 bind = $mod CTRL, Up, open, up term
 bind = $mod CTRL, Down, open, down term
 
+# the keybinding cheat sheet (top left) and its hint (bottom): both hide and come back
+bind = $mod, slash, toggle, keys
+
 bind = $mod, t, theme, next
 bind = $mod SHIFT, t, exec, themes      # the theme picker
 bind = $mod SHIFT, r, reload
@@ -125,3 +129,4 @@ bind = $mod SHIFT, 4, move, 4
 [autostart]
 exec = bar
 exec = term -e sh /etc/welcome
+exec = keys          # the keybinding cheat sheet; $mod / hides it

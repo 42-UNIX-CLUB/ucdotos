@@ -71,7 +71,7 @@ static void default_binds(void) {
     {"Mod+Shift+j", "swap next"}, {"Mod+Shift+k", "swap prev"}, {"Mod+Shift+Down", "swap next"}, {"Mod+Shift+Up", "swap prev"},
     {"Mod+h", "master shrink"}, {"Mod+l", "master grow"}, {"Mod+f", "fullscreen"}, {"Mod+Shift+space", "float"},
     {"Mod+t", "theme next"}, {"Mod+Shift+t", "exec themes"}, {"Mod+Shift+r", "reload"}, {"Mod+Shift+e", "exit"},
-    {"Mod+s", "layout toggle"},
+    {"Mod+s", "layout toggle"}, {"Mod+slash", "toggle keys"},
     {"Mod+Ctrl+h", "open left term"}, {"Mod+Ctrl+l", "open right term"}, {"Mod+Ctrl+k", "open up term"}, {"Mod+Ctrl+j", "open down term"},
     {"Mod+Ctrl+Left", "open left term"}, {"Mod+Ctrl+Right", "open right term"}, {"Mod+Ctrl+Up", "open up term"}, {"Mod+Ctrl+Down", "open down term"},
     {"Ctrl+equal", "zoom in"}, {"Ctrl+Shift+equal", "zoom in"}, {"Ctrl+minus", "zoom out"}, {"Ctrl+0", "zoom reset"},
@@ -187,6 +187,7 @@ void config_load(int first) {
   if (!have) {
     strcpy(cfg.autostart[cfg.nauto++], "bar");
     strcpy(cfg.autostart[cfg.nauto++], "term");
+    strcpy(cfg.autostart[cfg.nauto++], "keys");
   }
   uconf_warn_unused(&c);
   uconf_free(&c);

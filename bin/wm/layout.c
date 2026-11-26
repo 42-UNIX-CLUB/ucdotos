@@ -6,7 +6,8 @@
 #include "wm.h"
 
 static int is_tiled(client *c) { return c->hello && c->role == UI_NORMAL && !c->floating && !c->fullscreen; }
-static int on_ws(client *c, int ws) { return c->hello && c->role != UI_BAR && c->ws == ws; }
+/* windows that count on a workspace: they can take the focus and mark it occupied */
+static int on_ws(client *c, int ws) { return c->hello && c->role != UI_BAR && !c->nofocus && !c->hidden && c->ws == ws; }
 static client *fullscreen_on(int ws) {
   for (int i = nclients - 1; i >= 0; i--) if (on_ws(order[i], ws) && order[i]->fullscreen) return order[i];
   return NULL;
@@ -14,9 +15,9 @@ static client *fullscreen_on(int ws) {
 
 /* drawn on the screen right now */
 int visible(client *c) {
-  if (!c->hello) return 0;
+  if (!c->hello || c->hidden) return 0;
   if (c->role == UI_BAR) return !fullscreen_on(cur_ws);
-  if (c->ws != cur_ws) return 0;
+  if (c->ws != cur_ws && !c->sticky) return 0;
   client *f = fullscreen_on(cur_ws);
   return !f || f == c || c->floating;
 }
@@ -84,7 +85,11 @@ void relayout(void) {
       if (w > a.w) w = a.w;
       if (h > a.h) h = a.h;
       c->r.w = w; c->r.h = h;
-      if (!c->placed) { c->r.x = a.x + (a.w - w) / 2; c->r.y = c->bottom ? a.y + a.h - h : a.y + (a.h - h) / 3; c->placed = 1; }
+      if (!c->placed || c->topleft || c->bottom) { /* anchored ones follow the area (the bar, the screen size) */
+        c->r.x = c->topleft ? a.x : a.x + (a.w - w) / 2;
+        c->r.y = c->bottom ? a.y + a.h - h : c->topleft ? a.y : a.y + (a.h - h) / 3;
+        c->placed = 1;
+      }
       if (c->r.x + w > scr_w) c->r.x = scr_w - w;
       if (c->r.y + h > scr_h) c->r.y = scr_h - h;
       if (c->r.x < 0) c->r.x = 0;
@@ -145,7 +150,7 @@ static client *pick_focus(int ws, client *gone) {
 }
 
 void client_added(client *c) {
-  if (c->role != UI_BAR) {
+  if (c->role != UI_BAR && !c->nofocus && !c->hidden) {
     relayout();
     set_focus(c);
   } else relayout();

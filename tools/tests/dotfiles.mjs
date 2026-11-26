@@ -19,6 +19,7 @@ const GREEN = [0, 255, 0], MAGENTA = [255, 0, 255];
 
 export default async (t) => {
   await waitPrompt(t, 10000);
+  if (await until(t, () => /keys: \d+ bindings/.test(t.log), 4000)) { await t.tap('Slash', { alt: true }); await t.sleep(400); } // hide the cheat sheet
   await run(t, 'clear');
   check('starts with the welcome terminal at the 12 px gap', same(t.pixel(13, 300), DECK.focus), hex(t.pixel(13, 300)));
 

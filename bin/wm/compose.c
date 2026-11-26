@@ -193,13 +193,14 @@ static void add_solid(const client *c, const rect *D) {
 /* Draw the windows of workspace ws that fall inside D, shifted dx pixels to the right, from
  * bottom to top: tiles, bars, the fullscreen window, floating windows. with_bars = 0 leaves
  * the bars out. only_list = 1 draws nothing and adds what would be covered to solid[]. */
+static int sliding; /* compose_anim draws sticky windows itself, fixed in place */
 static void draw_windows(int ws, int dx, const rect *D, int with_bars, int only_list) {
   int keep = cur_ws;
   cur_ws = ws; /* visible() and focused() answer for the current workspace */
   for (int pass = 0; pass < 4; pass++)
     for (int i = 0; i < nclients; i++) {
       client *c = order[i];
-      if (!visible(c) || (c->role == UI_BAR && !with_bars)) continue;
+      if (!visible(c) || (c->role == UI_BAR && !with_bars) || (sliding && c->sticky)) continue;
       int kind = c->floating ? 3 : c->fullscreen ? 2 : c->role == UI_BAR ? 1 : 0;
       if (kind != pass) continue;
       c->r.x += dx;
@@ -339,6 +340,7 @@ static int compose_anim(void) {
   rect all = {0, 0, scr_w, scr_h};
   /* Two rounds over the same windows: first list what they will cover, then, once the
    * wallpaper is down everywhere else, draw them. */
+  sliding = 1;
   for (int round = 0; round < 2; round++) {
     if (old_clip.w > 0) draw_windows(anim_from, old_dx, &old_clip, !fixed_bar, !round);
     if (new_clip.w > 0) draw_windows(anim_to, new_dx, &new_clip, !fixed_bar, !round);
@@ -347,9 +349,12 @@ static int compose_anim(void) {
         if (order[i]->role != UI_BAR || !visible(order[i])) continue;
         if (!round) add_solid(order[i], &all); else draw_window(order[i], &all);
       }
+    for (int i = 0; i < nclients; i++) /* sticky windows stay where they are, on top */
+      if (order[i]->sticky && visible(order[i])) { if (!round) add_solid(order[i], &all); else draw_window(order[i], &all); }
     /* The wallpaper is the same on both workspaces, so panning it is a rotation of each row. */
     if (!round) for (int y = 0; y < scr_h; y++) wall_row(y, shift);
   }
+  sliding = 0;
   draw_cursor(&all);
   double t1 = now_ms();
   put(&all);

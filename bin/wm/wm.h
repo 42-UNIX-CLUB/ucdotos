@@ -20,6 +20,7 @@ struct node;                   /* tree.c: a place in the split layout */
 typedef struct client {
   int fd, pid, role, ws, hello;
   int floating, fullscreen, placed, bottom; /* bottom: a floating window docked at the bottom */
+  int topleft, sticky, nofocus, hidden;     /* role flags (ui.h); hidden by the toggle command */
   struct node *leaf;             /* its place in the workspace's split tree (tree.c), or NULL */
   int insert_dir;                /* where tree_sync puts it: 'l' 'r' 'u' 'd', 0 = the longer side */
   struct client *insert_target;  /* ... next to this window (checked to be alive first) */

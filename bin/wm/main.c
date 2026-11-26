@@ -131,6 +131,33 @@ int wm_spawn(const char *cmdline) {
   return pid;
 }
 
+/* toggle APP: hide every window of the program whose app_id is APP, or show them again (like
+ * i3's scratchpad). A window that program opens later starts the same way. Shown windows are
+ * told to redraw (a CONFIGURE with their size), which is also when they re-read their files. */
+static char hidden_apps[8][32];
+static int app_hidden(const char *app) {
+  for (int i = 0; i < 8; i++) if (hidden_apps[i][0] && !strcmp(hidden_apps[i], app)) return i;
+  return -1;
+}
+static int toggle_app(const char *app) {
+  if (!*app || strlen(app) >= sizeof hidden_apps[0]) return -1;
+  int i = app_hidden(app), hide = i < 0;
+  if (hide) {
+    for (i = 0; i < 8 && hidden_apps[i][0]; i++) {}
+    if (i == 8) return -1;
+    strcpy(hidden_apps[i], app);
+  } else hidden_apps[i][0] = 0;
+  for (int k = 0; k < nclients; k++) {
+    client *c = order[k];
+    if (!c->hello || strcmp(c->app_id, app)) continue;
+    c->hidden = hide;
+    if (hide && focus_of[c->ws] == c) set_focus(NULL);
+    if (!hide) send_configure(c);
+  }
+  relayout();
+  return 0;
+}
+
 /* open DIR COMMAND: the window COMMAND opens goes to side DIR of the window focused now.
  * The pid is how the new window is recognised; one placement waits at a time, for OPEN_MS. */
 #define OPEN_MS 5000
@@ -258,6 +285,7 @@ int run_command(client *src, const char *cmd) {
   strlcpy(arg, cmd, sizeof arg);
   if (!strcmp(verb, "exec")) { if (!*arg) return -1; wm_spawn(arg); return 0; }
   if (!strcmp(verb, "open")) return open_beside(arg);
+  if (!strcmp(verb, "toggle")) return toggle_app(arg);
   if (!strcmp(verb, "kill")) {
     client *f = focused();
     if (!f) return -1;
@@ -325,9 +353,13 @@ static int handle_hello(client *c) {
   if (c->cur.len < sizeof h) { drop_client(c); return 0; }
   memcpy(&h, c->ctl, sizeof h);
   c->pid = h.pid;
-  c->role = h.role == UI_BAR ? UI_BAR : h.role == UI_FLOATING || h.role == UI_FLOATING_BOTTOM ? UI_FLOATING : UI_NORMAL;
-  c->bottom = h.role == UI_FLOATING_BOTTOM;
-  c->fullscreen = h.role == UI_FULLSCREEN;
+  int role = h.role & ~(UI_STICKY | UI_NOFOCUS);
+  c->sticky = !!(h.role & UI_STICKY);
+  c->nofocus = !!(h.role & UI_NOFOCUS);
+  c->role = role == UI_BAR ? UI_BAR : role == UI_FLOATING || role == UI_FLOATING_BOTTOM || role == UI_FLOATING_TOPLEFT ? UI_FLOATING : UI_NORMAL;
+  c->bottom = role == UI_FLOATING_BOTTOM;
+  c->topleft = role == UI_FLOATING_TOPLEFT;
+  c->fullscreen = role == UI_FULLSCREEN;
   c->floating = c->role == UI_FLOATING;
   c->req_w = h.w < 1 ? 1 : h.w > UIP_MAX_DIM ? UIP_MAX_DIM : h.w;
   c->req_h = h.h < 1 ? 1 : h.h > UIP_MAX_DIM ? UIP_MAX_DIM : h.h;
@@ -338,6 +370,7 @@ static int handle_hello(client *c) {
   memcpy(c->title, c->ctl + sizeof h, tl);
   c->title[tl] = 0;
   c->hello = 1;
+  c->hidden = app_hidden(c->app_id) >= 0; /* its program was toggled off: it stays off */
   place_new(c);
   client_added(c);
   return 1;
@@ -512,7 +545,7 @@ static void handle_button(int code, int value) {
   if (value) {
     buttons |= 1 << b;
     grab = c;
-    if (c && c->role != UI_BAR && c != focused()) set_focus(c); /* focus follows click */
+    if (c && c->role != UI_BAR && !c->nofocus && c != focused()) set_focus(c); /* focus follows click */
   } else {
     buttons &= ~(1 << b);
     if (!buttons) grab = NULL;
