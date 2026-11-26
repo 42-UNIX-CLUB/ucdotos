@@ -301,10 +301,13 @@ static void on_event(tevent *e) {
     render_invalidate(&T.r);
     break;
   case TE_ZOOM: {
-    int old = font_px();
+    int old = font_px(), was = T.zoom;
     T.zoom = e->wheel ? T.zoom + e->wheel : 0;
-    /* at a limit, keep the count where the size stops changing, so the other key works at once */
-    if (font_px() == old && e->wheel) { T.zoom -= e->wheel; return; }
+    if (font_px() == old) { /* nothing to redraw */
+      /* at a limit, keep the count where the size stops changing, so the other key works at once */
+      if (e->wheel) T.zoom = was;
+      return;
+    }
     setup_fonts();
     apply_size();
     render_invalidate(&T.r);

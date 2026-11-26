@@ -348,7 +348,9 @@ console, restarting each up to three times. `init PROGRAM ARGS` runs one program
 w, h, role)`, `ui_pixels`, `ui_width`, `ui_height`, `ui_present(x, y, w, h)`, `ui_fd`,
 `ui_poll_event`, `ui_wait_event`, `ui_set_title`, `ui_wm_state`, `ui_wm_command`,
 `ui_close`. Events: key down/up (Linux key code + modifier bits), text (code point),
-mouse move/down/up, wheel, resize, focus, blur, close, wm-state.
+mouse move/down/up, wheel, resize, focus, blur, close, wm-state, zoom (the user asked for
+bigger, smaller or normal content: `wheel` is +1, -1 or 0; a client with no use for it
+ignores it; the terminal changes its font size by 2 px per step, between 8 and 72 px).
 
 Wire format: 8-byte header `u16 type, u16 flags, u32 len`, then the payload. Client to
 manager: `HELLO TITLE PRESENT COMMAND GETSTATE`. Manager to client: `CONFIGURE EVENT
@@ -364,7 +366,11 @@ accent on the focused window, 1 px grey on the others), fullscreen, floating win
 workspaces, damage-based compositing at most once per 15 ms, zero work when idle.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
-`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `animation MS`.
+`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `animation MS`,
+`zoom in|out|reset` (sends the zoom event to the focused window; bound by default to
+Ctrl+= with or without Shift, Ctrl+- and Ctrl+0, which therefore no longer reach programs.
+Bindings are by key position, so on a non-US keyboard these are the keys in the US
+positions of = and -, and the numeric keypad cannot be bound).
 
 A workspace switch slides: for `animation_ms` milliseconds (160 by default, 0 for none) the
 old and the new workspace pan across the screen, eased out. The slide keeps no pictures of
