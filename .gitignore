@@ -4,3 +4,6 @@
 
 # Doom game data: not committed until its licence question is decided
 /bin/doom/wads/
+
+# deployment secrets (a tunnel token): never committed
+/deploy/.env

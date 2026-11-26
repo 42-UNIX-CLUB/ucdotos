@@ -54,6 +54,7 @@ node tools/shot.mjs --script=tools/tests/desktop.mjs    # boots the desktop head
 | `rootfs/` | files copied into the system image: dotfiles, themes, fonts, man pages, the club's pages |
 | `tools/` | test runners |
 | `docs/` | how it works, how to develop it, what has been decided, current status |
+| `deploy/` | the website in a container: `docker compose -f deploy/compose.yml up -d --build` (see `docs/DEPLOYMENT.md`) |
 | `CLAUDE.md`, `AGENTS.md` | context for coding agents; start here if you are one |
 | `CONTRIBUTING.md` | how to name branches, write commits and open pull requests |
 
