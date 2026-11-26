@@ -1162,9 +1162,9 @@ int main(int argc, char **argv) {
     free(body);
   }
   for (int i = 0; i < stubs.len; i++) {
-    static const u8 trap[] = {3, 0, 0, 0x0b};
-    buleb(&code, 4);
-    bmem(&code, trap, 4);
+    static const u8 trap[] = {0, 0, 0x0b}; /* no locals; unreachable; end */
+    buleb(&code, sizeof trap);
+    bmem(&code, trap, sizeof trap);
   }
   Buf data = {0};
   int nds = 0;

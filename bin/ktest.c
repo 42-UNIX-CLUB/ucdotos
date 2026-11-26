@@ -18,7 +18,272 @@ static int fails, checks;
 static double now_ms(void) { struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6; }
 static long heap_used(void) { struct sysinfo si; return sysinfo(&si) ? -1 : (long)si.bufferram; } /* kernel heap in use */
 
+/* ---- clone, exec and signals (children are "ktest child-p-NAME") ---- */
+#include <signal.h>
+#include <sys/time.h>
+static volatile int hits[65];
+static void on_sig(int s) { hits[s]++; }
+static int install(int sig, int flags) { /* a handler with exactly these flags (signal() adds SA_RESTART) */
+  struct sigaction sa;
+  memset(&sa, 0, sizeof sa);
+  sa.sa_handler = on_sig;
+  sa.sa_flags = flags;
+  return sigaction(sig, &sa, 0);
+}
+static int proc_child(int argc, char **argv) {
+  const char *m = argv[1] + 8;
+  if (!strcmp(m, "exec")) { /* exec ktest child-p-envexit with an environment */
+    char *av[] = {"ktest", "child-p-envexit", 0}, *ev[] = {"K=v", 0};
+    execve("/bin/ktest", av, ev);
+    return 1;
+  }
+  if (!strcmp(m, "envexit")) return getenv("K") && !strcmp(getenv("K"), "v") && argc == 2 ? 42 : 2;
+  if (!strcmp(m, "execfd")) { /* fd 7 survives exec, fd 8 (close-on-exec) does not */
+    dup2(1, 7);
+    dup2(1, 8);
+    fcntl(8, F_SETFD, FD_CLOEXEC);
+    char *av[] = {"ktest", "child-p-fdcheck", 0};
+    execve("/bin/ktest", av, 0);
+    return 1;
+  }
+  if (!strcmp(m, "fdcheck")) return write(7, "a", 1) == 1 && fcntl(8, F_GETFD) < 0 && errno == EBADF ? 0 : 3;
+  if (!strcmp(m, "execbad")) { char *av[] = {"x", 0}; execve("/etc/motd", av, 0); return errno == ENOEXEC ? 0 : 4; }
+  if (!strcmp(m, "execsig")) { /* handlers are reset by exec, ignored signals stay ignored */
+    install(SIGUSR1, 0);
+    signal(SIGUSR2, SIG_IGN);
+    char *av[] = {"ktest", "child-p-sigcheck", 0};
+    execve("/bin/ktest", av, 0);
+    return 1;
+  }
+  if (!strcmp(m, "sigcheck")) {
+    struct sigaction a, b;
+    sigaction(SIGUSR1, 0, &a); sigaction(SIGUSR2, 0, &b);
+    return a.sa_handler == SIG_DFL && b.sa_handler == SIG_IGN ? 0 : 5;
+  }
+  if (!strcmp(m, "ignterm")) { signal(SIGTERM, SIG_IGN); write(1, "r", 1); usleep(100000); return 3; }
+  if (!strcmp(m, "eintr") || !strcmp(m, "restart")) { /* blocked in read on stdin when SIGUSR1 comes */
+    int restart = m[0] == 'r';
+    install(SIGUSR1, restart ? SA_RESTART : 0);
+    write(1, "r", 1);
+    char c;
+    long n = read(0, &c, 1);
+    if (restart) return n == 1 && c == 'x' && hits[SIGUSR1] == 1 ? 0 : 6;
+    return n < 0 && errno == EINTR && hits[SIGUSR1] == 1 ? 0 : 7;
+  }
+  if (!strcmp(m, "sigpipe")) { int p[2]; pipe(p); close(p[0]); write(p[1], "x", 1); return 8; }
+  if (!strcmp(m, "tty")) { /* in the foreground of the terminal on fds 0-2: Ctrl-C and resize interrupt a read */
+    int me = getpid();
+    setpgid(0, 0);
+    __syscall3(SYS_ioctl, 0, TIOCSPGRP, &me);
+    install(SIGINT, 0);
+    install(SIGWINCH, 0);
+    write(1, "r", 1);
+    char c;
+    long n = read(0, &c, 1);
+    int e1 = n < 0 && errno == EINTR && hits[SIGINT] == 1;
+    write(1, "s", 1);
+    n = read(0, &c, 1);
+    int e2 = n < 0 && errno == EINTR && hits[SIGWINCH] == 1;
+    return e1 && e2 ? 0 : 9;
+  }
+  return 99;
+}
+static pid_t spawn_k(const char *mode, int in, int out) {
+  char name[40];
+  snprintf(name, sizeof name, "child-p-%s", mode);
+  char *av[] = {"ktest", name, 0};
+  int map[3] = {in, out, -1};
+  return spawn("/bin/ktest", av, 0, map);
+}
+static int wait_st(pid_t p) { int st = -1; return waitpid(p, &st, 0) == p ? st : -1; }
+/* run clonetest with arguments; its stdout comes back in out */
+static int run_clonetest(const char *args, char *out, int cap) {
+  int p[2];
+  if (pipe2(p, O_CLOEXEC)) return -1;
+  char a[64]; strlcpy(a, args, sizeof a);
+  char *av[8] = {"clonetest"}; int n = 1;
+  for (char *t = strtok(a, " "); t && n < 7; t = strtok(0, " ")) av[n++] = t;
+  av[n] = 0;
+  int map[3] = {-1, p[1], -1};
+  pid_t pid = spawn("/bin/clonetest", av, 0, map);
+  close(p[1]);
+  int len = 0; long r;
+  while (len < cap - 1 && (r = read(p[0], out + len, cap - 1 - len)) > 0) len += r;
+  out[len] = 0;
+  close(p[0]);
+  return pid < 0 ? -1 : wait_st(pid);
+}
+static void proc_checks(void) {
+  char out[512];
+  int st, p[2];
+  pid_t pid;
+  /* the clone primitive */
+  CHECK("pclone of a program without __fork_child: ENOEXEC", __syscall1(SYS_pclone, 0) == -ENOEXEC);
+  CHECK("pclone with unknown flags: EINVAL", __syscall1(SYS_pclone, 1) == -EINVAL);
+  st = run_clonetest("basic", out, sizeof out);
+  CHECK("pclone: the child continues from memory (state on the C stack) with 0, the parent with the pid",
+        st == 0 && strstr(out, "child r0=0 r1=41 r2=1") && strstr(out, "parent r0=pid r1=41 r2=7"));
+  long heap0 = heap_used();
+  st = run_clonetest("loop 100", out, sizeof out);
+  CHECK("100 clones in a row, each waited for", st == 0 && strstr(out, "loop 100 sum 100"));
+  CHECK("... and the kernel heap is back where it was", heap_used() == heap0);
+  st = run_clonetest("fill", out, sizeof out);
+  int nfill = 0, nreap = -1;
+  char *f = strstr(out, "fill ");
+  if (f) nfill = atoi(f + 5);
+  if ((f = strstr(out, "reaped "))) nreap = atoi(f + 7);
+  CHECK("pclone until the table is full: EAGAIN, then every clone killed and reaped", st == 0 && strstr(out, "then EAGAIN") && nfill > 50 && nreap == nfill);
+  st = run_clonetest("pipe", out, sizeof out);
+  CHECK("pclone: a pipe made before the clone works between the two", st == 0 && strstr(out, "pipe read 20: hello from the child, status 5"));
+  /* exec */
+  pid = spawn_k("exec", -1, -1);
+  st = wait_st(pid);
+  CHECK("execve keeps the pid, passes argv and envp (exit status of the new program)", WIFEXITED(st) && WEXITSTATUS(st) == 42);
+  pipe2(p, O_CLOEXEC);
+  pid = spawn_k("execfd", -1, p[1]);
+  close(p[1]);
+  char c = 0;
+  long n = read(p[0], &c, 1);
+  st = wait_st(pid);
+  close(p[0]);
+  CHECK("execve keeps descriptors and closes the close-on-exec ones", n == 1 && c == 'a' && WIFEXITED(st) && WEXITSTATUS(st) == 0);
+  st = wait_st(spawn_k("execbad", -1, -1));
+  CHECK("execve of a file that is not a program: ENOEXEC, and the caller goes on", WIFEXITED(st) && WEXITSTATUS(st) == 0);
+  st = wait_st(spawn_k("execsig", -1, -1));
+  CHECK("execve resets handlers to the default and keeps ignored signals ignored", WIFEXITED(st) && WEXITSTATUS(st) == 0);
+  /* signals */
+  install(SIGUSR1, 0);
+  kill(getpid(), SIGUSR1);
+  CHECK("a handler runs for a signal sent to oneself before kill returns", hits[SIGUSR1] == 1);
+  sigset_t set, old, pend;
+  sigemptyset(&set); sigaddset(&set, SIGUSR1);
+  sigprocmask(SIG_BLOCK, &set, &old);
+  kill(getpid(), SIGUSR1);
+  sigpending(&pend);
+  int was = hits[SIGUSR1];
+  sigprocmask(SIG_SETMASK, &old, 0);
+  CHECK("a blocked signal stays pending and runs when unblocked", was == 1 && sigismember(&pend, SIGUSR1) == 1 && hits[SIGUSR1] == 2);
+  sigprocmask(SIG_BLOCK, &set, &old);
+  kill(getpid(), SIGUSR1);
+  sigset_t none; sigemptyset(&none);
+  int r = sigsuspend(&none);
+  sigset_t now; sigprocmask(SIG_BLOCK, 0, &now);
+  CHECK("sigsuspend: runs the handler, fails with EINTR, puts the mask back", r == -1 && errno == EINTR && hits[SIGUSR1] == 3 && sigismember(&now, SIGUSR1) == 1);
+  sigprocmask(SIG_SETMASK, &old, 0);
+  install(SIGALRM, 0);
+  struct itimerval it = {{0, 0}, {0, 30000}};
+  sigset_t alrm; sigemptyset(&alrm); sigaddset(&alrm, SIGALRM);
+  sigprocmask(SIG_BLOCK, &alrm, &old); /* a preemption between setitimer and the wait must not lose it */
+  double t0 = now_ms();
+  setitimer(ITIMER_REAL, &it, 0);
+  r = sigsuspend(&old);
+  double dt = now_ms() - t0;
+  sigprocmask(SIG_SETMASK, &old, 0);
+  CHECK("setitimer 30 ms + sigsuspend: SIGALRM handler, EINTR, not early", r == -1 && errno == EINTR && hits[SIGALRM] == 1 && dt >= 25);
+  { char *av[] = {"ktest", "child-sleeper", 0}; pid = spawn("/bin/ktest", av, 0, 0); }
+  kill(pid, SIGTERM);
+  st = wait_st(pid);
+  CHECK("SIGTERM with the default action terminates", WIFSIGNALED(st) && WTERMSIG(st) == SIGTERM);
+  pipe2(p, O_CLOEXEC);
+  pid = spawn_k("ignterm", -1, p[1]);
+  close(p[1]);
+  read(p[0], &c, 1);
+  kill(pid, SIGTERM);
+  st = wait_st(pid);
+  close(p[0]);
+  CHECK("an ignored SIGTERM does nothing", WIFEXITED(st) && WEXITSTATUS(st) == 3);
+  for (int restart = 0; restart < 2; restart++) {
+    int in[2];
+    pipe2(p, O_CLOEXEC); pipe2(in, O_CLOEXEC);
+    pid = spawn_k(restart ? "restart" : "eintr", in[0], p[1]);
+    close(p[1]); close(in[0]);
+    read(p[0], &c, 1);
+    usleep(20000); /* let it block in read */
+    kill(pid, SIGUSR1);
+    usleep(20000);
+    if (restart) write(in[1], "x", 1);
+    st = wait_st(pid);
+    close(p[0]); close(in[1]);
+    CHECK(restart ? "SA_RESTART: the read goes on after the handler and gets the data" : "a handler interrupts a blocked read: EINTR", WIFEXITED(st) && WEXITSTATUS(st) == 0);
+  }
+  st = wait_st(spawn_k("sigpipe", -1, -1));
+  CHECK("write to a pipe nobody reads: SIGPIPE terminates the writer", WIFSIGNALED(st) && WTERMSIG(st) == SIGPIPE);
+  signal(SIGPIPE, SIG_IGN);
+  pipe(p); close(p[0]);
+  n = write(p[1], "x", 1);
+  CHECK("... and with SIGPIPE ignored, the write fails with EPIPE", n == -1 && errno == EPIPE);
+  close(p[1]);
+  signal(SIGPIPE, SIG_DFL);
+  { /* a process group */
+    char *av[] = {"ktest", "child-sleeper", 0};
+    pid_t a = spawn("/bin/ktest", av, 0, 0), b = spawn("/bin/ktest", av, 0, 0);
+    setpgid(a, a); setpgid(b, a);
+    r = kill(-a, SIGTERM);
+    int sa = wait_st(a), sb = wait_st(b);
+    CHECK("kill(-pgid) reaches every process of the group", r == 0 && WTERMSIG(sa) == SIGTERM && WTERMSIG(sb) == SIGTERM);
+    CHECK("kill of an empty group: ESRCH", kill(-a, SIGTERM) == -1 && errno == ESRCH);
+  }
+  { /* stop and continue */
+    char *av[] = {"ktest", "child-sleeper", 0};
+    pid = spawn("/bin/ktest", av, 0, 0);
+    usleep(10000);
+    kill(pid, SIGSTOP);
+    int s1 = -1, s2 = -1;
+    pid_t w1 = waitpid(pid, &s1, WUNTRACED);
+    kill(pid, SIGCONT);
+    pid_t w2 = waitpid(pid, &s2, WCONTINUED);
+    kill(pid, SIGKILL);
+    st = wait_st(pid);
+    CHECK("SIGSTOP: waitpid(WUNTRACED) reports it stopped; SIGCONT: waitpid(WCONTINUED) reports it continued",
+          w1 == pid && WIFSTOPPED(s1) && WSTOPSIG(s1) == SIGSTOP && w2 == pid && WIFCONTINUED(s2) && WTERMSIG(st) == SIGKILL);
+  }
+  { /* SIGCHLD ignored: no zombies */
+    signal(SIGCHLD, SIG_IGN);
+    char *av[] = {"ktest", "child-exit", "0", 0};
+    pid = spawn("/bin/ktest", av, 0, 0);
+    usleep(50000);
+    r = waitpid(pid, &st, 0);
+    CHECK("with SIGCHLD ignored, an exited child leaves no zombie (waitpid: ECHILD)", r == -1 && errno == ECHILD);
+    signal(SIGCHLD, SIG_DFL);
+  }
+  { /* SIGCHLD handler */
+    install(SIGCHLD, SA_RESTART);
+    char *av[] = {"ktest", "child-exit", "0", 0};
+    pid = spawn("/bin/ktest", av, 0, 0);
+    wait_st(pid);
+    getpid();
+    CHECK("SIGCHLD handler runs when a child exits", hits[SIGCHLD] == 1);
+    signal(SIGCHLD, SIG_DFL);
+  }
+  { /* the terminal: Ctrl-C and a resize */
+    int m = open("/dev/ptmx", O_RDWR), num = -1;
+    char path[32];
+    __syscall3(SYS_ioctl, m, TIOCGPTN, &num);
+    snprintf(path, sizeof path, "/dev/pts/%d", num);
+    int s = open(path, O_RDWR);
+    char *av[] = {"ktest", "child-p-tty", 0};
+    int map[3] = {s, s, s};
+    pid = spawn("/bin/ktest", av, 0, map);
+    char b[64];
+    int got = 0;
+    while (got == 0 && read(m, b, 1) == 1) got = b[0] == 'r';
+    usleep(20000);
+    write(m, "\x03", 1);
+    got = 0;
+    while (got == 0 && read(m, b, 1) == 1) got = b[0] == 's';
+    usleep(20000);
+    struct winsize ws = {30, 100, 0, 0};
+    __syscall3(SYS_ioctl, m, TIOCSWINSZ, &ws);
+    st = wait_st(pid);
+    CHECK("a handler for SIGINT (Ctrl-C) and SIGWINCH (resize) interrupts a read on the terminal", WIFEXITED(st) && WEXITSTATUS(st) == 0);
+    close(s); close(m);
+  }
+  CHECK("tgkill with a thread id that is not the process: ESRCH; tgkill(pid, pid, 0) works",
+        __syscall3(SYS_tgkill, getpid(), getpid() + 1, 0) == -ESRCH && __syscall3(SYS_tgkill, getpid(), getpid(), 0) == 0);
+}
+
 int main(int argc, char **argv) {
+  if (argc > 1 && !strncmp(argv[1], "child-p-", 8)) return proc_child(argc, argv);
   if (argc > 1 && !strcmp(argv[1], "child-exit")) return atoi(argv[2]);
   if (argc > 1 && !strcmp(argv[1], "child-crash")) { volatile int *p = (int *)0x7ffffff0; return *p; }
   if (argc > 1 && !strcmp(argv[1], "child-upper")) {
@@ -609,6 +874,8 @@ int main(int argc, char **argv) {
     #undef RREAD
     (void)R;
   }
+
+  proc_checks(); /* clone, exec and signals */
 
   /* informational: cost of the cheapest system call */
   t0 = now_ms();

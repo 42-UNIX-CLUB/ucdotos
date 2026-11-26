@@ -44,16 +44,22 @@ static void line_commit(struct pty *t) {
   for (u32 i = 0; i < t->line_len; i++) in_put(t, t->line[i]);
   t->line_len = 0;
 }
-/* Ctrl-C and friends: kill the foreground job. The session leader (the shell) is not
- * killed; it gets a pending-interrupt flag that it reads with SYS_intr, so it can stop
- * a loop of its own. */
+/* Ctrl-C and friends: a signal to every process of the foreground job. A session leader
+ * (the shell) whose action for it is the default is not killed; it gets a pending-interrupt
+ * flag that it reads with SYS_intr, so it can stop a loop of its own. */
+int tty_sig_leader(struct proc *p, int sig) {
+  if (p->sa[sig].handler != 0) return 0; /* a handler, or ignored: a normal signal */
+  if (sig == SIGTSTP) return 1;           /* never stop the shell itself */
+  p->intr = 1;
+  host_wake(p->pid);
+  return 1;
+}
 static void kill_foreground(struct pty *t, int sig) {
   for (int i = 1; i < NPROC; i++) {
     struct proc *p = &procs[i];
     if (p->state != P_RUN || p->pgid != t->fg_pgid) continue;
-    if (p->sid == p->pid) { p->intr = 1; host_wake(p->pid); continue; }
-    proc_exit(p, 256 + sig);
-    host_wake(p->pid);
+    if (p->sid == p->pid && tty_sig_leader(p, sig)) continue;
+    sig_send(p, sig, 0x80, 0, 0);
   }
 }
 /* The terminal went away: everything in its session dies, the shell included. */
@@ -67,8 +73,7 @@ static void hangup(struct pty *t) {
   for (int i = 1; i < NPROC; i++) {
     struct proc *p = &procs[i];
     if (p->state != P_RUN || p->sid != session || p == cur) continue;
-    proc_exit(p, 256 + 1 /* SIGHUP */);
-    host_wake(p->pid);
+    sig_send(p, SIGHUP, 0x80, 0, 0);
   }
 }
 /* one byte typed at the terminal */
@@ -81,6 +86,12 @@ static void ldisc_input(struct pty *t, u8 c) {
     if (lf & ECHO) out_char(t, '\n');
     t->line_len = 0;
     kill_foreground(t, c == cc[VINTR] ? SIGINT : 3);
+    return;
+  }
+  if ((lf & ISIG) && cc[VSUSP] && c == cc[VSUSP]) { /* Ctrl-Z, when a program set VSUSP (off by default) */
+    echo(t, c);
+    t->line_len = 0;
+    kill_foreground(t, SIGTSTP);
     return;
   }
   if (!(lf & ICANON)) { in_put(t, c); echo(t, c); return; }
@@ -172,7 +183,13 @@ static long tty_ioctl(struct file *f, u32 cmd, u32 arg) {
     return 0;
   }
   case TIOCGWINSZ: return copy_to_user(arg, &t->ws, sizeof t->ws);
-  case TIOCSWINSZ: return copy_from_user(&t->ws, arg, sizeof t->ws);
+  case TIOCSWINSZ: {
+    struct winsize old = t->ws;
+    if (copy_from_user(&t->ws, arg, sizeof t->ws)) return -EFAULT;
+    if (memcmp(&old, &t->ws, sizeof old) && t->fg_pgid) /* SIGWINCH to the foreground job, as on Linux */
+      for (int i = 1; i < NPROC; i++) if (procs[i].state == P_RUN && procs[i].pgid == t->fg_pgid) sig_send(&procs[i], SIGWINCH, 0x80, 0, 0);
+    return 0;
+  }
   case TIOCGPGRP: return copy_to_user(arg, &t->fg_pgid, 4);
   case TIOCSPGRP: { /* as on Linux, the group must exist (zombies count) */
     int g;
