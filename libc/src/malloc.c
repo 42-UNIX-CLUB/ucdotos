@@ -10,8 +10,7 @@ static struct blk *free_list;
 static unsigned char *heap_end;
 
 static struct blk *grow(unsigned need) {
-  unsigned pages = (need + 65535) >> 16;
-  if (pages < 4) pages = 4;
+  unsigned pages = (need + 65535) >> 16; /* no minimum above one page: memory never shrinks */
   unsigned old = __builtin_wasm_memory_grow(0, pages);
   if (old == (unsigned)-1) return 0;
   struct blk *b = (struct blk *)(size_t)(old << 16);
