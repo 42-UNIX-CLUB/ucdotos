@@ -397,7 +397,7 @@ file in `/bin`.
 **term** (`bin/term/`): `vt.c` (escape parser and screen model, VT500 state machine,
 5000 lines of scrollback), `render.c` (draws changed cells into a surface), `keys.c`
 (key presses to xterm sequences), `be_ui.c` (window back end), `be_fb.c` (bare
-framebuffer back end, `term --fb`), `main.c`. Options: `--fb`, `-e cmd args`, `-T title`,
+framebuffer back end, `term --fb`), `main.c`. Options: `--fb`, `--fullscreen` (opens with the full-screen role; Mod+f toggles it off), `-e cmd args`, `-T title`,
 `--font-size N`, `--hold`, `--stats`. It sets `TERM=xterm-256color`,
 `COLORTERM=truecolor`, `THEME`. Test hook: Ctrl+Alt+Shift+F12 prints the visible text to
 the console log.

@@ -5,7 +5,7 @@ update it whenever you finish, break or start something.
 
 ## 1. What works today
 
-One image (`make B=... dist`, 48 programs, about 7.3 MB of which 5.5 MB is fonts) boots
+One image (`make B=... dist`, 49 programs, about 7.3 MB of which 5.5 MB is fonts) boots
 in Chromium to a tiling desktop.
 
 | Area | State | Evidence |
@@ -20,6 +20,7 @@ in Chromium to a tiling desktop.
 | vi, htop, fetch, sysbench | work in the desktop at one, two and three tiled windows, in both themes, and follow a theme switch live; sysbench and fetch adapt to coarse browser clocks | 360 native checks (those scripts are not in the repo); desktop scripts `bin/htop/shots.mjs`, `bin/vi/shots.mjs`, `bin/fetch/shots.mjs`, `bin/fetch/sysbench-shots.mjs` |
 | Doom | runs full-screen and in a window, 35 fps, saves and loads | needs a WAD: none is in the image |
 | Club content | the intro deck as files in `~/unix_club`, `man unix-club`, commented dotfiles | |
+| blueprint | `blueprint` shows `~/unix_club` (or any text files) as a slideshow in the terminal: one file per slide, `---` splits, layout kept as written, the keys of the slides program it is modelled on, scrolls tall slides, re-reads changed files, follows the theme switch; launcher entry "Blueprint" (Alt+d) opens it full screen with `term --fullscreen` | `bin/blueprint/tests/navtest.c` (the slides program's 14 navigation cases, plus scrolling); `bin/blueprint/shots.mjs` (11 screenshots, looked at on 2026-11-26) |
 | Licence | GPL-2.0-or-later: `LICENSE`, `README.md`, SPDX tags | |
 
 Committed: one commit on `main` (the first), pushed by an owner. Everything after it is uncommitted in the working tree: time slicing, `intr`, the process CPU clock, new `sysinfo` meaning, the browser test driver, the `crt0` argument fix, round 2 of the shell and the apps, and the context files.
@@ -38,8 +39,10 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 | The login message wraps in a 60-column terminal | `rootfs/etc/motd` lines are up to 68 columns. |
 | Nothing persists | A reload starts from the image. |
 | Times are UTC | No time zone data. |
+| Terminal window test fails one check | `bin/term/tests/os/window.mjs` fails "second window is tiled narrower" (60 vs 60): 3 passed, 1 failed. The same happens on a clean build of `main` at 45d2602, so it predates `term --fullscreen`. Not investigated. The window manager suites (`sh bin/wm/tests/run.sh B`) all pass. |
 | Window manager reaps children late | There is no child-exit notification; it reaps when it next wakes. |
 | Terminal: no clipboard, italic drawn upright, mouse click reporting untested | |
+| blueprint | slide order is name order, as in `intro.sh`, not the order in the README's plan; `README.md` (51 lines) is taller than most windows and has to be scrolled; lines wider than the window are cut, not wrapped: the club pages are up to 77 columns, and a half-width window at 1280x720 shows about 60; going back to a tall slide shows its top |
 | vi | every character is one column wide; with wrapped lines H, M, L and Ctrl-F/B count buffer lines, not screen rows |
 | fetch measures `getppid` in 40 ms | too short for the engine to finish optimising, so it reads 15 to 40 ns where sysbench reports the warm figure |
 | sysbench in a half-height window | its first lines scroll off; the table and footnote stay visible |

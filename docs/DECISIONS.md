@@ -29,6 +29,7 @@ with its date, the options that were on the table, and who chose.
 | 15 | 2026-11-26 | **Name: UC.OS** ("UC dot OS", UNIX CLUB dot OS). The earlier working name DuxOS is dropped. | EpochOS and a long list of others |
 | 16 | 2026-11-26 | **Repository**: https://github.com/42-UNIX-CLUB/ucdotos, branch `main`. The owners run git themselves. | |
 | 17 | 2026-11-26 | **Licence: GPL-2.0-or-later.** | GPL-3.0 |
+| 18 | 2026-11-26 | **The slideshow program is named `blueprint`** (`bin/blueprint/`, `/bin/blueprint`). | `slides`, the name of the program it is modelled on |
 
 Notes that go with these:
 
@@ -65,6 +66,7 @@ Notes that go with these:
 | Source files carry SPDX tags and **no copyright holder line**. | Whose name goes there is the owners' call. | Add a line to the headers and README. |
 | `.gitignore` excludes build output and `bin/doom/wads/`. | Game data licence is undecided. | Edit `.gitignore`. |
 | The club's source documents (guidelines, PDF, PowerPoint, `unix-club-logo/`) are **not in git**. | They contain phone numbers and e-mail addresses. | An owner can add redacted versions. |
+| `blueprint` is a **minimal terminal program for the club pages**, not a port of the original: it is written from the behaviour in `docs/SLIDES-REWRITE.md` (no code, text or theme copied). One file is one slide (as in `intro.sh`), `---` also splits, text is shown as written (no Markdown re-wrapping), colours come from the deck/brand theme. Left out: front matter, Markdown rendering, search, Ctrl+E, `y`, pre-processing, SSH. With no argument it opens `~/unix_club`. | An owner asked for a minimal version for the files in `~/unix_club` (2026-11-26); those files are hand-laid-out text, which Markdown rendering would re-wrap. | `bin/blueprint/blueprint.c`; delete `bin/blueprint/` to remove it. |
 | OS identity strings: `uname` reports `UC.OS`, release `0.1.0`, machine `wasm32`, host name `42lisboa`, user `user`. | Needed something. | `kernel/kernel.h`, `kernel/syscall.c`, `bin/init.c`. |
 
 ## 3. Open: an owner needs to choose

@@ -118,6 +118,7 @@ Component suites:
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs a WAD (not in git) | play, demo, window tests pass |
+| blueprint | `bin/blueprint/tests/navtest.c`, `bin/blueprint/shots.mjs` | native: `cc -o /tmp/navtest bin/blueprint/tests/navtest.c`; `shot.mjs` | 14 of 14 navigation cases; 11 screenshots |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
 
 Gap to know about: the vi/htop/fetch test scripts are not in the repository.

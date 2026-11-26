@@ -48,8 +48,8 @@ static void ui_present_(backend *b, render_rect r) {
 static void ui_title(backend *b, const char *t) { ui_set_title(W(b), t); }
 static void ui_close_(backend *b) { ui_close(W(b)); free(b); }
 
-backend *be_ui_open(const char *title, int w, int h) {
-  ui_window *win = ui_open(title, "term", w, h, UI_NORMAL);
+backend *be_ui_open(const char *title, int w, int h, int fullscreen) {
+  ui_window *win = ui_open(title, "term", w, h, fullscreen ? UI_FULLSCREEN : UI_NORMAL);
   if (!win) return NULL;
   backend *b = calloc(1, sizeof *b);
   if (!b) { ui_close(win); return NULL; }

@@ -322,17 +322,18 @@ static void stats_tick(double now) {
 }
 
 static void usage(void) {
-  fprintf(stderr, "usage: term [--fb] [-T title] [--font-size N] [--hold] [--stats] [-e command args...]\n");
+  fprintf(stderr, "usage: term [--fb] [--fullscreen] [-T title] [--font-size N] [--hold] [--stats] [-e command args...]\n");
   exit(2);
 }
 
 int main(int argc, char **argv) {
   if (argc > 1 && !strcmp(argv[1], "--demo")) return demo_main(argc - 1, argv + 1);
-  int fb = 0, pid1 = getpid() == 1;
+  int fb = 0, full = 0, pid1 = getpid() == 1;
   const char *title = "term";
   char **cmd = NULL;
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--fb")) fb = 1;
+    else if (!strcmp(argv[i], "--fullscreen")) full = 1; /* ask the window manager for the whole screen */
     else if (!strcmp(argv[i], "--hold")) T.hold = 1;
     else if (!strcmp(argv[i], "--stats")) T.stats = 1;
     else if (!strcmp(argv[i], "-T") && i + 1 < argc) { title = argv[++i]; T.title_fixed = 1; }
@@ -347,7 +348,7 @@ int main(int argc, char **argv) {
   }
   ui_theme_load(&T.th, NULL);
   setup_fonts();
-  if (!fb) T.be = be_ui_open(title, 80 * T.r.cw + 2 * T.pad, 25 * T.r.ch + 2 * T.pad);
+  if (!fb) T.be = be_ui_open(title, 80 * T.r.cw + 2 * T.pad, 25 * T.r.ch + 2 * T.pad, full);
   if (!T.be) T.be = be_fb_open();
   if (!T.be) die("no window manager and no framebuffer");
   T.be->set_title(T.be, title);

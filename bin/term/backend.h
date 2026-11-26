@@ -28,6 +28,6 @@ typedef struct backend {
 } backend;
 
 backend *be_fb_open(void);
-backend *be_ui_open(const char *title, int w, int h);
+backend *be_ui_open(const char *title, int w, int h, int fullscreen);
 
 #endif
