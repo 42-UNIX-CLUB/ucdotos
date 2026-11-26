@@ -127,8 +127,8 @@ kernel:       syscall_pid(pid, nr, ...)               kernel/syscall.c: sets `cu
 
 - No JavaScript runs on this path. Measured cost of the cheapest call (`getppid`): see
   PERFORMANCE.md section 1 (about 11 to 12 ns warm under Node, 14 to 16 ns in Chromium at
-  moderate machine load, 100 to 400 ns for the first cold calls). About a third is the call, a third the
-  trampoline hop, a third kernel work.
+  moderate machine load, 100 to 400 ns for the first cold calls). About a third is the call,
+  a third the trampoline hop, a third kernel work.
 - `syscall_pid` dispatches the four hottest calls (`getppid`, `getpid`, `read`, `write`)
   itself and has no stack frame; every other call goes to `syscall_slow`. Keep large
   locals out of `syscall_pid`: one big buffer in any inlined case gives every call a frame.
@@ -345,6 +345,8 @@ The host tells the kernel how long a process ran each time it parks
 | `/dev/ptmx`, `/dev/pts/N` | pseudo-terminals (section 8) |
 | `/dev/fb0` | the screen (section 10) |
 | `/dev/input/event0` | keyboard and pointer (section 10) |
+| `/dev/dsp` | sound output, in the shape of OSS (section 15) |
+| `/dev/hostnet` | the router's way out of the machine, through the host (section 16) |
 | `/tmp`, `/run`, `/proc` | empty directories created at boot; `/proc` has nothing in it |
 
 **Remote files** (`kernel/remote.c`). Large files the image does not carry (Doom's game
@@ -394,9 +396,10 @@ There is no `SIGWINCH`: programs re-read the size when they redraw.
 `AF_UNIX`, `SOCK_STREAM` only: `socket bind listen accept connect`, then `read`,
 `write`, `ppoll`. 512 KiB buffer per direction, backlog 16, short writes, `-EPIPE` when
 the peer is gone, `-ECONNREFUSED` with no listener (and when the backlog is full). A bound
-socket keeps its inode alive: unlinking the path while the socket is open is safe. No datagrams, no `socketpair`, no
-`accept4` (set close-on-exec with `fcntl` after `accept`). `send` and `recv` on a unix
-socket are `write` and `read`; `accept` reports the peer as an unnamed `AF_UNIX` address.
+socket keeps its inode alive: unlinking the path while the socket is open is safe. No
+datagrams, no `socketpair`, no `accept4` (set close-on-exec with `fcntl` after `accept`).
+`send` and `recv` on a unix socket are `write` and `read`; `accept` reports the peer as an
+unnamed `AF_UNIX` address.
 
 `AF_INET` and `AF_PACKET` sockets go to `kernel/inet.c`: `sys_socket`, `sys_bind`,
 `sys_listen`, `sys_connect` and `sys_accept` hand over any descriptor that is not a unix
@@ -516,8 +519,8 @@ one. During a slide the whole screen is written to `/dev/fb0` on every frame (15
 
 Configuration: `~/.config/wm/config` (in the image: `rootfs/home/user/.config/wm/config`),
 i3 style: `set mod Alt`, `gaps`, `border`, `border_thin`, `radius`, `workspace_count`,
-`animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default autostart: `exec bar`
-and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
+`animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default
+autostart: `exec bar` and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
 
 **sh** (`bin/sh/`, about 4,500 lines) is a POSIX shell for a system without `fork`.
 External programs are started with `spawn`. Builtins, functions, compound commands and
@@ -526,14 +529,15 @@ process: what a subshell changes is put back when it ends (variables, functions 
 aliases through a journal, positional parameters, options, traps, `$!`, and the umask,
 directory and descriptors, saved only when the subshell is about to change them).
 `exit`, `break`, `continue` and `return` in a subshell end only the subshell. `umask` is
-kept by the shell and passed to the kernel when the kernel has the call. `exec CMD` calls `execve`; on a kernel without it (`ENOSYS`, today's `main`) and
-inside a subshell, `CMD` runs as a child and the shell exits with its status (`exec_cmd()`
-in `bin/sh/exec.c`). `trap` installs a handler that only marks the signal; the action runs
-between commands. Job control is detected once with `rt_sigprocmask` (`jobs_init()` in
-`bin/sh/exec.c`): with kernel support, an interactive shell turns on `set -m`, sets VSUSP
-to Ctrl-Z for the commands it runs, gives every pipeline its own process group, hands the
-terminal to the foreground group and waits with `WUNTRACED`. Without it (today's `main`),
-`set -m` is refused with a message and the rest behaves as before.
+kept by the shell and passed to the kernel when the kernel has the call. `exec CMD` calls
+`execve`; on a kernel without it (`ENOSYS`, today's `main`) and inside a subshell, `CMD`
+runs as a child and the shell exits with its status (`exec_cmd()` in `bin/sh/exec.c`).
+`trap` installs a handler that only marks the signal; the action runs between commands. Job
+control is detected once with `rt_sigprocmask` (`jobs_init()` in `bin/sh/exec.c`): with
+kernel support, an interactive shell turns on `set -m`, sets VSUSP to Ctrl-Z for the
+commands it runs, gives every pipeline its own process group, hands the terminal to the
+foreground group and waits with `WUNTRACED`. Without it (today's `main`), `set -m` is
+refused with a message and the rest behaves as before.
 
 **Themes** (`libui/theme.h`). The active name is the first word of
 `~/.config/ucos/theme`. A theme is `/usr/share/themes/NAME.theme`, lines of
