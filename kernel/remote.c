@@ -102,6 +102,25 @@ struct remote {
   u64 waiting, failed; /* pids waiting for the current fetch / owed the error of the last one */
 };
 static struct remote rt[NREMOTE];
+/* An import comes from the host, not from a process: `cur` is whichever process ran last.
+ * Its names are made with the kernel's rights, and each new file or directory gets the owner
+ * and group of the directory it is made in (in /home/user/Downloads: the desktop user, who
+ * can then read, change and delete it). */
+struct kcred { struct fscred *c; u32 fsuid, fsgid; struct inode *root; };
+static void kcred_begin(struct kcred *k) {
+  k->c = cur ? &fscred[cur->pid] : &fscred[0];
+  k->fsuid = k->c->fsuid; k->fsgid = k->c->fsgid; k->root = k->c->root;
+  k->c->fsuid = k->c->fsgid = 0; k->c->root = NULL;
+}
+static void kcred_end(struct kcred *k) { k->c->fsuid = k->fsuid; k->c->fsgid = k->fsgid; k->c->root = k->root; }
+static void own_like_parent(char *path, struct inode *i) {
+  char *slash = strrchr(path, '/');
+  if (!i || !slash) return;
+  char keep = slash[1]; slash[1] = 0;
+  struct inode *d = vfs_lookup(vfs_root, path);
+  slash[1] = keep;
+  if (d) { i->uid = d->uid; i->gid = d->gid; vfs_changed(i); }
+}
 
 static struct remote *remote_of(struct inode *i) {
   return (i->mode & S_IFMT) == S_IFREG ? i->priv : NULL;
@@ -176,10 +195,12 @@ EXPORT(remote_end) int remote_end(int id, int ok) {
     sha_final(&r->h, sum);
     if (memcmp(sum, r->sha, 32)) why = "SHA-256 does not match";
   }
+  struct kcred kc;
+  if (r->kind == K_IMPORT) kcred_begin(&kc);
   if (r->kind == K_IMPORT && !why) {
     /* put it in place now: replace the regular file of that name, or create it */
     struct inode *i = vfs_lookup(vfs_root, r->str);
-    int e = 0;
+    int e = 0, made = !i;
     if (i && ((i->mode & S_IFMT) != S_IFREG || (remote_of(i) && remote_of(i)->state == R_FETCHING))) why = "the name is taken";
     else if (!i && !(i = vfs_create(vfs_root, r->str, S_IFREG | 0644, &e))) why = "cannot create it";
     else {
@@ -187,15 +208,18 @@ EXPORT(remote_end) int remote_end(int id, int ok) {
       inode_get(i);
       i->priv = NULL;
       i->mtime = i->ctime = KT_MAKE((s64)(host_epoch() / 1000), 0); /* file times are packed (kernel.h KT_MAKE) */
+      if (made) own_like_parent(r->str, i);
       r->ino = i;
     }
   }
+  int imported = r->kind == K_IMPORT;
   if (why) kprintf("[remote] %s: %s, not used\n", r->str, why);
   else kprintf("[remote] %s: %u bytes, ready\n", r->str, r->size);
   struct inode *imp = (r->kind == K_IMPORT && !why) ? r->ino : NULL;
   finish(r, !why);
   /* a file the user brought in is theirs like any other: it is stored (a remote file is not) */
   if (imp && imp->sflags) { store_dirty(imp, 0, imp->size); vfs_changed(imp); }
+  if (imported) kcred_end(&kc);
   return why ? -1 : 0;
 }
 
@@ -214,12 +238,15 @@ EXPORT(import_begin) int import_begin(u32 len, u32 size) {
   memset(r, 0, sizeof *r);
   memcpy(r->str, scratch, len);
   /* the directory must exist: create the missing levels */
+  struct kcred kc;
+  kcred_begin(&kc);
   for (char *s = r->str + 1; (s = next_slash(s)); s++) {
     *s = 0;
     int e;
-    if (!vfs_lookup(vfs_root, r->str)) vfs_create(vfs_root, r->str, S_IFDIR | 0755, &e);
+    if (!vfs_lookup(vfs_root, r->str)) own_like_parent(r->str, vfs_create(vfs_root, r->str, S_IFDIR | 0755, &e));
     *s = '/';
   }
+  kcred_end(&kc);
   const char *base = strrchr(r->str, '/') + 1;
   if (!*base || strlen(base) > VFS_NAME_MAX || !strcmp(base, ".") || !strcmp(base, "..")) return -EINVAL;
   if (!(r->buf = kmalloc(size ? size : 1))) return -ENOSPC;

@@ -10,6 +10,9 @@
  *                                           applied, nothing synced lost
  *   persisttest bigwrite FILE MB            write MB MiB in 1 MiB pieces ("wrote N MiB")
  *   persisttest bigcheck FILE               whatever survived must be a consistent prefix
+ *   persisttest full DIR                    with a small quota (run.mjs --quota): write until
+ *                                           ENOSPC, check the warnings, delete, write again
+ *   persisttest fullcheck DIR               after a reboot: what fsync acknowledged is there
  *
  * File contents follow a pattern from an id and the offset, so any file can be checked
  * on its own: bytes 0..3 hold the id, byte o (o >= 4) is pat(id, o). */
@@ -149,7 +152,9 @@ static int verify(const char *dir, int nsmall, int bigmb) {
   snprintf(p, sizeof p, "%s/none", dir);
   check("mode 0000", stat(p, &st) == 0 && (st.st_mode & 07777) == 0, 0);
   snprintf(p, sizeof p, "%s/owned", dir);
-  check("owner 123, group 45", stat(p, &st) == 0 && st.st_uid == 123 && st.st_gid == 45, 0);
+  /* only root can give a file away: run as the desktop user, the file keeps its owner */
+  unsigned wu = geteuid() == 0 ? 123 : geteuid(), wg = geteuid() == 0 ? 45 : getegid();
+  check(geteuid() == 0 ? "owner 123, group 45" : "owner and group stay the caller's (chown to 123:45 needs root)", stat(p, &st) == 0 && st.st_uid == wu && st.st_gid == wg, 0);
   snprintf(p, sizeof p, "%s/timed", dir);
   struct statx sx;
   check("times to the nanosecond", statx(AT_FDCWD, p, 0, STATX_BASIC_STATS, &sx) == 0 && sx.stx_atime.tv_sec == 1100000000 && sx.stx_atime.tv_nsec == 123456789 &&
@@ -369,6 +374,93 @@ static int bigcheck(const char *path) {
   return !ok;
 }
 
+/* ---- a full store (run with tools/run.mjs --quota=BYTES; tools/tests/store-full.mjs) ---- */
+#include <poll.h>
+#include <sys/statfs.h>
+static void store_field(const char *key, char *out, int cap) {
+  char t[2048];
+  out[0] = 0;
+  int fd = open("/proc/ucos-store", O_RDONLY);
+  if (fd < 0) return;
+  long n = read(fd, t, sizeof t - 1);
+  close(fd);
+  t[n > 0 ? n : 0] = 0;
+  char *p = strstr(t, key);
+  if (!p) return;
+  p += strlen(key);
+  while (*p == ' ') p++;
+  int k = 0;
+  while (*p && *p != '\n' && k < cap - 1) out[k++] = *p++;
+  out[k] = 0;
+}
+/* write files of 256 KiB into DIR until the store says no; then free room and go on */
+static int full(const char *dir) {
+  char path[512], v[128];
+  struct statfs f;
+  mkdir(dir, 0755);
+  int ok = statfs("/", &f) == 0;
+  printf("statfs /: %llu blocks of %u, %llu free\n", f.f_blocks, f.f_bsize, f.f_bfree);
+  check("statfs reports the store's quota as the size of /", ok && f.f_blocks > 0, NULL);
+  int sub = open("/proc/ucos-store", O_RDONLY); /* a subscriber to level changes */
+  check("/proc/ucos-store opens for a subscriber", sub >= 0, NULL);
+  snprintf(path, sizeof path, "%s/kept", dir);
+  int fd = open(path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+  fillpat(buf, 7, 0, 65536);
+  check("a first file is written and fsync'ed", fd >= 0 && write(fd, buf, 65536) == 65536 && fsync(fd) == 0 && close(fd) == 0, NULL);
+  int n = 0, err = 0, where = 0;
+  for (; n < 4000; n++) {
+    snprintf(path, sizeof path, "%s/f%d", dir, n);
+    fd = open(path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0) { err = errno; where = 1; break; }
+    fillpat(buf, 100 + n, 0, 262144);
+    long w = write(fd, buf, 262144);
+    if (w != 262144) { err = errno; where = 2; close(fd); break; }
+    if (fsync(fd)) { err = errno; where = 3; close(fd); break; }
+    close(fd);
+  }
+  static const char *wh[] = {"", "open", "write", "fsync"};
+  printf("full after %d files of 256 KiB: %s failed with %s\n", n, wh[where], strerror(err));
+  check("writes to the stored tree end with ENOSPC", where && err == ENOSPC, strerror(err));
+  struct pollfd pf = {sub, POLLPRI, 0};
+  check("a subscriber sees the level change (POLLPRI on /proc/ucos-store)", poll(&pf, 1, 0) == 1 && (pf.revents & POLLPRI), NULL);
+  store_field("level:", v, sizeof v);
+  printf("level: %s\n", v);
+  check("/proc/ucos-store says critical or full", !strcmp(v, "full") || !strcmp(v, "critical"), v);
+  check("statfs shows (nearly) no room left", statfs("/", &f) == 0 && f.f_bfree * f.f_bsize < 262144 + 65536, NULL);
+  fd = open("/tmp/never-stored", O_CREAT | O_WRONLY | O_TRUNC, 0644);
+  check("writes to /tmp (never stored) still work", fd >= 0 && write(fd, buf, 262144) == 262144 && close(fd) == 0, NULL);
+  unlink("/tmp/never-stored");
+  /* free room: delete what was written after "kept" */
+  for (int k = 0; k <= n; k++) { snprintf(path, sizeof path, "%s/f%d", dir, k); unlink(path); }
+  int back = 0;
+  for (int t = 0; t < 100 && !back; t++) { /* the deletions are stored, the browser reports the new figures */
+    sync();
+    usleep(50000);
+    snprintf(path, sizeof path, "%s/again", dir);
+    fd = open(path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd >= 0) { fillpat(buf, 9, 0, 65536); back = write(fd, buf, 65536) == 65536 && fsync(fd) == 0; close(fd); }
+    if (!back) unlink(path);
+  }
+  store_field("state:", v, sizeof v);
+  printf("after deleting: state %s\n", v);
+  check("deleting files makes room: a new file is written and fsync'ed", back, v);
+  close(sub);
+  printf("persisttest: full %d checks, %d failed\n", checks, fails);
+  return fails ? 1 : 0;
+}
+static int fullcheck(const char *dir) {
+  char path[512];
+  snprintf(path, sizeof path, "%s/kept", dir);
+  check("after a reboot, the file fsync'ed before the store filled is intact", file_ok(path, 7, NULL), NULL);
+  snprintf(path, sizeof path, "%s/again", dir);
+  check("...and so is the file written after room was made", file_ok(path, 9, NULL), NULL);
+  snprintf(path, sizeof path, "%s/f0", dir);
+  struct stat st;
+  check("...and the deleted files stay deleted", stat(path, &st) == -1 && errno == ENOENT, NULL);
+  printf("persisttest: fullcheck %d checks, %d failed\n", checks, fails);
+  return fails ? 1 : 0;
+}
+
 int main(int argc, char **argv) {
   if (argc >= 3 && !strcmp(argv[1], "fill")) return fill(argv[2], argc > 3 ? atoi(argv[3]) : 20000, argc > 4 ? atoi(argv[4]) : 50);
   if (argc >= 3 && !strcmp(argv[1], "verify")) return verify(argv[2], argc > 3 ? atoi(argv[3]) : 20000, argc > 4 ? atoi(argv[4]) : 50);
@@ -376,6 +468,8 @@ int main(int argc, char **argv) {
   if (argc >= 6 && !strcmp(argv[1], "crash-check")) return crash_check(strtoull(argv[2], 0, 10), atoi(argv[3]), argv[4], atoi(argv[5]));
   if (argc >= 4 && !strcmp(argv[1], "bigwrite")) return bigwrite(argv[2], atoi(argv[3]));
   if (argc >= 3 && !strcmp(argv[1], "bigcheck")) return bigcheck(argv[2]);
+  if (argc >= 3 && !strcmp(argv[1], "full")) return full(argv[2]);
+  if (argc >= 3 && !strcmp(argv[1], "fullcheck")) return fullcheck(argv[2]);
   fprintf(stderr, "usage: persisttest fill|verify DIR [NSMALL] [BIGMB] | crash-run SEED NOPS DIR | crash-check SEED NOPS DIR K | bigwrite FILE MB | bigcheck FILE\n");
   return 2;
 }

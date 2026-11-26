@@ -13,9 +13,10 @@
 struct inode *inode_alloc_proc(u32 mode, int kind, int dev, struct inode *parent);
 int vfs_symlink(struct inode *base, const char *target, const char *path);
 
-enum { G_CPUINFO, G_MEMINFO, G_MOUNTS, G_UPTIME, G_VERSION, G_FILESYSTEMS, G_STORE, G_NROOT,
+enum { G_CPUINFO, G_MEMINFO, G_MOUNTS, G_UPTIME, G_VERSION, G_FILESYSTEMS, G_STORE, G_KCMDLINE, G_NROOT,
        G_CMDLINE = 0, G_COMM, G_STATUS, G_PMOUNTS, G_NPID };
-static const char *root_names[G_NROOT] = {"cpuinfo", "meminfo", "mounts", "uptime", "version", "filesystems", "ucos-store"};
+static const char *root_names[G_NROOT] = {"cpuinfo", "meminfo", "mounts", "uptime", "version", "filesystems", "ucos-store", "cmdline"};
+extern char kernel_cmdline[];
 int store_status(char *buf, u32 cap);
 long store_ctl(const char *cmd, u32 n);
 static const char *pid_names[] = {"fd", "exe", "cwd", "cmdline", "comm", "status", "mounts"};
@@ -133,7 +134,7 @@ int procfs_readlink(struct inode *link, char *buf, u32 cap) {
 }
 
 /* ---- generated files: the text is made when the file is opened ---- */
-struct gen { u32 len, cap; char text[]; };
+struct gen { u32 len, cap, seq; char text[]; }; /* seq: the storage alert number when it was opened */
 static long gen_read(struct file *f, u32 ubuf, u32 len) {
   struct gen *g = f->priv;
   if (f->off >= g->len) return 0;
@@ -152,7 +153,15 @@ static long gen_write(struct file *f, u32 ubuf, u32 len) { /* only /proc/ucos-st
   return r < 0 ? r : (long)len;
 }
 int procfs_writable(struct inode *i) { return i->kind == K_GEN && i->dev == G_STORE; }
-static int ready(struct file *f, int add) { (void)f; (void)add; return POLLIN; }
+/* /proc/ucos-store also says when the storage level changes (80%, 95%, full, and back):
+ * poll() reports POLLPRI once the level changed since the file was opened, as sysfs
+ * attributes do on Linux. A subscriber opens it, reads it, polls for POLLPRI, and opens it
+ * again to read the new state. */
+static int ready(struct file *f, int add) {
+  if (f->ino->dev != G_STORE) return POLLIN;
+  struct gen *g = f->priv;
+  return store_alert_poll(g->seq, add) ? POLLIN | POLLPRI : POLLIN;
+}
 static const struct fops gen_fops = {gen_read, gen_write, ready, gen_close, NULL};
 #define ADD(...) do { if (g->len < g->cap) { int w_ = snprintf(g->text + g->len, g->cap - g->len, __VA_ARGS__); g->len += w_ < (int)(g->cap - g->len) ? w_ : (int)(g->cap - g->len) - 1; } } while (0)
 void mem_figures(u64 *total, u64 *free) {
@@ -168,7 +177,7 @@ struct file *procfs_open(struct inode *i, int flags) {
   u32 cap = 4096;
   struct gen *g = kmalloc(sizeof *g + cap);
   if (!g) return NULL;
-  g->len = 0; g->cap = cap;
+  g->len = 0; g->cap = cap; g->seq = store_alert_seq();
   int what = i->dev & 0xff, pid = (i->dev >> 8) & 0xff;
   if (i->dev & 0x10000) { /* per process; dev = (what << 8) | pid | 0x10000 */
     pid = i->dev & 0xff; what = (i->dev >> 8) & 0xff;
@@ -206,6 +215,7 @@ struct file *procfs_open(struct inode *i, int flags) {
   case G_VERSION: ADD("%s version %s (wasm32)\n", OS_NAME, OS_RELEASE); break;
   case G_FILESYSTEMS: ADD("\tucosfs\nnodev\tproc\n"); break;
   case G_STORE: g->len = store_status(g->text, g->cap); if (g->len >= g->cap) g->len = g->cap - 1; break;
+  case G_KCMDLINE: ADD("%s\n", kernel_cmdline); break;
   }
 done:;
   struct file *f = file_new(&gen_fops, i, flags, g);

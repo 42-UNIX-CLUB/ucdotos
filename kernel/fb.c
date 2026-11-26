@@ -151,6 +151,8 @@ struct file *ev_open(struct inode *ino, int flags) { return file_new(&ev_fops, i
 void fb_init(void) {
   int err;
   vfs_create(vfs_root, "/dev/input", S_IFDIR | 0755, &err);
-  vfs_mkdev("/dev/fb0", DEV_FB);
-  vfs_mkdev("/dev/input/event0", DEV_INPUT);
+  /* the screen and the input device belong to the seat: groups video and input, which the
+   * desktop user is a member of (/etc/group), as on Linux without per-session ACLs */
+  vfs_mkdev_mode("/dev/fb0", DEV_FB, 0660, 0, GID_VIDEO);
+  vfs_mkdev_mode("/dev/input/event0", DEV_INPUT, 0660, 0, GID_INPUT);
 }

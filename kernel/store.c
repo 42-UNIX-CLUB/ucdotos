@@ -60,6 +60,23 @@ static u8 *boot_blob;
 static u32 boot_len;
 static double quota, usage;
 static u64 bytes_out, batches, fetches, fetch_bytes;
+/* Space. The host pushes the browser's figures (store_usage) after each batch and on a slow
+ * timer; the kernel adds what it has not handed over yet (pend). A batch the browser refuses
+ * for lack of space makes the store "full": nothing is lost (the batch's changes are queued
+ * again), writes to persistent files fail with ENOSPC, and deleting files frees room. */
+static double pend;            /* bytes of file data noted but not yet in a batch */
+static int full, persisted = -1, level;
+static double fail_usage, fail_bytes, freed; /* at the last refused batch; data freed since */
+static u32 alert_seq;
+static waitq alert_wq;
+static u32 ns_inflight, ns_inflight_ops;    /* the part of nslog that the batch in flight carries */
+struct inflight { u32 sid, lo, hi; };       /* data and metadata the batch in flight carries */
+static struct inflight *infl;
+static u32 ninfl, inflcap;
+static double infl_bytes;
+#define LEVEL_WARN 0.80
+#define LEVEL_CRIT 0.95
+#define LEVEL_HYST 0.05
 
 /* ---- small helpers ---- */
 static void be32(u8 *p, u32 v) { p[0] = v >> 24; p[1] = v >> 16; p[2] = v >> 8; p[3] = v; }
@@ -122,6 +139,7 @@ static void sd_drop(struct inode *i) {
   if (d->prev) d->prev->next = d->next; else dhead = d->next;
   if (d->next) d->next->prev = d->prev; else dtail = d->prev;
   ndirty--;
+  if (d->data && d->hi > d->lo) { pend -= d->hi - d->lo; if (pend < 0) pend = 0; }
   kfree(d);
   i->sd = NULL;
 }
@@ -159,6 +177,7 @@ static u32 ensure_sid(struct inode *i) {
 }
 static void forget_store(struct inode *i) { /* the inode's last name went: its records go */
   if (i->sid) {
+    if (S_ISREG(i->mode) && (i->sflags & S_DATAOK)) freed += i->size; /* about what the store gives back */
     u8 k[12], k2[12];
     log_op(OP_DEL, k, key_s(k, 'A', i->sid), NULL, 0);
     log_op(OP_DEL, k, key_s(k, 'M', i->sid), NULL, 0);
@@ -215,8 +234,10 @@ void store_dirty(struct inode *i, u32 lo, u32 hi) {
   if (!d) return;
   d->meta = 1;
   if (!(i->sflags & S_DATAOK) || whole_file) { lo = 0; hi = i->size > hi ? i->size : hi; } /* first change of an image file: copy all of it */
+  u32 before = d->data ? d->hi - d->lo : 0;
   if (!d->data) { d->data = 1; d->lo = lo; d->hi = hi; }
   else { if (lo < d->lo) d->lo = lo; if (hi > d->hi) d->hi = hi; }
+  pend += (double)(d->hi - d->lo) - before;
   if (lo < d->ssize) d->ssize = lo;
   kick();
 }
@@ -283,21 +304,32 @@ static void emit_meta(struct inode *i, u32 size) {
   emit(&batch, &blen, &bcap, &bops, OP_PUT, k, key_s(k, 'M', i->sid), v, n);
 }
 /* Returns the batch length; the batch is at store_batch(). Header: "UCSB", seq, op count. */
+static void infl_add(u32 sid, u32 lo, u32 hi) {
+  if (ninfl == inflcap) {
+    u32 c = inflcap ? inflcap * 2 : 64;
+    struct inflight *n = krealloc(infl, c * sizeof *n);
+    if (!n) { fail("out of kernel memory for the batch record"); return; }
+    infl = n; inflcap = c;
+  }
+  infl[ninfl].sid = sid; infl[ninfl].lo = lo; infl[ninfl].hi = hi; ninfl++;
+}
 EXPORT(store_drain) u32 store_drain(u32 budget) {
   if (!budget) budget = BUDGET;
-  blen = 12; bops = 0;
+  if (full) budget = 0; /* full: names and metadata (deletions free room), no new data */
+  blen = 12; bops = 0; ninfl = 0; infl_bytes = 0;
   if (reserve(&batch, &bcap, 12)) return 0;
-  if (nslen) {
+  if (nslen) { /* the namespace log stays until the batch is reported written */
     if (reserve(&batch, &bcap, blen + nslen)) return 0;
     memcpy(batch + blen, nslog, nslen);
     blen += nslen; bops += nsops;
-    nslen = nsops = 0;
   }
+  ns_inflight = nslen; ns_inflight_ops = nsops;
   u32 data = 0;
   for (struct sdirty *d = dhead, *next; d; d = next) {
     next = d->next;
     struct inode *i = d->i;
-    if (d->data && S_ISREG(i->mode) && !(i->sflags & S_LAZY)) {
+    u32 dlo = d->data ? d->lo : 0, dhi = 0;
+    if (d->data && S_ISREG(i->mode) && !(i->sflags & S_LAZY) && budget) {
       u32 hi = d->hi < i->size ? d->hi : i->size, b = d->lo / BLK;
       for (; b * BLK < hi && data < budget; b++) {
         u8 k[12];
@@ -305,9 +337,11 @@ EXPORT(store_drain) u32 store_drain(u32 budget) {
         emit(&batch, &blen, &bcap, &bops, OP_PUT, k, key_b(k, i->sid, b), i->data + off, len);
         data += len;
       }
+      dhi = b * BLK; dlo = dlo / BLK * BLK;
+      if (dhi > dlo) infl_bytes += dhi - dlo;
       d->lo = b * BLK;
       if (d->lo >= hi) { d->data = 0; i->sflags |= S_DATAOK; d->ssize = i->size; }
-    } else d->data = 0;
+    } else if (!(d->data && budget == 0 && S_ISREG(i->mode))) d->data = 0;
     u32 size = d->data ? (d->ssize < i->size ? d->ssize : i->size) : i->size;
     emit_meta(i, size);
     if (!d->data && S_ISREG(i->mode) && (i->sflags & S_DATAOK)) { /* blocks past the end go */
@@ -315,8 +349,11 @@ EXPORT(store_drain) u32 store_drain(u32 budget) {
       key_b(k, i->sid, (size + BLK - 1) / BLK); key_b(k2, i->sid + 1, 0);
       emit(&batch, &blen, &bcap, &bops, OP_DELRANGE, k, 9, k2, 9);
     }
+    infl_add(i->sid, dlo, dhi);
     if (!d->data) sd_drop(i);
   }
+  pend = 0; /* recount exactly what is still waiting */
+  for (struct sdirty *d = dhead; d; d = d->next) if (d->data && d->hi > d->lo) pend += d->hi - d->lo;
   memcpy(batch, "UCSB", 4); le32(batch + 4, ++batch_seq); le32(batch + 8, bops);
   inflight_cover = dhead ? 0 : change_no; /* durable up to here once written, unless data was left over */
   kicked = dhead != NULL;
@@ -324,19 +361,99 @@ EXPORT(store_drain) u32 store_drain(u32 budget) {
   return blen;
 }
 EXPORT(store_batch) u8 *store_batch(void) { return batch; }
-EXPORT(store_pending) int store_pending(void) { return store_on && (nslen || dhead); }
+/* with a full store, only a batch without new data is worth sending (it can free room) */
+EXPORT(store_pending) int store_pending(void) {
+  if (!store_on) return 0;
+  if (nslen) return 1;
+  if (!full) return dhead != NULL;
+  for (struct sdirty *d = dhead; d; d = d->next) if (d->meta && !d->data) return 1;
+  return 0;
+}
+static void set_level(int l) {
+  static const char *names[] = {"below 80%", "80% full", "95% full", "full"};
+  if (l == level) return;
+  if (l > level) kprintf("[store] browser storage is %s: %.0f of %.0f MB used\n", names[l], (usage + pend) / 1e6, quota / 1e6);
+  else kprintf("[store] browser storage is %s again\n", names[l]);
+  level = l; alert_seq++;
+  wq_wake(&alert_wq);
+}
+static void update_level(void) {
+  if (full) { set_level(3); return; }
+  if (quota <= 0) { set_level(0); return; }
+  double f = (usage + pend) / quota;
+  int l = f >= LEVEL_CRIT ? 2 : f >= LEVEL_WARN ? 1 : 0;
+  /* going down needs a margin, so that hovering at a threshold does not repeat the warning */
+  if (l < level && level < 3 && f >= (level == 2 ? LEVEL_CRIT : LEVEL_WARN) - LEVEL_HYST) l = level;
+  set_level(l);
+}
+static void requeue_inflight(void) { /* the batch was refused: its changes are pending again */
+  for (u32 k = 0; k < ninfl; k++) {
+    struct inode *i = getmap(infl[k].sid);
+    if (!i || !(i->sflags & S_PERSIST)) continue;
+    struct sdirty *d = sd_of(i);
+    if (!d) return;
+    d->meta = 1;
+    if (infl[k].hi > infl[k].lo) {
+      u32 before = d->data ? d->hi - d->lo : 0;
+      if (!d->data) { d->data = 1; d->lo = infl[k].lo; d->hi = infl[k].hi; }
+      else { if (infl[k].lo < d->lo) d->lo = infl[k].lo; if (infl[k].hi > d->hi) d->hi = infl[k].hi; }
+      pend += (double)(d->hi - d->lo) - before;
+      if (infl[k].lo < d->ssize) d->ssize = infl[k].lo;
+    }
+  }
+  ninfl = 0;
+  if (!kicked) { kicked = 1; host_store_kick(0); }
+}
+/* ok: 1 written; 2 refused for lack of space (nothing of it was stored); 0 any other failure */
 EXPORT(store_done) void store_done(u32 seq, int ok) {
   if (seq != batch_seq) return;
-  if (!ok) { fail("the browser refused to store a batch (storage full or unavailable)"); return; }
+  if (ok == 2) {
+    if (!full) kprintf("[store] the browser has no room for more data: writes to stored files now fail with ENOSPC\n");
+    full = 1; fail_usage = usage; fail_bytes = infl_bytes > 65536 ? infl_bytes : 65536; freed = 0;
+    requeue_inflight();
+    update_level();
+    wq_wake(&sync_wq); /* fsync waiters get ENOSPC */
+    return;
+  }
+  if (!ok) { fail("the browser refused to store a batch (storage unavailable)"); return; }
+  /* the namespace operations it carried are stored: drop them from the log */
+  if (ns_inflight) {
+    memmove(nslog, nslog + ns_inflight, nslen - ns_inflight);
+    nslen -= ns_inflight; nsops -= ns_inflight_ops;
+    ns_inflight = ns_inflight_ops = 0;
+  }
+  ninfl = 0;
   if (inflight_cover && (s32)(inflight_cover - durable_no) > 0) durable_no = inflight_cover;
   wq_wake(&sync_wq);
 }
-EXPORT(store_usage) void store_usage(double used, double total) { usage = used; quota = total; }
+EXPORT(store_usage) void store_usage(double used, double total) {
+  usage = used; quota = total;
+  if (full && store_on) {
+    /* try data again once room appeared: files were deleted, the quota grew, or usage fell */
+    int room = freed >= fail_bytes || (quota > 0 && used + pend <= quota * 0.98 && used + fail_bytes < fail_usage);
+    if (room) { full = 0; kprintf("[store] room again: storing resumes\n"); if (dhead && !kicked) { kicked = 1; host_store_kick(0); } }
+  }
+  update_level();
+}
+EXPORT(store_persisted) void store_persisted(int yes) { persisted = yes; }
+/* A write that would make the file at i end at `end`: room in the store? (vfs.c, only for
+ * inodes in the persistent part). ENOSPC when the store is full, or when the browser's
+ * figures say the bytes will not fit. */
+long store_room(struct inode *i, u32 end) {
+  if (!store_on) return 0;
+  if (full) return -ENOSPC;
+  if (quota <= 0 || !i || end <= i->size) return 0;
+  return usage + pend + (end - i->size) > quota ? -ENOSPC : 0;
+}
+long store_room_name(struct inode *dir) { return store_on && full && (dir->sflags & S_PERSIST) ? -ENOSPC : 0; }
+int store_alert_poll(u32 seen, int add) { if (seen != alert_seq) return 1; if (add) wq_add(&alert_wq); return 0; }
+u32 store_alert_seq(void) { return alert_seq; }
 long store_sync(struct file *f, int all) {
   (void)f; (void)all;
   struct fscred *c = &fscred[cur->pid];
   if (broken) { c->sync_target = 0; return -EIO; }
   if (!store_on) return 0;
+  if (full && (nslen || dhead)) { c->sync_target = 0; return -ENOSPC; }
   if (!c->sync_target) {
     if (!nslen && !dhead && durable_no == change_no) return 0;
     c->sync_target = change_no;
@@ -377,8 +494,10 @@ EXPORT(store_filled) void store_filled(u32 sid, int ok) {
 
 /* ---- boot: lay the stored layer over the image ---- */
 EXPORT(store_schema) int store_schema(void) { return STORE_SCHEMA; }
-/* flags: 1 attach (persist changes), 2 read only (load, never write), 4 whole-file dirty tracking (for measurements) */
+/* flags: 1 attach (persist changes), 2 read only (load, never write), 4 whole-file dirty tracking (for measurements),
+ * 8 the store predates users: owners of image files come from the image (store.mjs: no 'O' record) */
 static u32 boot_flags;
+static int migrate_owners; /* flag 8: the store predates users; take image owners (apply_meta) */
 EXPORT(store_boot) void store_boot(u8 *blob, u32 len, u32 flags) { boot_blob = blob; boot_len = len; boot_flags = flags; }
 struct rec { const u8 *k; const u8 *v; u32 kl, vl; };
 static void free_tree(struct inode *i) {
@@ -435,6 +554,11 @@ static void apply_meta(struct inode *i, const u8 *v, u32 vl) {
   u32 mode, uid, gid, size;
   memcpy(&mode, v + 4, 4); memcpy(&uid, v + 8, 4); memcpy(&gid, v + 12, 4); memcpy(&size, v + 16, 4);
   if ((mode & S_IFMT) != (i->mode & S_IFMT)) return; /* the image changed the type under it: image wins */
+  /* A store written before users existed (no 'O' record) recorded every image file it
+   * touched with whatever owner it had then; owners now come from the image (root's files
+   * stay root's, /home/user is the user's). The mode the user set is kept. */
+  if (migrate_owners && i->spare) { uid = i->uid; gid = i->gid; i->spare = 2; }
+  else i->spare = 0;
   i->mode = mode; i->uid = uid; i->gid = gid;
   memcpy(&i->atime, v + 20, 8); memcpy(&i->mtime, v + 28, 8); memcpy(&i->ctime, v + 36, 8);
   if (S_ISREG(mode) && (fl & MF_DATA)) {
@@ -455,6 +579,7 @@ void store_apply(void) {
   attached = 1;
   readonly_ = !!(boot_flags & 2);
   whole_file = !!(boot_flags & 4);
+  migrate_owners = !!(boot_flags & 8);
   double t0 = host_now();
   /* the records: A, M and D puts (the host sends everything but the data blocks) */
   u32 nrec = 0, cap = 0, maxsid = 1;
@@ -500,6 +625,7 @@ void store_apply(void) {
         if (S_ISDIR(mode)) { i->nlink = 2; dir->nlink++; i->dir->parent = dir; } else i->nlink = 1;
       }
       i->sid = s; setmap(s, i); i->sflags |= S_ANCH;
+      if (e) i->spare = 1; /* an inode of this image: owner migration below may apply */
     }
     /* 2. metadata; nodes without an anchor are made here */
     for (u32 s = 2; s <= maxsid; s++) {
@@ -564,20 +690,30 @@ void store_apply(void) {
   read_config();
   mark_tree(vfs_root, 1);
   store_on = (boot_flags & 1) && !readonly_;
-  kicked = nslen != 0;
-  if (kicked) { change_no++; host_store_kick(0); }
+  u32 migrated = 0;
+  for (u32 s = 2; s < sidcap; s++) { /* store the corrected owners */
+    struct inode *i = getmap(s);
+    if (!i || !i->spare) continue;
+    if (i->spare == 2) { i->spare = 0; vfs_changed(i); migrated++; }
+    i->spare = 0;
+  }
+  if (migrated) kprintf("[store] owners of %u image files taken from the image (store written before users existed)\n", migrated);
+  if (nslen && !kicked) { kicked = 1; change_no++; host_store_kick(0); }
   kprintf("[store] %u records applied in %.2f ms%s\n", nrec, host_now() - t0, readonly_ ? " (read only: changes are not kept)" : "");
 }
 
 /* ---- status and control: /proc/ucos-store ---- */
 int store_status(char *buf, u32 cap) {
-  u64 total, free;
-  store_statfs(&total, &free);
+  static const char *lv[] = {"ok", "warning", "critical", "full"};
   return snprintf(buf, cap,
-                  "state: %s\nreason: %s\nquota_bytes: %.0f\nused_bytes: %.0f\npending_changes: %u\ndirty_inodes: %u\nbatches: %llu\nbatch_bytes: %llu\n"
+                  "state: %s\nreason: %s\nquota_bytes: %.0f\nused_bytes: %.0f\nunstored_bytes: %.0f\nused_percent: %.1f\nlevel: %s\nalerts: %u\n"
+                  "persistent: %s\npending_changes: %u\ndirty_inodes: %u\nbatches: %llu\nbatch_bytes: %llu\n"
                   "files_loaded: %llu\nbytes_loaded: %llu\n",
-                  !attached ? "off (no store)" : broken ? "stopped" : readonly_ ? "read only" : store_on ? "on" : "wiped",
-                  why, quota, usage, change_no - durable_no, ndirty, batches, bytes_out, fetches, fetch_bytes);
+                  !attached ? "off (no store)" : broken ? "stopped" : readonly_ ? "read only" : !store_on ? "wiped" : full ? "full" : "on",
+                  full ? "the browser refused to store more data; delete files to make room" : why, quota, usage, pend,
+                  quota > 0 ? 100.0 * (usage + pend) / quota : 0.0, lv[level], alert_seq,
+                  persisted < 0 ? "unknown" : persisted ? "yes (the browser keeps it under storage pressure)" : "no (the browser may evict it under storage pressure)",
+                  change_no - durable_no, ndirty, batches, bytes_out, fetches, fetch_bytes);
 }
 long store_ctl(const char *cmd, u32 n) {
   if (n >= 4 && !memcmp(cmd, "wipe", 4)) {
@@ -590,12 +726,15 @@ long store_ctl(const char *cmd, u32 n) {
   if (n >= 4 && !memcmp(cmd, "sync", 4)) return store_sync(NULL, 1);
   return -EINVAL;
 }
+/* With a store, the root file system is the browser's storage: total = the origin's quota,
+ * free = quota minus what the browser reports used and what is not stored yet. Without
+ * one, files live only in kernel memory: total and free are the memory figures. */
 void store_statfs(u64 *total, u64 *free) {
   mem_figures(total, free);
-  if (attached && quota > 0) {
-    u64 q = (u64)quota, left = usage < quota ? (u64)(quota - usage) : 0;
-    if (q < *total) *total = q;
-    if (left < *free) *free = left;
+  if (attached && store_on && quota > 0) {
+    double left = quota - usage - pend;
+    *total = (u64)quota;
+    *free = left > 0 ? (u64)left : 0;
   }
-  if (broken) *free = 0;
+  if (broken || full) *free = 0;
 }

@@ -338,6 +338,10 @@ char *strerror(int e) {
   case ENOBUFS: return "No buffer space available";
   case EISCONN: return "Transport endpoint is already connected";
   case ENOTCONN: return "Transport endpoint is not connected";
+  case EROFS: return "Read-only file system";
+  case ELOOP: return "Too many levels of symbolic links";
+  case EXDEV: return "Invalid cross-device link";
+  case EDQUOT: return "Disk quota exceeded";
   case ETIMEDOUT: return "Connection timed out";
   case ECONNREFUSED: return "Connection refused";
   case EHOSTUNREACH: return "No route to host";

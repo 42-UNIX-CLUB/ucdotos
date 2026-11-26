@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
+#include <pwd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -148,7 +149,15 @@ static char **child_env(void) {
   static char *env[128];
   static char theme[64];
   extern char **environ;
-  static const char *defaults[] = {"PATH=/bin", "HOME=/home/user", "USER=user", "SHELL=/bin/sh"};
+  /* who runs the terminal, for programs started without an environment (term as pid 1 is root) */
+  static char home[300] = "HOME=/home/user", user[80] = "USER=user", shell[300] = "SHELL=/bin/sh";
+  struct passwd *pw = getpwuid(getuid());
+  if (pw) {
+    snprintf(home, sizeof home, "HOME=%s", pw->pw_dir);
+    snprintf(user, sizeof user, "USER=%s", pw->pw_name);
+    snprintf(shell, sizeof shell, "SHELL=%s", pw->pw_shell[0] ? pw->pw_shell : "/bin/sh");
+  }
+  const char *defaults[] = {"PATH=/bin", home, user, shell};
   int n = 0;
   snprintf(theme, sizeof theme, "THEME=%s", T.th.name[0] ? T.th.name : "deck");
   env[n++] = "TERM=xterm-256color";
@@ -367,7 +376,7 @@ int main(int argc, char **argv) {
   if (pid1) {
     fb = 1; T.stats = 1;
     if (!getenv("PATH")) setenv("PATH", "/bin", 1);
-    if (!getenv("HOME")) setenv("HOME", "/home/user", 1);
+    if (!getenv("HOME")) { struct passwd *pw = getpwuid(getuid()); setenv("HOME", pw ? pw->pw_dir : "/home/user", 1); }
   }
   ui_theme_load(&T.th, NULL);
   setup_fonts();

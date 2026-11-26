@@ -400,7 +400,12 @@ static long do_chmod(struct inode *i, u32 mode) {
   if (!owner_or_root(i)) return -EPERM;
   if (i->kind) return -EPERM;
   mode &= 07777;
-  if (vfs_enforce >= 2 && cred()->fsuid && !S_ISDIR(i->mode) && cred()->fsgid != i->gid) mode &= ~S_ISGID;
+  if (vfs_enforce >= 2 && cred()->fsuid && !S_ISDIR(i->mode)) { /* as Linux: set-group-ID only for a group the caller is in */
+    struct fscred *c = cred();
+    int member = c->fsgid == i->gid;
+    for (u32 k = 0; k < c->ngroups && !member; k++) member = c->groups[k] == i->gid;
+    if (!member) mode &= ~S_ISGID;
+  }
   i->mode = (i->mode & S_IFMT) | mode;
   vfs_touch(i, 4);
   return 0;
@@ -424,8 +429,16 @@ static long fs_fchmodat(int dirfd, u32 upath, u32 mode, int flags) {
 static long do_chown(struct inode *i, u32 uid, u32 gid) {
   if (i->kind) return -EPERM;
   if (vfs_enforce >= 2 && cred()->fsuid) {
-    if (uid != (u32)-1 && uid != i->uid) return -EPERM;
-    if (gid != (u32)-1 && (cred()->fsuid != i->uid || (gid != cred()->fsgid && !(cred()->ngroups)))) return -EPERM;
+    /* as Linux: only root gives a file away; the owner may change its group to one of
+     * the groups the owner is in (the effective group or a supplementary one) */
+    struct fscred *c = cred();
+    if (uid != (u32)-1 && (uid != i->uid || c->fsuid != i->uid)) return -EPERM;
+    if (gid != (u32)-1) {
+      if (c->fsuid != i->uid) return -EPERM;
+      int member = gid == c->fsgid;
+      for (u32 k = 0; k < c->ngroups && !member; k++) member = c->groups[k] == gid;
+      if (!member && gid != i->gid) return -EPERM;
+    }
   }
   if (uid != (u32)-1) i->uid = uid;
   if (gid != (u32)-1) i->gid = gid;

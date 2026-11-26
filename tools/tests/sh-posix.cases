@@ -1953,3 +1953,32 @@ echo "st=$st"
 echo 'echo in-cwd' > fdp.sh; PATH=/nonexistent_dir; (. fdp.sh) 2>/dev/null || echo not-found
 @ fix-dot-path-found
 mkdir -p fdpp; echo 'echo via-path' > fdpp/fdp2.sh; PATH="$PWD/fdpp:$PATH"; . fdp2.sh
+
+# ---------------------------------------------------------------- SIGPIPE
+# A writer whose reader is gone is killed by SIGPIPE (status 141). The shell itself
+# must survive its builtins writing to a closed pipe, and must give the programs it
+# starts the default action even though it ignores SIGPIPE for itself.
+@ sigpipe-yes-head
+yes | head -1
+@ sigpipe-seq-head
+seq 100000 | head -3
+@ sigpipe-cat-big-true
+seq 50000 > sp1.f; cat sp1.f | true; echo $?
+@ sigpipe-pipefail-141
+set -o pipefail; yes | head -1 >/dev/null; echo $?
+@ sigpipe-pipefail-seq
+set -o pipefail; seq 100000 | head -1 >/dev/null; echo $?
+@ sigpipe-no-pipefail
+yes | head -1 >/dev/null; echo $?
+@ sigpipe-builtin-loop
+while :; do echo y; done | head -2; echo alive
+@ sigpipe-trap-ignore-inherited
+set -o pipefail; trap '' PIPE; yes | head -1 >/dev/null; echo $?
+@ sigpipe-trap-reset
+trap - PIPE; while :; do echo y; done | head -1 >/dev/null; echo alive
+@ sigpipe-exec-writer
+sh -c 'exec yes' | head -1
+@ sigpipe-subst
+x=$(yes | head -2); echo "$x"
+@ sigpipe-background
+{ yes | head -1; } & wait

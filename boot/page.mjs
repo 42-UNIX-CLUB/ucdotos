@@ -16,6 +16,44 @@ const say = (s) => { logEl.textContent += s; logEl.scrollTop = logEl.scrollHeigh
 const scale = Number(params.get('scale')) || Math.min(window.devicePixelRatio || 1, 2);
 const size = () => ({ width: Math.max(320, Math.round(innerWidth * scale)), height: Math.max(200, Math.round(innerHeight * scale)) });
 
+// One tab at a time (owner decision): a tab boots only while it holds the Web Lock
+// "ucos-store", which it keeps for its whole life. A second tab of the same origin waits for
+// the lock and says why; the browser grants it the moment the first tab closes, and the
+// second tab then boots by itself. The first tab never notices. ?nostore boots at once,
+// without the lock and without storage: such a session keeps nothing and touches nothing,
+// so it can run next to another tab.
+function oneTab() {
+  if (!navigator.locks) return Promise.resolve(true); // no Web Locks: nothing to coordinate with
+  return new Promise((ready) => {
+    navigator.locks.request('ucos-store', { ifAvailable: true }, (lock) => {
+      if (lock) { ready(true); return new Promise(() => {}); } // held until the tab goes away
+      waitForTurn(ready);
+      return null;
+    });
+  });
+}
+function waitForTurn(ready) {
+  window.ucosWaiting = true; // for tests
+  const box = document.createElement('div');
+  box.id = 'busy';
+  box.innerHTML = '<p><b>UC.OS is already open in another tab.</b></p>' +
+    '<p>One machine runs at a time, so the files you keep stay in one piece.<br>' +
+    'Close the other tab and this one starts on its own.</p>' +
+    '<p class="dim">Waiting for the other tab to close.</p>' +
+    '<p><button id="busy-retry" type="button">Check again</button></p>';
+  document.body.appendChild(box);
+  logEl.classList.add('hidden');
+  const go = () => { box.remove(); logEl.classList.remove('hidden'); window.ucosWaiting = false; };
+  // The plain request waits in the browser's queue and is granted when the other tab closes.
+  navigator.locks.request('ucos-store', (lock) => { go(); ready(true); return new Promise(() => {}); });
+  // The button asks the browser what it knows right now; it never takes the lock twice.
+  box.querySelector('#busy-retry').addEventListener('click', async () => {
+    const q = await navigator.locks.query();
+    const held = (q.held || []).some((l) => l.name === 'ucos-store');
+    box.querySelector('.dim').textContent = held ? 'Still open somewhere. This tab will start as soon as it closes.' : 'The other tab is closing. Starting...';
+  });
+}
+
 async function main() {
   say('UC.OS boot loader\n');
   const missing = checkSupport();
@@ -23,6 +61,9 @@ async function main() {
     say('\nThis browser cannot run UC.OS. Missing: ' + missing.join(', ') + '.\nUse a current Chrome, Edge, Firefox or Safari.\n');
     return;
   }
+  const nostore = params.has('nostore') || typeof indexedDB === 'undefined';
+  if (!nostore) await oneTab();
+  else if (params.has('nostore')) say('  ?nostore: this session keeps nothing and may run next to another tab\n');
   const get = async (url) => {
     const r = await fetch(url);
     if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
@@ -48,18 +89,14 @@ async function main() {
   const [kernel, initrd] = await Promise.all([get(`${base}/kernel.wasm`), image()]);
   marks.fetched = performance.now();
 
-  // ---- persistence (boot/store.mjs). One tab at a time keeps changes: the first tab holds a
-  // Web Lock for its whole life; a second tab boots from the image and keeps nothing.
-  // ?reset empties the store before booting; ?nostore boots without it.
+  // ---- persistence (boot/store.mjs). This tab holds the "ucos-store" lock (oneTab above),
+  // so no other tab has the database open: ?reset (empty the store first) is safe here too.
   let store = null;
-  if (!params.has('nostore') && typeof indexedDB !== 'undefined') {
-    const mine = !navigator.locks || await new Promise((res) => navigator.locks.request('ucos-store', { ifAvailable: true }, (l) => { res(!!l); return l ? new Promise(() => {}) : null; }));
-    if (!mine) say('  UC.OS is open in another tab: this tab starts from the image and keeps no changes\n');
-    else try {
+  if (!nostore) {
+    try {
       if (params.has('reset')) { await new Promise((r) => { const q = indexedDB.deleteDatabase('ucos-store'); q.onsuccess = q.onerror = q.onblocked = r; }); say('  store emptied (?reset)\n'); }
       store = await openStore({ kind: 'idb', log: say });
       if (store) say(`  store: ${store.records} records\n`);
-      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then((ok) => console.log('storage persist() granted: ' + ok));
     } catch (e) { say(`  storage is not available (${e && e.message}): changes will not be kept\n`); store = null; }
   }
   marks.store = performance.now();
@@ -96,7 +133,9 @@ async function main() {
       else if (document.pointerLockElement === canvas) document.exitPointerLock();
     },
     kernel, initrd,
-    cmdline: params.get('cmdline') || '',
+    // ucos.admin (may this session become root?) is not for the address bar: it comes from
+    // the server that serves the page, as <meta name="ucos-admin" content="1">. Default: no.
+    cmdline: [(params.get('cmdline') || '').replace(/(^|\s)ucos\.admin=\S*/g, ' ').trim(), document.querySelector('meta[name="ucos-admin"]')?.content === '1' ? 'ucos.admin=1' : ''].filter(Boolean).join(' '),
     screen: s,
     log: (text) => { say(text); console.log(text.replace(/\n$/, '')); },
     onFrame: () => { dirty = true; },

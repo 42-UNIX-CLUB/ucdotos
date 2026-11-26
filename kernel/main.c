@@ -16,9 +16,17 @@ EXPORT(boot_alloc) void *boot_alloc(u32 len) { return kmalloc(len); }
 EXPORT(proc_state) int proc_state(int pid) { return procs[pid].state; }
 
 /* Entry point. The boot loader has copied the initrd (a tar archive) into our memory. */
+char kernel_cmdline[256]; /* /proc/cmdline */
 EXPORT(kmain) int kmain(u8 *initrd, u32 initrd_len, const char *cmdline) {
   const char *init = "/bin/init";
   static char init_buf[PATH_MAX];
+  if (cmdline) strlcpy(kernel_cmdline, cmdline, sizeof kernel_cmdline);
+  /* ucos.admin=1: the page says this session's user may become root (su, sudo, set-user-ID
+   * programs). Who is entitled is decided outside the kernel; the default is no. */
+  for (const char *c = cmdline; c && *c; c++) {
+    if (!strncmp(c, " -- ", 4)) break; /* init's own arguments follow */
+    if (!strncmp(c, "ucos.admin=", 11) && (c == cmdline || c[-1] == ' ')) vfs_admin = c[11] == '1';
+  }
   for (const char *c = cmdline; c && *c; c++) /* kernel command line: init=/path */
     if (!strncmp(c, "init=", 5) && (c == cmdline || c[-1] == ' ')) {
       u32 n = 0;

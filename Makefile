@@ -113,13 +113,26 @@ $(B)/root/etc/remote-files: FORCE
 	@sh tools/remote-files.sh $(B) $(WADS)
 FORCE:
 
-# initrd: rootfs/ plus the programs, as a plain ustar archive
+# initrd: rootfs/ plus the programs, as a plain ustar archive. Owners and modes as on a
+# Linux system: everything belongs to root (uid 0) and nobody else may write to it, except
+# /home/user (the desktop user, uid and gid 1000, from rootfs/etc/passwd); /root is private,
+# /var/tmp is sticky and open to all; su and sudo are set-user-ID root (the kernel honours
+# that only in a session entitled to administration). /tmp, /run, /dev and /proc are made
+# by the kernel at boot.
+SETUID_PROGS := su sudo
 $(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT) $(B)/root/etc/remote-files
-	@mkdir -p $(B)/root/bin
+	@mkdir -p $(B)/root/bin $(B)/root/root $(B)/root/var/tmp $(B)/root/var/lib $(B)/root/var/cache $(B)/root/var/log
 	@cp -r rootfs/. $(B)/root/
 	@cp $(addprefix $(B)/bin/,$(PROGS)) $(B)/root/bin/
+	@chmod -R u+rwX,go+rX,go-w $(B)/root
+	@chmod 0700 $(B)/root/root
+	@chmod 1777 $(B)/root/var/tmp
+	@for p in $(SETUID_PROGS); do if [ -f $(B)/root/bin/$$p ]; then chmod 4755 $(B)/root/bin/$$p; fi; done
 	@echo "  TAR   initrd.tar"
-	@tar --format=ustar --owner=0 --group=0 -C $(B)/root -cf $@ .
+	@tar --format=ustar --owner=root:0 --group=root:0 --exclude=./home/user -C $(B)/root -cf $@ .
+	@tar --format=ustar --owner=user:1000 --group=user:1000 -C $(B)/root -rf $@ ./home/user
+
+test: all
 
 # Run the kernel, C library, shell, sound, network and router suites against this build. Fails if any check fails.
 test: all

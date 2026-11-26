@@ -66,6 +66,7 @@ static void on_chld(int s) { (void)s; got_chld++; }
  *   forktest x-lock FILE         locks across fork; exit status = bit mask of failures (0 = all fine)
  *   forktest x-exec PATH ARGS... fork, the child execs PATH with argv {PATH, ARGS...};
  *                                exit status = the child's, or 100 + errno if exec failed
+ *   forktest x-ids               exit 0 if a forked child has the same user, group and groups
  *   forktest x-tree DIR          a forked child makes a small tree (file, symlink, hard link, mode 0751, dir)
  *   forktest x-treecheck DIR     exit 0 if that tree is there with every attribute */
 static int lk(int fd, int cmd, int type, long start, long len) {
@@ -106,6 +107,22 @@ static int integ_mode(int argc, char **argv) {
     waitpid(c2, &st, 0);
     if (!WIFEXITED(st) || WEXITSTATUS(st)) bits |= 64;
     return bits;
+  }
+  if (!strcmp(argv[1], "x-ids")) { /* the forked child has the parent's user, group and groups */
+    unsigned r, e, sv, g[16], cg[16];
+    int ng = getgroups(16, g);
+    getresuid(&r, &e, &sv);
+    unsigned pg = getgid(), peg = getegid();
+    pid_t c = fork();
+    if (c == 0) {
+      unsigned r2, e2, s2;
+      getresuid(&r2, &e2, &s2);
+      int n2 = getgroups(16, cg);
+      _exit(r2 == r && e2 == e && s2 == sv && getgid() == pg && getegid() == peg && n2 == ng && !memcmp(cg, g, ng * sizeof g[0]) ? 0 : 1);
+    }
+    int st = -1;
+    if (c < 0 || waitpid(c, &st, 0) != c) return 255;
+    return WIFEXITED(st) ? WEXITSTATUS(st) : 200 + WTERMSIG(st);
   }
   if (!strcmp(argv[1], "x-exec") && argc > 2) {
     pid_t c = fork();
