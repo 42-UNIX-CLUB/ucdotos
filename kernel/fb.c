@@ -6,6 +6,24 @@
 /* ---- framebuffer: 32-bit pixels, bytes in memory are R, G, B, A ---- */
 static u8 *fb;
 static u32 fb_w, fb_h;
+/* Damage: the bounding box of everything written since the host last presented, as
+ * x0, y0, x1, y1 (inclusive), empty when x0 > x1. The host takes it with fb_damage().
+ * The host is told once per frame (the first write after it took the box), not per write. */
+static u32 dmg[4] = {1, 1, 0, 0}, dmg_out[4];
+static int dmg_told;
+static void damage(u32 off, u32 len) {
+  u32 stride = fb_w * 4, last = off + len - 1;
+  u32 y0 = off / stride, y1 = last / stride, x0 = 0, x1 = fb_w - 1;
+  if (y0 == y1) { x0 = (off % stride) / 4; x1 = (last % stride) / 4; }
+  if (dmg[0] > dmg[2]) { dmg[0] = x0; dmg[1] = y0; dmg[2] = x1; dmg[3] = y1; }
+  else {
+    if (x0 < dmg[0]) dmg[0] = x0;
+    if (y0 < dmg[1]) dmg[1] = y0;
+    if (x1 > dmg[2]) dmg[2] = x1;
+    if (y1 > dmg[3]) dmg[3] = y1;
+  }
+  if (!dmg_told) { dmg_told = 1; host_fb_dirty(); }
+}
 
 /* Linux's FBIOGET_VSCREENINFO layout */
 struct fb_bitfield { u32 offset, length, msb_right; };
@@ -31,8 +49,8 @@ static long fb_write(struct file *f, u32 ubuf, u32 len) {
   if (f->off >= size) return -ENOSPC;
   if (len > size - f->off) len = size - f->off;
   if (copy_from_user(fb + f->off, ubuf, len)) return -EFAULT;
+  if (len) damage(f->off, len);
   f->off += len;
-  host_fb_dirty();
   return len;
 }
 static long fb_ioctl(struct file *f, u32 cmd, u32 arg) {
@@ -76,6 +94,7 @@ EXPORT(fb_resize) u8 *fb_resize(u32 w, u32 h) {
     if (!n) return fb;
     if (fb) kfree(fb);
     fb = n; fb_w = w; fb_h = h;
+    dmg[0] = 0; dmg[1] = 0; dmg[2] = w - 1; dmg[3] = h - 1; /* a new buffer: the next frame shows all of it */
     ev_push(4 /* EV_MSC */, 0x11 /* screen resized */, (s32)((w << 16) | h));
     ev_push(0, 0, 0);
     wq_wake(&ev_wq);
@@ -83,6 +102,14 @@ EXPORT(fb_resize) u8 *fb_resize(u32 w, u32 h) {
   return fb;
 }
 EXPORT(fb_addr) u8 *fb_addr(void) { return fb; }
+/* The host calls this when it presents: returns the address of x0, y0, x1, y1 (inclusive;
+ * empty when x0 > x1) covering every write since the previous call, and starts a new box. */
+EXPORT(fb_damage) u32 *fb_damage(void) {
+  for (int i = 0; i < 4; i++) dmg_out[i] = dmg[i];
+  dmg[0] = 1; dmg[1] = 1; dmg[2] = 0; dmg[3] = 0;
+  dmg_told = 0;
+  return dmg_out;
+}
 EXPORT(fb_width) u32 fb_width(void) { return fb_w; }
 EXPORT(fb_height) u32 fb_height(void) { return fb_h; }
 

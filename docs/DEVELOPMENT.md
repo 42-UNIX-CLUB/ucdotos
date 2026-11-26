@@ -29,7 +29,11 @@ make B=build-NAME dist               # also assemble build-NAME/dist for a web s
 - `PROGS=` exists because every `bin/*.c` and `bin/*/` is a program, and someone else's
   half-written program would otherwise break your build.
 - Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `bin/NAME` (wasm files with no
-  extension), `root/` (the staged filesystem), `initrd.tar`, and with `dist`: `dist/`.
+  extension), `root/` (the staged filesystem), `initrd.tar`, and with `dist`: `initrd.tar.gz`
+  (the same archive, `gzip -9`) and `dist/`, which holds both. The page fetches
+  `initrd.tar.gz` and unpacks it with the browser's `DecompressionStream`, and falls back to
+  `initrd.tar` when there is no `.gz`; the Node tools read `initrd.tar`. Whether to ship the
+  `.gz` is an open owner decision.
 - There is no `clean` target on purpose. Use a new `B=` name. Do not `rm -rf`.
 - The initrd is `rootfs/` plus the programs under `/bin`, as a plain ustar archive.
   The staging directory `root/` is only added to, never emptied: a file you removed from
@@ -91,7 +95,8 @@ Do not set `TMPDIR` to a long path for it: Chromium refuses long socket paths.
 **By hand:** `cd B/dist && python3 -m http.server 8000`, then open the page. URL
 parameters: `?scale=1` (one framebuffer pixel per CSS pixel), `?cmdline=init=/bin/fbdemo`
 (kernel command line), `?debug` (trap messages in the log), `?base=URL` (where to fetch
-`kernel.wasm` and `initrd.tar`).
+`kernel.wasm` and the image), `?stats` (frame counters in `window.ucosStats`, for
+`tools/bench/frames.mjs`). The page records boot phase times in `window.ucosBoot`.
 
 ## 4. Tests
 

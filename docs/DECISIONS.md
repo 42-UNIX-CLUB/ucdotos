@@ -71,6 +71,9 @@ Notes that go with these:
 
 | Topic | Options | Blocks |
 |---|---|---|
+| **Compressed image** | `make dist` writes `initrd.tar.gz` and the page prefers it (built, in the tree): ship it as built; drop it and let the web server compress; plain tar only. It saves 4 MB of download (3.2 s at 10 Mbit/s) and costs 135 to 175 ms of unpacking (PERFORMANCE.md section 6) | Hosting |
+| **`-Oz` instead of `-O2`** | Kernel 21% and programs 26% smaller, image 2.6% smaller; speed the same within noise except `fib` (faster) and 16-byte `memset` (slower); not measured in Chromium (PERFORMANCE.md section 7) | |
+| **Time-slice check cost** | The check costs about 2.5 ns per `getppid` in Chromium, not explained: keep it (now); skip it for trivial calls (a program looping only on those would never yield); a clock in shared memory written by a Worker (needs cross-origin isolation headers) | |
 | **Doom game data** | Shareware `doom1.wad` (4.2 MB; free to distribute unmodified, proprietary content) or `freedoom1.wad` (28.8 MB, BSD). Both are in `bin/doom/wads/` on the build machine, neither is in git or in the image. | Doom being playable in the hosted build |
 | **Doom A/D keys** | turn (now) or strafe | |
 | **Hosting** for dux.ensui.dev and the colleagues' subdomains | Any static host works (`make dist`). Each domain could be an independent copy, redirect to one canonical domain, or show a different machine. No special headers are needed today. | Going live |

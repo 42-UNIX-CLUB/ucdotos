@@ -399,34 +399,10 @@ static long sys_getrandom(u32 ubuf, u32 len) {
   return len;
 }
 
-/* Entry point. Every process calls this through its own tiny wasm trampoline, which
- * supplies the caller's pid (the program cannot forge it). The kernel therefore knows
- * who is calling without depending on the order in which the host resumes stacks. */
-EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, long d, long e, long f) {
-  (void)e; (void)f;
-  cur = &procs[pid];
-  cur->nsys++;
-  cur->sleeping = 0;
-  /* Time slicing. Nothing can interrupt running WebAssembly, so the kernel takes the CPU
-   * back at system call boundaries: every 256th call it looks at the clock, and a process
-   * that has run for more than SLICE_MS is parked for one turn of the event loop before
-   * this call is carried out. Input, the screen and other processes get to run. The call
-   * itself has not started yet, so the process simply retries it when it resumes. */
-  if (__builtin_expect((++cur->slice_calls & 255) == 0, 0)) {
-    double now = host_now();
-    if (cur->slice_start == 0) cur->slice_start = now;
-    else if (now - cur->slice_start > SLICE_MS) {
-      cur->nsys--;
-      long r = block(0);
-      cur->sleeping = 0; /* preempted, not sleeping */
-      return r;
-    }
-  }
+/* Every call except the four hottest. Kept out of syscall_pid so that the hot path has no
+ * stack frame: several of these cases need large buffers on the kernel stack. */
+static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long c, long d) {
   switch (nr) {
-  case SYS_getppid: return cur->ppid;
-  case SYS_getpid: return cur->pid;
-  case SYS_read: return sys_read(a, b, c);
-  case SYS_write: return sys_write(a, b, c);
   case SYS_openat: return sys_openat(a, b, c, d);
   case SYS_close: return sys_close(a);
   case SYS_lseek: return sys_lseek(a, b, c);
@@ -480,4 +456,41 @@ EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, l
   case SYS_procinfo: return sys_procinfo(a, b);
   }
   return -ENOSYS;
+}
+
+/* Time slicing. Nothing can interrupt running WebAssembly, so the kernel takes the CPU back
+ * at system call boundaries: every 256th call it looks at the clock, and a process that has
+ * run for more than SLICE_MS is parked for one turn of the event loop before the call is
+ * carried out. Input, the screen and other processes get to run. The call itself has not
+ * started yet, so the process simply retries it when it resumes. Both helpers are out of
+ * line so that the clock read and its floating point stay off the hot path. */
+static __attribute__((noinline)) int slice_over(void) {
+  double now = host_now();
+  if (cur->slice_start == 0) { cur->slice_start = now; return 0; }
+  return now - cur->slice_start > SLICE_MS;
+}
+static __attribute__((noinline)) long preempt(void) {
+  cur->nsys--; /* the call will be made again */
+  long r = block(0);
+  cur->sleeping = 0; /* preempted, not sleeping */
+  return r;
+}
+
+/* Entry point. Every process calls this through its own tiny wasm trampoline, which
+ * supplies the caller's pid (the program cannot forge it). The kernel therefore knows
+ * who is calling without depending on the order in which the host resumes stacks.
+ * The system call counter doubles as the time slice counter. */
+EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, long d, long e, long f) {
+  (void)e; (void)f;
+  struct proc *p = &procs[pid]; /* a local, so the cases below need not reload cur */
+  cur = p;
+  p->sleeping = 0;
+  if (__builtin_expect((++p->nsys & 255) == 0, 0) && slice_over()) return preempt();
+  switch (nr) {
+  case SYS_getppid: return p->ppid;
+  case SYS_getpid: return p->pid;
+  case SYS_read: return sys_read(a, b, c);
+  case SYS_write: return sys_write(a, b, c);
+  }
+  return syscall_slow(nr, a, b, c, d);
 }

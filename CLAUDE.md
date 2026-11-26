@@ -108,7 +108,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `abi/abi.h` | syscall numbers, errno, structs shared by kernel and programs | 230 |
 | `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c` | 1,850 |
 | `boot/` | `host.mjs` (the machine), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 390 |
-| `lib/` | `string.c`, `fmt.c` (vsnprintf), `mem.s`: shared by kernel and libc | 310 |
+| `lib/` | `string.c`, `fmt.c` (vsnprintf): shared by kernel and libc; `mem.s` (kernel) and `umem.s` (libc): memcpy, memmove, memset | 530 |
 | `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 2,860 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
