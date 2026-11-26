@@ -9,6 +9,8 @@
  * shading, and drawn with U+2580 half blocks (two pixels per cell, 24-bit colour). */
 #include "term.h"
 #include "info.h"
+#include "uconf.h"
+#include <strings.h>
 
 /* ---------- small math (no libm here) ---------- */
 #define PI 3.14159265f
@@ -321,24 +323,32 @@ static void add_info(const char *k, const char *fmt, ...) {
   snprintf(info_key[ninfo], sizeof info_key[0], "%s", k);
   ninfo++;
 }
+/* ~/.config/fetch/fetch.uconf (or $FETCH_CONFIG), in the .uconf format (libuconf/uconf.h):
+ *   [fetch]  logo = mark|cube|torus|text, font = what the Font line says
+ *   [info]   line = NAME[, LABEL] repeated: which lines, in which order, under which label;
+ *            palette = true|false: the colour blocks under the lines */
+static char line_name[NINFO][24], line_label[NINFO][24];
+static int nlines, show_palette = 1;
 static void load_config(void) {
-  const char *path = getenv("FETCH_CONFIG");
-  FILE *f = fopen(path ? path : "/usr/share/fetch/config", "r");
-  if (!f) return;
-  char line[200];
-  while (fgets(line, sizeof line, f)) {
-    char *eq = strchr(line, '=');
-    if (line[0] == '#' || !eq) continue;
-    char *k = line, *v = eq + 1;
-    *eq = 0;
-    while (*k == ' ') k++;
-    for (char *e = eq - 1; e >= k && (*e == ' ' || *e == '\t'); e--) *e = 0;
-    while (*v == ' ') v++;
-    v[strcspn(v, "\r\n")] = 0;
-    if (!strcmp(k, "font")) snprintf(font_name, sizeof font_name, "%s", v);
-    else if (!strcmp(k, "logo")) snprintf(logo_name, sizeof logo_name, "%s", v);
+  const char *home = getenv("HOME"), *env = getenv("FETCH_CONFIG");
+  char path[256];
+  if (env) snprintf(path, sizeof path, "%s", env);
+  else snprintf(path, sizeof path, "%s/.config/fetch/fetch.uconf", home && *home ? home : "/home/user");
+  uconf c;
+  uconf_load(&c, path); /* no file: the built-in defaults */
+  snprintf(font_name, sizeof font_name, "%s", uconf_str(&c, "fetch.font", font_name));
+  snprintf(logo_name, sizeof logo_name, "%s", uconf_str(&c, "fetch.logo", logo_name));
+  show_palette = uconf_bool(&c, "info.palette", 1);
+  for (int i = uconf_next(&c, "info.line", -1); i >= 0 && nlines < NINFO; i = uconf_next(&c, "info.line", i)) {
+    char v[96], *f[2];
+    snprintf(v, sizeof v, "%s", c.e[i].value);
+    int n = uconf_split(v, f, 2);
+    snprintf(line_name[nlines], sizeof line_name[0], "%s", f[0]);
+    snprintf(line_label[nlines], sizeof line_label[0], "%s", n == 2 && *f[1] ? f[1] : f[0]);
+    nlines++;
   }
-  fclose(f);
+  uconf_warn_unused(&c);
+  uconf_free(&c);
 }
 static volatile long sink;
 __attribute__((noinline)) static void getppid_batch(long n) { for (long i = 0; i < n; i++) sink += getppid(); }
@@ -376,6 +386,26 @@ static double measure_getppid(int *approx) {
   return t > 0 && n ? t * 1e6 / n : 0;
 }
 static int theme_idx = -1, mem_idx = -1;
+/* Keep only the lines fetch.uconf lists, in its order, under its labels. Without line
+ * settings every line shows. The live Theme and Memory lines follow their new places. */
+static void choose_lines(void) {
+  if (!nlines) return;
+  char key[NINFO][24], val[NINFO][160];
+  int n = 0, nt = -1, nm = -1;
+  for (int l = 0; l < nlines && n < NINFO; l++) {
+    int k = 0;
+    while (k < ninfo && strcasecmp(info_key[k], line_name[l])) k++;
+    if (k == ninfo) { fprintf(stderr, "fetch: no line called '%s'\n", line_name[l]); continue; }
+    snprintf(key[n], sizeof key[0], "%s", line_label[l]);
+    memcpy(val[n], info_val[k], sizeof val[0]);
+    if (k == theme_idx) nt = n;
+    if (k == mem_idx) nm = n;
+    n++;
+  }
+  memcpy(info_key, key, sizeof key);
+  memcpy(info_val, val, sizeof val);
+  ninfo = n; theme_idx = nt; mem_idx = nm;
+}
 static void set_theme_info(void) {
   if (theme_idx >= 0) snprintf(info_val[theme_idx], sizeof info_val[0], "%s (%s)", th->name, th->desc);
 }
@@ -461,7 +491,7 @@ static int emit_info(int i) {
     ob_puts("\033[0m");
     int vw = u8_width(info_val[k]);
     return key_w + (vw < val_w ? vw : val_w);
-  } else if ((i == ninfo + 2 + pal_gap || i == ninfo + 3 + pal_gap) && pal_block) {
+  } else if ((i == ninfo + 2 + pal_gap || i == ninfo + 3 + pal_gap) && pal_block && show_palette) {
     const unsigned *p = palette();
     const char *b = i == ninfo + 2 + pal_gap ? "\xe2\x96\x88" : "\xe2\x96\x80";
     for (int k = 0; k < 8; k++) { ob_fg(p[k]); for (int j = 0; j < pal_block; j++) ob_puts(b); }
@@ -470,7 +500,7 @@ static int emit_info(int i) {
   }
   return 0;
 }
-static int info_lines(void) { return ninfo + 3 + pal_gap + pal_half; }
+static int info_lines(void) { return ninfo + 2 + (show_palette ? 1 + pal_gap + pal_half : 0); }
 static int max_val_width(void) {
   int w = 0;
   for (int k = 0; k < ninfo; k++) if (u8_width(info_val[k]) > w) w = u8_width(info_val[k]);
@@ -635,6 +665,7 @@ int main(int argc, char **argv) {
   }
 
   gather(userhost, sizeof userhost);
+  choose_lines();
   if (!tty_check(1)) { print_plain(); return 0; }
 
   textlogo = !strcmp(logo, "text");
