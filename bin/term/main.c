@@ -10,6 +10,7 @@
 #include "backend.h"
 #include "keys.h"
 #include "theme.h"
+#include "uconf.h"
 #include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
@@ -38,6 +39,8 @@ static struct {
   int zoom;               /* zoom steps away from that size (see font_px) */
   int ptm, child, dead, hold, exit_status;
   int pad, swallow_text, title_fixed, mouse_buttons;
+  /* ~/.config/term/term.uconf (see load_conf) */
+  struct { int font_size, padding, scrollback, cursor, zoom_step, zoom_min, zoom_max; char font[128], font_bold[128]; } conf;
   int stats;
   /* statistics */
   double st_t0, st_render_ms, st_render_max, st_parse_ms;
@@ -71,14 +74,52 @@ static int load_font(int i, const char *path) {
   return 0;
 }
 
-/* Zoom (UI_EV_ZOOM from the window manager) moves the text size in steps of ZOOM_STEP pixels. */
-#define ZOOM_STEP 2
-#define ZOOM_MIN_PX 8
-#define ZOOM_MAX_PX 72
-static int base_px(void) { return T.font_size > 0 ? T.font_size : T.th.font_size > 0 ? T.th.font_size : 16; }
+/* ~/.config/term/term.uconf: the terminal's dotfile (.uconf, see libuconf/uconf.h). Read at
+ * start and again whenever the theme is reloaded; the scrollback size counts at start only.
+ *   [font]        size, regular, bold         (over the theme's; --font-size wins over size)
+ *   [window]      padding                     (pixels around the text)
+ *   [scrollback]  lines
+ *   [cursor]      style = block | underline | bar   (until a program sets its own)
+ *   [zoom]        step, min, max              (pixels; Ctrl+= and Ctrl+- in the window manager) */
+static void font_path(const char *v, char *out, size_t cap) {
+  if (*v == '/') snprintf(out, cap, "%s", v);
+  else snprintf(out, cap, "/usr/share/fonts/%s", v);
+}
+static void load_conf(void) {
+  const char *home = getenv("HOME");
+  char path[256];
+  snprintf(path, sizeof path, "%s/.config/term/term.uconf", home && *home ? home : "/home/user");
+  uconf c;
+  uconf_load(&c, path); /* no file: every setting keeps its default */
+  T.conf.font_size = uconf_int(&c, "font.size", 0, 6, 72);
+  const char *f = uconf_str(&c, "font.regular", NULL);
+  T.conf.font[0] = T.conf.font_bold[0] = 0;
+  if (f) font_path(f, T.conf.font, sizeof T.conf.font);
+  if ((f = uconf_str(&c, "font.bold", NULL))) font_path(f, T.conf.font_bold, sizeof T.conf.font_bold);
+  T.conf.padding = uconf_int(&c, "window.padding", 8, 0, 200);
+  T.conf.scrollback = uconf_int(&c, "scrollback.lines", 5000, 0, 100000);
+  const char *cur = uconf_str(&c, "cursor.style", "block");
+  T.conf.cursor = !strcmp(cur, "underline") ? 4 : !strcmp(cur, "bar") ? 6 : 2; /* steady DECSCUSR styles */
+  if (strcmp(cur, "block") && strcmp(cur, "underline") && strcmp(cur, "bar"))
+    fprintf(stderr, "%s: cursor style '%s' is not block, underline or bar\n", c.name, cur);
+  T.conf.zoom_step = uconf_int(&c, "zoom.step", 2, 1, 32);
+  T.conf.zoom_min = uconf_int(&c, "zoom.min", 8, 4, 200);
+  T.conf.zoom_max = uconf_int(&c, "zoom.max", 72, 4, 200);
+  if (T.conf.zoom_max < T.conf.zoom_min) T.conf.zoom_max = T.conf.zoom_min;
+  uconf_warn_unused(&c);
+  uconf_free(&c);
+  /* the font files named here replace the theme's */
+  if (T.conf.font[0]) snprintf(T.th.font, sizeof T.th.font, "%s", T.conf.font);
+  if (T.conf.font_bold[0]) snprintf(T.th.font_bold, sizeof T.th.font_bold, "%s", T.conf.font_bold);
+}
+
+/* Zoom (UI_EV_ZOOM from the window manager) moves the text size in steps of zoom.step pixels. */
+static int base_px(void) {
+  return T.font_size > 0 ? T.font_size : T.conf.font_size > 0 ? T.conf.font_size : T.th.font_size > 0 ? T.th.font_size : 16;
+}
 static int font_px(void) {
-  int px = base_px() + T.zoom * ZOOM_STEP;
-  return px < ZOOM_MIN_PX ? ZOOM_MIN_PX : px > ZOOM_MAX_PX ? ZOOM_MAX_PX : px;
+  int px = base_px() + T.zoom * T.conf.zoom_step;
+  return px < T.conf.zoom_min ? T.conf.zoom_min : px > T.conf.zoom_max ? T.conf.zoom_max : px;
 }
 
 static void setup_fonts(void) {
@@ -89,7 +130,8 @@ static void setup_fonts(void) {
   int px = font_px();
   if (render_init(&T.r, &T.font[0], bold ? &T.font[1] : NULL, fb ? &T.font[2] : NULL, (float)px)) die("out of memory");
   render_colors(&T.r, T.th.fg, T.th.bg, T.th.accent, T.th.color);
-  T.pad = 8; /* padding around the grid */
+  T.r.cursor_default = T.conf.cursor;
+  T.pad = T.conf.padding; /* around the grid */
 }
 
 /* ---------- pty ---------- */
@@ -109,7 +151,7 @@ static void apply_size(void) {
   int cols, rows;
   render_grid_size(&T.r, T.be->w, T.be->h, T.pad, &cols, &rows);
   if (!T.t) {
-    T.t = vt_new(cols, rows, 5000);
+    T.t = vt_new(cols, rows, T.conf.scrollback);
     if (!T.t) die("out of memory");
   } else vt_resize(T.t, cols, rows);
   render_layout(&T.r, T.pad, T.pad);
@@ -121,8 +163,11 @@ static void apply_size(void) {
 
 static void reload_theme(void) {
   ui_theme old = T.th;
+  int old_px = font_px(), old_pad = T.conf.padding, old_cursor = T.conf.cursor;
   ui_theme_load(&T.th, NULL);
-  if (strcmp(old.font, T.th.font) || strcmp(old.font_bold, T.th.font_bold) || old.font_size != T.th.font_size || old.gap != T.th.gap)
+  load_conf(); /* term.uconf may have changed too */
+  if (strcmp(old.font, T.th.font) || strcmp(old.font_bold, T.th.font_bold) || old.gap != T.th.gap ||
+      old_px != font_px() || old_pad != T.conf.padding || old_cursor != T.conf.cursor)
     setup_fonts();
   else
     render_colors(&T.r, T.th.fg, T.th.bg, T.th.accent, T.th.color);
@@ -243,7 +288,8 @@ static void mouse_report(int b, int px, int py, int release, int mods) {
 /* test hook (Ctrl+Alt+Shift+F12): the visible text to the console, for test scripts */
 static void dump_screen(void) {
   static char line[4096];
-  fprintf(stderr, "[screen-begin] %dx%d cursor %d,%d view %d alt %d\n", T.t->cols, T.t->rows, T.t->x, T.t->y, T.t->view, T.t->alt_active);
+  fprintf(stderr, "[screen-begin] %dx%d cursor %d,%d view %d alt %d cell %dx%d pad %d\n", T.t->cols, T.t->rows, T.t->x, T.t->y,
+          T.t->view, T.t->alt_active, T.r.cw, T.r.ch, T.pad);
   for (int y = 0; y < T.t->rows; y++) { vt_row_text(T.t, y, line, sizeof line); fprintf(stderr, "[screen] %s\n", line); }
   fprintf(stderr, "[screen-end]\n");
 }
@@ -370,6 +416,7 @@ int main(int argc, char **argv) {
     if (!getenv("HOME")) setenv("HOME", "/home/user", 1);
   }
   ui_theme_load(&T.th, NULL);
+  load_conf();
   setup_fonts();
   if (!fb) T.be = be_ui_open(title, 80 * T.r.cw + 2 * T.pad, 25 * T.r.ch + 2 * T.pad);
   if (!T.be) T.be = be_fb_open();

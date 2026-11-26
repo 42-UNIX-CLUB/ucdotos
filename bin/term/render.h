@@ -20,6 +20,7 @@ typedef struct {
   vt_cell *shadow;          /* what is on screen, per cell (pad = cursor marker) */
   int full;                 /* next draw repaints everything, padding included */
   uint8_t *missing;         /* 2 bits per BMP code point: 0 unknown, 1 in the font, 2 missing */
+  int cursor_default;       /* DECSCUSR style used while the program has not set one (0 = block) */
 } render;
 
 int render_init(render *r, const ttf_font *reg, const ttf_font *bold, const ttf_font *fallback, float px);
