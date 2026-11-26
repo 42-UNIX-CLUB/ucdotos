@@ -108,6 +108,14 @@ static inline void corner_px(const wdraw *d, unsigned *p, int cx, int cy, int lx
 }
 static inline unsigned band(const wdraw *d, int k) { return k < d->t1 ? d->c1 : d->c2; }
 
+/* Side of the square at each corner of a window where the frame is curved. Rows outside the
+ * corner squares are painted from edge to edge with nothing showing through. */
+static int corner_size(const client *c) {
+  int rad = c->fullscreen ? 0 : G_radius, R = rad > c->bw ? rad : c->bw;
+  if (R > c->r.w / 2) R = c->r.w / 2;
+  if (R > c->r.h / 2) R = c->r.h / 2;
+  return R;
+}
 static void draw_window(client *c, const rect *D) {
   rect r = c->r;
   int x0 = D->x > r.x ? D->x : r.x, x1 = D->x + D->w < r.x + r.w ? D->x + D->w : r.x + r.w;
@@ -118,9 +126,7 @@ static void draw_window(client *c, const rect *D) {
   else if (c == focused()) d.c1 = d.c2 = theme.border_focus;
   else { d.c1 = theme.border_normal; d.c2 = theme.bg; d.t1 = G_thin < d.t ? G_thin : d.t; }
   if (c->role == UI_BAR) d.bg = theme.bar_bg;
-  d.R = d.rad > d.t ? d.rad : d.t;
-  if (d.R > r.w / 2) d.R = r.w / 2;
-  if (d.R > r.h / 2) d.R = r.h / 2;
+  d.R = corner_size(c);
   if (d.rad > d.R) d.rad = d.R;
   int t = d.t, w = r.w, h = r.h, R = d.R;
   for (int y = y0; y < y1; y++) {
@@ -173,23 +179,63 @@ static void draw_cursor(const rect *D) {
 }
 
 /* ---------- frames ---------- */
-#define SCENE_NO_BARS 1
-/* Paint the desktop in D into scr: wallpaper, then windows from bottom to top, then the cursor. */
-static void paint_scene(const rect *D, int flags) {
-  for (int y = D->y; y < D->y + D->h; y++)
-    memcpy(scr + (size_t)y * scr_w + D->x, wall + (size_t)y * scr_w + D->x, (size_t)D->w * 4);
-  /* bottom to top: tiles, bars, the fullscreen window, floating windows */
+/* Areas that windows are about to paint completely, so the wallpaper under them can be left
+ * out. Only an optimisation: an area that is not listed just gets painted twice. */
+#define MAX_SOLID 24
+static rect solid[MAX_SOLID];
+static int nsolid;
+static void add_solid(const client *c, const rect *D) {
+  int R = corner_size(c);
+  int x0 = c->r.x > D->x ? c->r.x : D->x, x1 = c->r.x + c->r.w < D->x + D->w ? c->r.x + c->r.w : D->x + D->w;
+  int y0 = c->r.y + R > D->y ? c->r.y + R : D->y, y1 = c->r.y + c->r.h - R < D->y + D->h ? c->r.y + c->r.h - R : D->y + D->h;
+  if (x0 < x1 && y0 < y1 && nsolid < MAX_SOLID) solid[nsolid++] = (rect){x0, y0, x1 - x0, y1 - y0};
+}
+/* Draw the windows of workspace ws that fall inside D, shifted dx pixels to the right, from
+ * bottom to top: tiles, bars, the fullscreen window, floating windows. with_bars = 0 leaves
+ * the bars out. only_list = 1 draws nothing and adds what would be covered to solid[]. */
+static void draw_windows(int ws, int dx, const rect *D, int with_bars, int only_list) {
+  int keep = cur_ws;
+  cur_ws = ws; /* visible() and focused() answer for the current workspace */
   for (int pass = 0; pass < 4; pass++)
     for (int i = 0; i < nclients; i++) {
       client *c = order[i];
-      if (!visible(c)) continue;
-      if ((flags & SCENE_NO_BARS) && c->role == UI_BAR) continue;
+      if (!visible(c) || (c->role == UI_BAR && !with_bars)) continue;
       int kind = c->floating ? 3 : c->fullscreen ? 2 : c->role == UI_BAR ? 1 : 0;
-      if (kind == pass) draw_window(c, D);
+      if (kind != pass) continue;
+      c->r.x += dx;
+      if (only_list) add_solid(c, D); else draw_window(c, D);
+      c->r.x -= dx;
     }
+  cur_ws = keep;
+}
+/* Row y of the wallpaper, moved left by shift columns (wrapping around), for the screen
+ * columns [a, b). */
+static void wall_span(int y, int shift, int a, int b) {
+  unsigned *row = scr + (size_t)y * scr_w, *w = wall + (size_t)y * scr_w;
+  int seam = scr_w - shift; /* screen column where the wallpaper starts over */
+  if (a < seam) { int e = b < seam ? b : seam; memcpy(row + a, w + a + shift, (size_t)(e - a) * 4); a = e; }
+  if (a < b) memcpy(row + a, w + a - seam, (size_t)(b - a) * 4);
+}
+/* The same for a whole row, minus the parts listed in solid[]. */
+static void wall_row(int y, int shift) {
+  int x = 0;
+  while (x < scr_w) {
+    int next = scr_w, skip = -1;
+    for (int i = 0; i < nsolid; i++) {
+      const rect *r = &solid[i];
+      if (y < r->y || y >= r->y + r->h || r->x + r->w <= x) continue;
+      if (r->x <= x) { skip = r->x + r->w; break; }
+      if (r->x < next) next = r->x;
+    }
+    if (skip >= 0) { x = skip; continue; }
+    wall_span(y, shift, x, next);
+    x = next;
+  }
 }
 static void paint(const rect *D) {
-  paint_scene(D, 0);
+  for (int y = D->y; y < D->y + D->h; y++)
+    memcpy(scr + (size_t)y * scr_w + D->x, wall + (size_t)y * scr_w + D->x, (size_t)D->w * 4);
+  draw_windows(cur_ws, 0, D, 1, 0);
   draw_cursor(D);
 }
 static void put(const rect *D) {
@@ -206,63 +252,104 @@ static void put(const rect *D) {
   }
 }
 /* ---------- workspace slide ---------- */
-/* On a workspace switch, anim_begin() takes a picture of the old workspace and anim_go() one of
- * the new one (both without the bar and the cursor). compose() then pans from one to the other
- * while ANIM_MS pass, with the bar and the cursor drawn fresh on top. The pictures are still:
- * a window on the incoming workspace shows its first frame until the slide ends. */
-#define ANIM_MS 160
-static unsigned *anim_a, *anim_b;
-static int anim_on, anim_dir, anim_w, anim_h;
-static double anim_t0;
+/* On a workspace switch the old and the new workspace pan across the screen for
+ * cfg.animation_ms milliseconds (0 turns the slide off). Nothing is copied aside: every frame
+ * draws the old workspace's windows shifted one way and the new one's shifted the other, each
+ * clipped to its side of the seam, over the wallpaper panned by the same amount. So the slide
+ * needs no extra memory, whatever the screen size, and windows keep updating while they move.
+ * The bar stays put, unless one of the two workspaces hides it (a fullscreen window): then it
+ * travels with the workspace that shows it. */
+static int anim_on, anim_from, anim_to, anim_dir;
+static double anim_t0, anim_len;                 /* start time and duration, in ms */
+static int cut_on, cut_from, cut_to;             /* the slide that anim_begin() interrupted */
+static double cut_pos;
 
-static void render_scene(unsigned *dst) {
-  unsigned *keep = scr;
-  rect all = {0, 0, scr_w, scr_h};
-  scr = dst;
-  paint_scene(&all, SCENE_NO_BARS);
-  scr = keep;
+/* How far the slide is, 0..1, eased out; 1 = over. */
+static double anim_pos(void) {
+  double p = anim_len > 0 ? (now_ms() - anim_t0) / anim_len : 1;
+  if (p >= 1) return 1;
+  if (p <= 0) return 0;
+  double q = 1 - p;
+  return 1 - q * q * q;
 }
 void anim_end(void) {
-  int was = anim_on;
-  free(anim_a); free(anim_b);
-  anim_a = anim_b = NULL;
+  if (!anim_on) return;
   anim_on = 0;
-  if (was) damage_all();
+  damage_all();
 }
+/* Call before the workspace changes. */
 void anim_begin(void) {
+  cut_on = anim_on; cut_from = anim_from; cut_to = anim_to;
+  cut_pos = anim_on ? anim_pos() : 0;
   anim_end();
-  if (!scr) return;
-  anim_w = scr_w; anim_h = scr_h;
-  anim_a = malloc((size_t)scr_w * scr_h * 4);
-  anim_b = malloc((size_t)scr_w * scr_h * 4);
-  if (!anim_a || !anim_b) { free(anim_a); free(anim_b); anim_a = anim_b = NULL; return; } /* no memory: no slide */
-  render_scene(anim_a);
+  anim_from = cur_ws;
 }
-/* dir +1: the viewer moves right along the workspaces, so the picture moves left. -1: the other way. */
+/* Call after it. dir +1: the viewer moves right along the workspaces, so the picture moves
+ * left. -1: the other way. */
 void anim_go(int dir) {
-  if (!anim_a) return;
-  render_scene(anim_b);
+  if (cfg.animation_ms <= 0 || !scr || anim_from == cur_ws) return;
+  anim_to = cur_ws;
   anim_dir = dir;
+  anim_len = cfg.animation_ms;
   anim_t0 = now_ms();
+  /* Turning back in the middle of a slide: carry on from where the picture is instead of
+   * jumping. The eased position must start at 1 - cut_pos. Find the time p that gives it by
+   * bisection (once per turn-back, and it keeps the maths library out of this program). */
+  if (cut_on && cut_from == anim_to && cut_to == anim_from && cut_pos > 0 && cut_pos < 1) {
+    double want = 1 - cut_pos, lo = 0, hi = 1;
+    for (int i = 0; i < 30; i++) {
+      double p = (lo + hi) / 2, q = 1 - p;
+      if (1 - q * q * q < want) lo = p; else hi = p;
+    }
+    anim_t0 -= lo * anim_len;
+  }
   anim_on = 1;
   damage_all();
 }
-static void compose_anim(void) {
-  double p = (now_ms() - anim_t0) / ANIM_MS;
-  if (p >= 1 || anim_w != scr_w || anim_h != scr_h) { anim_end(); return; } /* the next frame paints normally */
-  double q = 1 - p;
-  int off = (int)((1 - q * q * q) * scr_w); /* ease out */
+static int bar_shown_on(int ws) {
+  int keep = cur_ws, shown = 0;
+  cur_ws = ws;
+  for (int i = 0; i < nclients && !shown; i++) shown = order[i]->role == UI_BAR && visible(order[i]);
+  cur_ws = keep;
+  return shown;
+}
+/* One frame of the slide. Returns 0 when the slide is over (the caller then paints normally). */
+static int compose_anim(void) {
+  double pos = anim_pos();
+  if (pos >= 1 || cur_ws != anim_to) { anim_end(); return 0; }
+  double t0 = now_ms();
+  nsolid = 0;
+  int off = (int)(pos * scr_w); /* columns of the new workspace on screen so far */
   if (off > scr_w) off = scr_w;
   int rest = scr_w - off;
-  double t0 = now_ms();
-  for (int y = 0; y < scr_h; y++) {
-    unsigned *row = scr + (size_t)y * scr_w, *a = anim_a + (size_t)y * scr_w, *b = anim_b + (size_t)y * scr_w;
-    if (anim_dir > 0) { memcpy(row, a + off, (size_t)rest * 4); memcpy(row + rest, b, (size_t)off * 4); }
-    else { memcpy(row, b + rest, (size_t)off * 4); memcpy(row + off, a, (size_t)rest * 4); }
+  /* Moving right: the old workspace keeps the left `rest` columns and has moved left by off;
+   * the new one has the right `off` columns. Moving left is the mirror image. */
+  rect old_clip, new_clip;
+  int old_dx, new_dx, shift;
+  if (anim_dir > 0) {
+    old_clip = (rect){0, 0, rest, scr_h}; old_dx = -off;
+    new_clip = (rect){rest, 0, off, scr_h}; new_dx = rest;
+    shift = off;
+  } else {
+    new_clip = (rect){0, 0, off, scr_h}; new_dx = -rest;
+    old_clip = (rect){off, 0, rest, scr_h}; old_dx = off;
+    shift = rest;
   }
+  int fixed_bar = bar_shown_on(anim_from) && bar_shown_on(anim_to);
   rect all = {0, 0, scr_w, scr_h};
-  for (int i = 0; i < nclients; i++)
-    if (order[i]->role == UI_BAR && visible(order[i])) draw_window(order[i], &all);
+  /* Two rounds over the same windows: first list what they will cover, then, once the
+   * wallpaper is down everywhere else, draw them. */
+  for (int round = 0; round < 2; round++) {
+    if (old_clip.w > 0) draw_windows(anim_from, old_dx, &old_clip, !fixed_bar, !round);
+    if (new_clip.w > 0) draw_windows(anim_to, new_dx, &new_clip, !fixed_bar, !round);
+    if (fixed_bar)
+      for (int i = 0; i < nclients; i++) {
+        if (order[i]->role != UI_BAR || !visible(order[i])) continue;
+        if (!round) add_solid(order[i], &all); else draw_window(order[i], &all);
+      }
+    /* The wallpaper is the same on both workspaces, so panning it is a rotation of each row. */
+    if (!round) for (int y = 0; y < scr_h; y++) wall_row(y, shift);
+  }
   draw_cursor(&all);
   double t1 = now_ms();
   put(&all);
@@ -270,9 +357,10 @@ static void compose_anim(void) {
   stats_compose_ms += t1 - t0;
   write_ms += now_ms() - t1;
   damage_all(); /* keep the frames coming */
+  return 1;
 }
 void compose(void) {
-  if (anim_on) { compose_anim(); return; }
+  if (anim_on && compose_anim()) return;
   double t0 = now_ms();
   int n = ndmg;
   for (int i = 0; i < n; i++) paint(&dmg[i]);

@@ -229,6 +229,11 @@ int run_command(client *src, const char *cmd) {
   if (!strcmp(verb, "exit")) { quit = 1; return 0; }
   if (!strcmp(verb, "stats")) { print_stats(); return 0; }
   if (!strcmp(verb, "trace")) { trace = !strcmp(arg, "on"); return 0; }
+  if (!strcmp(verb, "animation")) { /* length of the workspace slide in ms, until the next reload; 0 = off */
+    int ms = atoi(arg);
+    cfg.animation_ms = ms < 0 ? 0 : ms > 5000 ? 5000 : ms;
+    return 0;
+  }
   if (!strcmp(verb, "bench")) {
     int n = atoi(arg) > 0 ? atoi(arg) : 20;
     double ms = bench_compose(n);

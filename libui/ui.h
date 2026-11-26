@@ -82,6 +82,7 @@ int ui_wm_command(ui_window *win, const char *command);
  *   exec CMD ARGS...   workspace N   move N   focus next|prev   swap next|prev|master
  *   master grow|shrink   fullscreen   float   kill   theme next|NAME   reload   exit
  *   stats (prints counters to the console)   bench (times full-screen composites)
+ *   animation MS (length of the workspace slide until the next reload; 0 = none)
  * A window opened with role UI_FLOATING gets the size it asked for; ui_open with
  * role UI_BAR is docked at the top with height h. */
 

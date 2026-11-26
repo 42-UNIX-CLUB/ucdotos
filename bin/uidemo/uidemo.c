@@ -138,6 +138,9 @@ int main(int argc, char **argv) {
       case 25: ui_wm_command(win, "exec uidemo --float 600 400 --latency --title probe"); break; /* p */
       case 31: ui_wm_command(win, "stats"); break; /* s */
       case 48: ui_wm_command(win, "bench 30"); break; /* b */
+      case 30: ui_wm_command(win, "animation 1500"); break; /* a: slow workspace slides, for tests */
+      case 33: ui_wm_command(win, "animation 160"); break;  /* f: the default speed again */
+      case 11: ui_wm_command(win, "animation 0"); break;    /* 0: no slide */
       case 46: { /* c: a 40x40 square that moves along, presented alone */
         int w = ui_width(win), x = 20 + (square * 50) % (w > 80 ? w - 60 : 1), y = ui_height(win) / 2;
         gfx_surface s;
