@@ -363,12 +363,14 @@ nonsense, and drops events for a client that stops reading. At most 24 clients.
 must call `ui_theme_load()` again on every `UI_EV_RESIZE` and redraw.
 
 **wm** (`bin/wm/`): master-and-stack tiling, gaps, rounded anti-aliased borders (2 px
-accent on the focused window, 1 px grey on the others), fullscreen, floating windows,
-workspaces, damage-based compositing at most once per 15 ms, zero work when idle. It keeps
-no full-screen buffers: damaged rectangles are painted a band of rows at a time into a
-static 256 KiB strip and each band is written to `/dev/fb0`. The wallpaper is made again
-for each row from two ready-made rows (plain, and with the dot grid) and a small picture of
-the logo. Its memory is about 1.2 MiB plus a copy of every window's pixels.
+accent on the focused window, 1 px grey on the others), fullscreen, floating windows
+(`float` toggles, on Mod+y and Mod+Shift+space; Mod + left-button drag moves a floating
+window, and that click never reaches the program), workspaces, damage-based compositing at
+most once per 15 ms, zero work when idle. It keeps no full-screen buffers: damaged
+rectangles are painted a band of rows at a time into a static 256 KiB strip and each band
+is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made rows
+(plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2 MiB
+plus a copy of every window's pixels.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
 `kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `animation MS`.
