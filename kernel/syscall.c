@@ -6,9 +6,11 @@ int reg_truncate(struct inode *i, u32 size);
 struct file *dev_open(struct inode *i, int flags);
 
 static struct inode *at_base(int dirfd, const char *path, long *err) {
+  if (!path[0]) { *err = -ENOENT; return NULL; } /* checked before the descriptor, as on Linux */
   if (dirfd == AT_FDCWD || path[0] == '/') return cur->cwd;
   struct file *d = fd_get(dirfd);
-  if (!d || !d->ino) { *err = -EBADF; return NULL; }
+  if (!d) { *err = -EBADF; return NULL; }
+  if (!d->ino || (d->ino->mode & S_IFMT) != S_IFDIR) { *err = -ENOTDIR; return NULL; }
   return d->ino;
 }
 static long sys_openat(int dirfd, u32 upath, int flags, int mode) {
@@ -64,10 +66,11 @@ static long sys_write(int fd, u32 ubuf, u32 len) {
 static long sys_lseek(int fd, long off, int whence) {
   struct file *f = fd_get(fd);
   if (!f) return -EBADF;
-  if (!f->ino || (f->ino->mode & S_IFMT) == S_IFCHR) return -ESPIPE;
-  long base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? (long)f->off : whence == SEEK_END ? (long)f->ino->size : -1;
-  if (base < 0 || base + off < 0) return -EINVAL;
-  return f->off = base + off;
+  if (!f->ino || ((f->ino->mode & S_IFMT) == S_IFCHR && f->ino->dev != DEV_FB)) return -ESPIPE;
+  s64 base = whence == SEEK_SET ? 0 : whence == SEEK_CUR ? (s64)f->off : whence == SEEK_END ? (s64)f->ino->size : -1;
+  /* the result must fit the 32-bit return value without looking like an error */
+  if (base < 0 || base + off < 0 || base + off > 0x7fffffff) return -EINVAL;
+  return f->off = (u32)(base + off);
 }
 static void fill_stat(struct stat *st, struct inode *i) {
   memset(st, 0, sizeof *st);
@@ -109,7 +112,7 @@ static long sys_getdents64(int fd, u32 ubuf, u32 len) {
     else { c = (idx == 2) ? f->ino->child : c->next; if (!c) break; name = c->name; ino = c; }
     if (idx < f->off) continue;
     u32 nl = strlen(name), rec = (sizeof(struct dirent64) + nl + 1 + 7) & ~7u;
-    if (done + rec > len) break;
+    if (done + rec > len) { if (!done) return -EINVAL; break; } /* as Linux: buffer too small for one entry */
     memset(&e, 0, sizeof e);
     e.d.d_ino = ino->ino; e.d.d_off = idx + 1; e.d.d_reclen = rec;
     u32 t = ino->mode & S_IFMT;
@@ -124,16 +127,21 @@ static long sys_getdents64(int fd, u32 ubuf, u32 len) {
 static long sys_dup3(int old, int new, int flags) {
   struct file *f = fd_get(old);
   if (!f || new < 0 || new >= NFD) return -EBADF;
-  if (old == new) return -EINVAL;
-  if (cur->fd[new]) file_put(cur->fd[new]);
+  if (old == new || (flags & ~O_CLOEXEC)) return -EINVAL;
+  if (cur->state != P_RUN) return -EBADF; /* see fd_alloc */
+  /* Install first, close after: closing the old file can hang up a terminal, which can
+   * kill this very process and close its descriptors, f included. */
+  struct file *old_f = cur->fd[new];
   f->refs++;
   cur->fd[new] = f;
   cur->cloexec[new] = !!(flags & O_CLOEXEC);
+  if (old_f) file_put(old_f);
   return new;
 }
 static long sys_dup(int old, int from) {
   struct file *f = fd_get(old);
   if (!f) return -EBADF;
+  if (from < 0 || from >= NFD) return -EINVAL;
   int fd = fd_alloc(cur, f, from);
   if (fd >= 0) f->refs++;
   return fd;
@@ -174,6 +182,8 @@ static long sys_chdir(u32 upath) {
   struct inode *i = vfs_lookup(cur->cwd, path);
   if (!i) return -ENOENT;
   if ((i->mode & S_IFMT) != S_IFDIR) return -ENOTDIR;
+  inode_get(i);
+  inode_put(cur->cwd);
   cur->cwd = i;
   return 0;
 }
@@ -203,7 +213,8 @@ static long sys_unlinkat(int dirfd, u32 upath, int flags) {
 }
 static long sys_ftruncate(int fd, long size) {
   struct file *f = fd_get(fd);
-  if (!f || !f->ino || (f->ino->mode & S_IFMT) != S_IFREG) return -EBADF;
+  if (!f) return -EBADF;
+  if (!f->ino || (f->ino->mode & S_IFMT) != S_IFREG || (f->flags & O_ACCMODE) == O_RDONLY || size < 0) return -EINVAL;
   return reg_truncate(f->ino, size);
 }
 static long sys_nanosleep(u32 ureq) {
@@ -211,6 +222,7 @@ static long sys_nanosleep(u32 ureq) {
   if (cur->sleep_until == 0) {
     struct timespec ts;
     if (copy_from_user(&ts, ureq, sizeof ts)) return -EFAULT;
+    if (ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= 1000000000) return -EINVAL;
     cur->sleep_until = now + (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
   }
   if (now >= cur->sleep_until) { cur->sleep_until = 0; return 0; }
@@ -241,6 +253,7 @@ static long sys_ppoll(u32 ufds, u32 nfds, u32 utimeout) {
   if (utimeout) {
     struct timespec ts;
     if (copy_from_user(&ts, utimeout, sizeof ts)) return -EFAULT;
+    if (ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= 1000000000) return -EINVAL;
     timeout = (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
   }
   int expired = cur->sleep_until != 0 && now >= cur->sleep_until;
@@ -310,14 +323,14 @@ static long sys_procinfo(int idx, u32 uinfo) {
   }
   return -ESRCH;
 }
-int vfs_rename(struct inode *cwd, const char *from, const char *to);
 static long sys_renameat(int fd1, u32 ufrom, int fd2, u32 uto) {
   char from[PATH_MAX], to[PATH_MAX];
   long err = str_from_user(from, ufrom, sizeof from);
   if (err < 0) return err;
   if ((err = str_from_user(to, uto, sizeof to)) < 0) return err;
-  (void)fd1; (void)fd2; /* only AT_FDCWD-relative and absolute paths for now */
-  return vfs_rename(cur->cwd, from, to);
+  struct inode *b1 = at_base(fd1, from, &err), *b2 = b1 ? at_base(fd2, to, &err) : NULL;
+  if (!b2) return err;
+  return vfs_rename(b1, from, b2, to);
 }
 static double boot_ms;
 static long sys_sysinfo(u32 uinfo) {
@@ -336,14 +349,15 @@ static long sys_sysinfo(u32 uinfo) {
   /* total = what the device reports, capped at what one wasm32 memory can address;
    * used (total - free) = everything the kernel and all processes have claimed from the browser */
   double dev = host_memory();
-  u32 claimed = (kpages + upages) << 16;
+  u64 claimed = (u64)(kpages + upages) << 16;
   si.totalram = dev >= 4294901760.0 ? 4294901760u : (u32)dev;
-  if (si.totalram < claimed) si.totalram = claimed;
-  si.freeram = si.totalram - claimed;
+  if (si.totalram < claimed) si.totalram = claimed > 4294901760u ? 4294901760u : (u32)claimed;
+  si.freeram = si.totalram - (claimed < si.totalram ? (u32)claimed : si.totalram);
   si.bufferram = kmem_used();
   return copy_to_user(uinfo, &si, sizeof si);
 }
 static long sys_kill(int pid, int sig) {
+  if (sig < 0 || sig > 64) return -EINVAL;
   if (pid <= 0 || pid >= NPROC || procs[pid].state != P_RUN) return -ESRCH;
   if (sig == 0) return 0;
   proc_exit(&procs[pid], 256 + sig);
@@ -354,6 +368,7 @@ static long sys_prw(int wr, int fd, u32 ubuf, u32 len, u32 pos) {
   struct file *f = fd_get(fd);
   if (!f) return -EBADF;
   if (!f->ino) return -ESPIPE;
+  if ((f->flags & O_ACCMODE) == (wr ? O_RDONLY : O_WRONLY)) return -EBADF;
   if (wr ? !f->ops->write : !f->ops->read) return -EINVAL;
   u32 saved = f->off;
   int app = f->flags & O_APPEND;
@@ -368,13 +383,18 @@ static long sys_setpgid(int pid, int pgid) {
   if (pid == 0) pid = cur->pid;
   if (pid <= 0 || pid >= NPROC || procs[pid].state != P_RUN) return -ESRCH;
   if (pid != cur->pid && procs[pid].ppid != cur->pid) return -EPERM;
+  if (pgid < 0) return -EINVAL;
   procs[pid].pgid = pgid ? pgid : pid;
   return 0;
 }
 static long sys_getrandom(u32 ubuf, u32 len) {
-  for (u32 i = 0; i < len; i += 4) {
-    u32 r = host_random();
-    if (copy_to_user(ubuf + i, &r, len - i < 4 ? len - i : 4)) return -EFAULT;
+  if (len > 33554431) len = 33554431; /* Linux's limit per call; the count comes back short */
+  if (len && !user_ok(ubuf, len)) return -EFAULT;
+  u32 tmp[64];
+  for (u32 i = 0; i < len; i += sizeof tmp) {
+    u32 n = len - i < sizeof tmp ? len - i : sizeof tmp;
+    for (u32 j = 0; j < (n + 3) / 4; j++) tmp[j] = host_random();
+    copy_to_user(ubuf + i, tmp, n);
   }
   return len;
 }

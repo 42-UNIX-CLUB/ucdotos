@@ -100,7 +100,7 @@ first three and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|
-| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 66 checks, 0 failed` |
+| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 109 checks, 0 failed` |
 | C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 290 checks, 0 failed` (284 if `/bin/sh` is not in the image) |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
 | desktop | `node tools/shot.mjs --build=B --script=tools/tests/desktop.mjs` | six screenshots; look at them |
@@ -109,6 +109,7 @@ first three and fails if any check fails. Counts as of 2026-11-26.
 Component suites:
 
 | Component | Where | How | Last reported |
+| kernel fuzzer | `bin/kfuzz.c` | `node tools/run.mjs --build=B --init=/bin/kfuzz --args="regress"` replays the kept seeds, then runs ktest; `--args="SEED CALLS"` for a new seed | 7 kept seeds pass; one unexplained trap on seed 306, not reproduced |
 |---|---|---|---|
 | terminal parser | `bin/term/tests/test_vt.c`, `fuzz_vt.c` | native, `bin/term/tests/run_tests.sh` | 315 checks; 30 MB fuzz clean |
 | terminal vs reference | `bin/term/tests/conformance.py` | native, needs `pyte` in a venv | 0 cell differences |

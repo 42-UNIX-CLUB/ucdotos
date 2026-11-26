@@ -176,6 +176,19 @@ Consequences every kernel author must respect:
 - **Spurious wake-ups are normal.** The call simply re-checks and blocks again.
 - **A wake-up for a process that is not parked is ignored**, which is correct because it
   will re-check on its next call.
+- **Wait queues are never cleaned.** A pid stays in a queue until the queue is woken, even
+  after that process died and the pid went to a new process. The new process then gets a
+  spurious wake-up, which is harmless (see above).
+- **Every return that ends a call must also end its timeout**: clear `proc->sleep_until`
+  on every path that does not block, not only the normal one, or the next `nanosleep` or
+  `ppoll` of that process inherits a stale deadline.
+- **A call can kill its own caller** (Ctrl-C typed by a process at its own terminal, or a
+  hangup when it closes the last master of a terminal whose foreground group it is in).
+  The caller is then a zombie for the rest of that call: its descriptors are already
+  closed, `fd_alloc`, `dup3` and `spawn` refuse it, and code that continues after such a
+  point must not touch objects the caller's descriptors held (see `ptm_write`).
+- Timeouts longer than 2^31 - 1 ms (about 24.8 days) are handed to the host as that
+  maximum (`block_timeout`), because browser and Node timers fire at once beyond it.
 
 Ending a process: `exit` marks the process a zombie and returns `-ERESTARTSYS`. The
 wrapper calls `host.block()`, the host sees the process is no longer running and throws
@@ -207,7 +220,11 @@ The host tells the kernel how long a process ran each time it parks
 
 ## 5. Processes (`kernel/proc.c`)
 
-- Table of `NPROC` = 64 slots; pid = slot index; pid 1 is init; pids are reused at once.
+- Table of `NPROC` = 64 slots; pid = slot index; pid 1 is init; pids are reused at once,
+  except that a number still used as the process group id or session id of a live (or
+  zombie) process is skipped, as on Linux, so a new process can never land in a group or
+  session it did not join. If every free slot is such a number, the lowest free slot is
+  used anyway.
 - `struct proc`: state, pid, ppid, pgid, sid, exit code, 64 file descriptors (`NFD`) with
   close-on-exec flags, cwd, the three shim function pointers, the argument blob, wait
   bookkeeping, counters.
@@ -216,14 +233,21 @@ The host tells the kernel how long a process ran each time it parks
   close-on-exec. `fdmap[3]` names the parent descriptors that become the child's 0, 1, 2
   (-1 = inherit as is). Arguments and environment travel as one blob of at most 64 KiB:
   `u32 argc, u32 envc`, then the strings. `libc/crt/crt0.c` fetches it with `getargs`.
-- **exit and wait**: exit closes descriptors, hands children to init, wakes the parent.
-  If nobody can wait for it, the slot is freed at once. `wait4` supports a pid or -1 and
-  `WNOHANG`. Status encoding as on Linux: `(code & 0xff) << 8` for an exit, the signal
-  number for a kill or crash.
+- **exit and wait**: exit marks the process a zombie first (so a chain of hangups started
+  by closing its descriptors can never come back to it), hands children to init (or to
+  nobody when init itself is gone; such children are freed when they exit), closes the
+  descriptors and wakes the parent. If nobody can wait for it, the slot is freed at once.
+  `wait4` takes a pid, -1 (any child), 0 (any child in the caller's process group) or
+  -pgid, and `WNOHANG`; other option bits are ignored and `rusage` is not filled.
+  Status encoding as on Linux: `(code & 0xff) << 8` for an exit, the signal number for a
+  kill or crash.
 - **No signals.** `kill(pid, sig)` terminates the target (status = sig). Signal 0 only
-  tests. The libc's `signal()` records handlers that are never called.
+  tests. A signal number outside 0..64 is `EINVAL`. `pid` must be positive: process
+  groups (`kill(0)`, `kill(-pgid)`) are not supported and give `ESRCH`. The libc's
+  `signal()` records handlers that are never called.
 - **Job control, minimal**: `setpgid`, `getpgid`, `setsid`, and the tty's foreground
-  group (section 8).
+  group (section 8). When the last process of a group is freed, any terminal whose
+  foreground group it was forgets it (foreground group 0).
 - There are no users or permissions. `getuid` returns 1000.
 
 ## 6. Memory
@@ -251,14 +275,40 @@ The host tells the kernel how long a process ran each time it parks
 
 - One in-memory tree of `struct inode` (name up to 63 bytes, children as a linked list).
   Paths up to 255 bytes. No symlinks, no hard links, no permissions, no mount points.
+  Creating a name longer than 63 bytes is `ENAMETOOLONG`. An empty path names nothing
+  (`ENOENT`), as on Linux; a relative path with a directory descriptor that is not a
+  directory is `ENOTDIR`.
+- **Inode lifetime.** An inode has a name (`nlink`) and references (`refs`: open files,
+  working directories, a bound socket). Unlinking takes the name away; the inode and its
+  data are freed when both are gone. An unlinked file stays readable through open
+  descriptors. An unlinked directory becomes its own parent: `..` inside it stays put,
+  nothing can be created in it (`ENOENT`), `getcwd` there is `ENOENT`, and removing or
+  renaming it again is `ENOENT`.
+- Directories are linked lists: looking up, creating and listing cost time linear in
+  the number of entries, so filling one directory with n entries costs n^2. Measured on
+  2026-11-26 under Node: creating one file in a directory of 2,500 entries takes about
+  80 us, in one of 40,000 about 1.6 ms; listing 40,000 entries with 1 KiB `getdents64`
+  buffers takes 0.76 s (each call walks the list from the start).
 - At boot the kernel walks the initrd (ustar) and creates inodes whose data pointers
   point into the archive. A file is copied to the heap the first time it is written.
+  The loader stops at the first entry whose size runs past the end of the archive, and
+  ignores `.` and `..` path components.
+- File sizes and offsets are 32-bit. `lseek` refuses results above 2^31 - 1 (`EINVAL`),
+  and the heap refuses any single block above 2 GiB, so a write or `ftruncate` that
+  would need more fails with `ENOSPC`. Up to that, a file takes as much kernel memory as
+  its size (sparse regions are real zeros), and kernel memory never shrinks.
 - **Nothing persists.** A reload starts from the same image.
 - `struct file` has reference counts, flags, an offset and a `struct fops`
   (`read write poll close ioctl`). Regular files, directories (`getdents64`), devices,
   pipes, sockets and ptys all go through it. `poll(file, add_waiter)` returns the ready
   mask and optionally registers the caller on the right wait queue.
+- `getdents64` with a buffer too small for the next entry is `EINVAL`, as on Linux.
+  `renameat` honours both directory descriptors; renaming onto a name `.` or `..` is
+  `EINVAL`. `pread64`/`pwrite64` check the access mode like `read`/`write`.
+  `ftruncate` needs a descriptor open for writing and a non-negative size (`EINVAL`).
+  A write of 0 bytes never extends a file.
 - Pipes: 64 KiB ring buffer, blocking both ways, short writes, `-EPIPE` with no reader.
+  A read of 0 bytes (on a pipe, socket, pty or the console) returns 0 at once.
 
 | Path | What |
 |---|---|
@@ -282,6 +332,10 @@ erase, `VKILL`, `VEOF`), `ECHO`, `ISIG`, raw mode with `VMIN`/`VTIME` (a timed r
 when `VMIN` = 0). Ioctls: `TCGETS TCSETS TCSETSW TCSETSF TIOCGWINSZ TIOCSWINSZ
 TIOCGPGRP TIOCSPGRP TIOCGPTN TCFLSH`.
 
+`TIOCSPGRP` needs a positive id of a group that exists (zombies count): `EINVAL` or
+`ESRCH` otherwise. It does not check that the group is in the caller's session, as
+Linux does.
+
 Ctrl-C (and Ctrl-\\): every process in the tty's foreground group is killed, except a
 session leader, which instead gets a pending flag it reads with `intr()`. That is how a
 shell survives Ctrl-C and can stop its own loops. A pty starts with foreground group 0,
@@ -297,7 +351,8 @@ There is no `SIGWINCH`: programs re-read the size when they redraw.
 
 `AF_UNIX`, `SOCK_STREAM` only: `socket bind listen accept connect`, then `read`,
 `write`, `ppoll`. 512 KiB buffer per direction, backlog 16, short writes, `-EPIPE` when
-the peer is gone, `-ECONNREFUSED` with no listener. No datagrams, no `socketpair`, no
+the peer is gone, `-ECONNREFUSED` with no listener (and when the backlog is full). A bound
+socket keeps its inode alive: unlinking the path while the socket is open is safe. No datagrams, no `socketpair`, no
 `accept4` (set close-on-exec with `fcntl` after `accept`), no networking of any kind.
 
 ## 10. Screen and input (`kernel/fb.c`, `boot/page.mjs`, `boot/keys.mjs`)
@@ -307,7 +362,8 @@ order R, G, B, A (what a canvas `ImageData` wants). `ioctl(fd, 0x4600, ...)` is 
 `FBIOGET_VSCREENINFO`. Write with `lseek` + `write` or `pwrite64`; every write calls
 `host.fb_dirty()`, and the page copies the whole buffer to the canvas on the next
 animation frame. The page sizes the framebuffer to the window times the device pixel
-ratio (capped at 2; `?scale=1` forces 1).
+ratio (capped at 2; `?scale=1` forces 1). `lseek` works on `/dev/fb0` (`SEEK_END` counts
+from 0, because the device node has no size).
 
 **Input.** `/dev/input/event0` delivers Linux evdev records
 `{ s64 sec; s64 usec; u16 type; u16 code; s32 value; }` (24 bytes):
@@ -454,6 +510,8 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
 | descriptors per process | 64 | `NFD` |
 | descriptors per `ppoll` | 64 | |
 | path / file name | 255 / 63 bytes | `PATH_MAX`, `struct inode` |
+| file size, file offset | just under 2 GiB, 2^31 - 1 | `kmalloc`, `sys_lseek` |
+| one `getrandom` call | 33,554,431 bytes (Linux's figure) | `sys_getrandom` |
 | argv + environment | 64 KiB | `sys_spawn` |
 | ptys | 16 | `NPTY` |
 | pipe buffer / socket buffer | 64 KiB / 512 KiB per direction | |

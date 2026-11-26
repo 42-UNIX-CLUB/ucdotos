@@ -31,6 +31,7 @@ static struct inode *child_find(struct inode *dir, const char *name, u32 nlen) {
 }
 /* Walk a path. If last != NULL, stop at the parent and return the final component. */
 static struct inode *walk(struct inode *cwd, const char *path, const char **last, u32 *lastlen) {
+  if (!*path) return NULL; /* as Linux: an empty path names nothing (ENOENT), not the base */
   struct inode *d = (*path == '/') ? vfs_root : cwd;
   for (;;) {
     while (*path == '/') path++;
@@ -50,11 +51,36 @@ static struct inode *walk(struct inode *cwd, const char *path, const char **last
 }
 struct inode *vfs_lookup(struct inode *cwd, const char *path) { return walk(cwd, path, NULL, NULL); }
 
+/* Inode lifetime: a name (nlink) and references (open files, working directories, bound
+ * sockets). The inode and its data go when both are gone. */
+void inode_get(struct inode *i) { i->refs++; }
+static void inode_free(struct inode *i) {
+  if (i->owned) kfree(i->data);
+  kfree(i);
+}
+void inode_put(struct inode *i) { if (!--i->refs && !i->nlink) inode_free(i); }
+static void list_remove(struct inode *i) {
+  struct inode **pp = &i->parent->child;
+  while (*pp && *pp != i) pp = &(*pp)->next;
+  if (*pp) *pp = i->next;
+  i->next = NULL;
+}
+/* Take the name away. An unlinked directory becomes its own parent, so ".." inside it
+ * cannot reach a parent that may be freed later; nothing can be created in it. */
+static void drop_name(struct inode *i) {
+  list_remove(i);
+  i->parent = i;
+  i->nlink = 0;
+  if (!i->refs) inode_free(i);
+}
+static int is_dot(const char *s, u32 n) { return (n == 1 && s[0] == '.') || (n == 2 && s[0] == '.' && s[1] == '.'); }
+
 struct inode *vfs_create(struct inode *cwd, const char *path, u32 mode, int *err) {
   const char *last; u32 n;
   struct inode *dir = walk(cwd, path, &last, &n);
-  if (!dir || (dir->mode & S_IFMT) != S_IFDIR) { *err = -ENOENT; return NULL; }
-  if ((n == 1 && last[0] == '.') || (n == 2 && last[0] == '.' && last[1] == '.')) { *err = -EEXIST; return NULL; }
+  if (!dir || (dir->mode & S_IFMT) != S_IFDIR || !dir->nlink) { *err = -ENOENT; return NULL; }
+  if (is_dot(last, n)) { *err = -EEXIST; return NULL; }
+  if (n >= sizeof dir->name) { *err = -ENAMETOOLONG; return NULL; }
   if (child_find(dir, last, n)) { *err = -EEXIST; return NULL; }
   struct inode *i = inode_new(dir, last, n, mode);
   if (!i) { *err = -ENOMEM; return NULL; }
@@ -63,25 +89,23 @@ struct inode *vfs_create(struct inode *cwd, const char *path, u32 mode, int *err
 }
 int vfs_unlink(struct inode *cwd, const char *path, int rmdir) {
   struct inode *i = vfs_lookup(cwd, path);
-  if (!i) return -ENOENT;
+  if (!i || !i->nlink) return -ENOENT; /* "." inside a directory that is already gone */
   if (i == vfs_root) return -EPERM;
   int isdir = (i->mode & S_IFMT) == S_IFDIR;
   if (isdir && !rmdir) return -EISDIR;
   if (!isdir && rmdir) return -ENOTDIR;
   if (isdir && i->child) return -ENOTEMPTY;
-  struct inode **pp = &i->parent->child;
-  while (*pp != i) pp = &(*pp)->next;
-  *pp = i->next;
-  i->nlink = 0; /* open files keep the inode alive; it is simply leaked for now */
+  drop_name(i);
   return 0;
 }
-int vfs_rename(struct inode *cwd, const char *from, const char *to) {
-  struct inode *i = vfs_lookup(cwd, from);
-  if (!i) return -ENOENT;
+int vfs_rename(struct inode *from_base, const char *from, struct inode *to_base, const char *to) {
+  struct inode *i = vfs_lookup(from_base, from);
+  if (!i || !i->nlink) return -ENOENT;
   if (i == vfs_root) return -EPERM;
   const char *last; u32 n;
-  struct inode *dir = walk(cwd, to, &last, &n);
-  if (!dir || (dir->mode & S_IFMT) != S_IFDIR) return -ENOENT;
+  struct inode *dir = walk(to_base, to, &last, &n);
+  if (!dir || (dir->mode & S_IFMT) != S_IFDIR || !dir->nlink) return -ENOENT;
+  if (is_dot(last, n)) return -EINVAL; /* the target would be named "." or ".." */
   if (n >= sizeof i->name) return -ENAMETOOLONG;
   for (struct inode *d = dir; ; d = d->parent) { /* a directory cannot move into itself */
     if (d == i) return -EINVAL;
@@ -93,19 +117,13 @@ int vfs_rename(struct inode *cwd, const char *from, const char *to) {
     int odir = (old->mode & S_IFMT) == S_IFDIR, idir = (i->mode & S_IFMT) == S_IFDIR;
     if (odir != idir) return odir ? -EISDIR : -ENOTDIR;
     if (odir && old->child) return -ENOTEMPTY;
-    struct inode **pp = &dir->child;
-    while (*pp != old) pp = &(*pp)->next;
-    *pp = old->next;
-    old->nlink = 0;
+    drop_name(old);
   }
-  struct inode **pp = &i->parent->child;
-  while (*pp != i) pp = &(*pp)->next;
-  *pp = i->next;
-  i->next = NULL;
+  list_remove(i);
   memset(i->name, 0, sizeof i->name);
   memcpy(i->name, last, n);
   i->parent = dir;
-  pp = &dir->child;
+  struct inode **pp = &dir->child;
   while (*pp) pp = &(*pp)->next;
   *pp = i;
   return 0;
@@ -115,6 +133,7 @@ int vfs_path(struct inode *ino, char *buf, u32 cap) {
   u32 pos = sizeof tmp - 1;
   tmp[pos] = 0;
   while (ino != vfs_root) {
+    if (!ino->nlink) return -ENOENT; /* the directory was removed */
     u32 n = strlen(ino->name);
     if (pos < n + 1) return -ENAMETOOLONG;
     pos -= n; memcpy(tmp + pos, ino->name, n);
@@ -140,9 +159,10 @@ static struct inode *mkdir_p(const char *path, u32 n) {
     u32 s = i;
     while (i < n && path[i] != '/') i++;
     if (i == s) break;
-    if (i - s == 1 && path[s] == '.') continue;
+    if (is_dot(path + s, i - s)) continue;
     struct inode *c = child_find(d, path + s, i - s);
     if (!c) c = inode_new(d, path + s, i - s, S_IFDIR | 0755);
+    if (!c || (c->mode & S_IFMT) != S_IFDIR) return NULL;
     d = c;
   }
   return d;
@@ -154,7 +174,7 @@ int vfs_load_tar(u8 *tar, u32 len) {
   for (u32 off = 0; off + 512 <= len;) {
     u8 *h = tar + off;
     if (!h[0]) break;
-    char name[256];
+    char name[257]; /* prefix (155) + '/' + name (100) + NUL */
     u32 n = 0;
     if (h[345]) { while (n < 155 && h[345 + n]) { name[n] = h[345 + n]; n++; } name[n++] = '/'; }
     for (u32 i = 0; i < 100 && h[i]; i++) name[n++] = h[i];
@@ -162,14 +182,17 @@ int vfs_load_tar(u8 *tar, u32 len) {
     u32 size = octal(h + 124, 12), mode = octal(h + 100, 8);
     u8 type = h[156];
     u8 *data = h + 512;
+    if (size > len - off - 512) break; /* a truncated or corrupt archive: keep what came before */
     off += 512 + ((size + 511) & ~511u);
+    if (off > len) off = len;
     if (type == '5') { mkdir_p(name, n); continue; }
     if (type != '0' && type != 0) continue;
     const char *slash = strrchr(name, '/');
     struct inode *dir = slash ? mkdir_p(name, slash - name) : vfs_root;
     const char *base = slash ? slash + 1 : name;
-    if (!*base || child_find(dir, base, strlen(base))) continue;
+    if (!dir || !*base || is_dot(base, strlen(base)) || child_find(dir, base, strlen(base))) continue;
     struct inode *f = inode_new(dir, base, strlen(base), S_IFREG | (mode & 0777));
+    if (!f) break;
     f->data = data; f->size = f->cap = size; f->owned = 0;
     files++;
   }
@@ -195,8 +218,9 @@ static long reg_read(struct file *f, u32 ubuf, u32 len) {
 }
 static int reg_reserve(struct inode *i, u32 need) {
   if (i->owned && need <= i->cap) return 0;
-  u32 cap = i->cap < 256 ? 256 : i->cap;
+  u64 cap = i->cap < 256 ? 256 : i->cap;
   while (cap < need) cap *= 2;
+  if (cap > 0x7fffffff) cap = need; /* kmalloc refuses more than 2 GiB anyway */
   u8 *d = kmalloc(cap);
   if (!d) return -ENOSPC;
   if (i->size) memcpy(d, i->data, i->size);
@@ -206,7 +230,10 @@ static int reg_reserve(struct inode *i, u32 need) {
 }
 static long reg_write(struct file *f, u32 ubuf, u32 len) {
   struct inode *i = f->ino;
+  if (!len) return 0; /* writing nothing never extends the file */
   if (f->flags & O_APPEND) f->off = i->size;
+  if (!user_ok(ubuf, len)) return -EFAULT; /* before growing the file for nothing */
+  if ((u64)f->off + len > 0xffffffffu) return -ENOSPC;
   if (reg_reserve(i, f->off + len)) return -ENOSPC;
   if (f->off > i->size) memset(i->data + i->size, 0, f->off - i->size);
   if (copy_from_user(i->data + f->off, ubuf, len)) return -EFAULT;

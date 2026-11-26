@@ -33,7 +33,7 @@ EXPORT(console_input) void console_input(int c) {
 }
 static long con_read(struct file *f, u32 ubuf, u32 len) {
   if (!cin_len) {
-    if (cin_eof) return 0;
+    if (cin_eof || !len) return 0;
     if (f->flags & O_NONBLOCK) return -EAGAIN;
     wq_add(&cin_wq);
     return block(-1);
