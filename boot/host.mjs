@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// The "machine" the kernel runs on. This file is the only JavaScript in the
-// system besides the page itself. It does what firmware and a CPU would do:
-// load the kernel, start programs (a program is its own WebAssembly instance
-// with its own memory), and suspend/resume their stacks. It is never on the
-// path of a system call: programs call the kernel's wasm export directly.
+// The "machine" the kernel runs on. This file, the page and boot/hostnet.mjs (the
+// router's way out) are the only JavaScript in the system. This file does what
+// firmware and a CPU would do: load the kernel, start programs (a program is its
+// own WebAssembly instance with its own memory), and suspend/resume their stacks.
+// It is never on the path of a system call: programs call the kernel's wasm
+// export directly.
+import { hostnet } from './hostnet.mjs';
 
 const EXIT = Symbol('exit');
 const P_RUN = 1;
@@ -59,7 +61,7 @@ export function checkSupport() {
 
 // extend: research hook, off by default. extend(hostImports, ctx) returns the imports the
 // kernel gets instead (boot/worker-proto/ext.mjs uses it to run some processes in Workers).
-export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, debug = false, extend = null }) {
+export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, debug = false, extend = null, net = {} }) {
   const dec = new TextDecoder();
   // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
   const deviceMemory = ((globalThis.navigator && globalThis.navigator.deviceMemory) || 4) * 2 ** 30;
@@ -87,6 +89,7 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   let k, table;
   const mem = () => new Uint8Array(k.memory.buffer);
   const rnd = new Uint32Array(1);
+  let ktimer = 0, kgen = 0;
 
   function stop(P) {              // let a parked stack unwind
     P.dead = true;
@@ -101,6 +104,17 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     random() { crypto.getRandomValues(rnd); return rnd[0]; },
     memory: () => deviceMemory,
     fb_dirty() { onFrame(); },
+    // /dev/hostnet: what the page can do on the router's behalf (boot/hostnet.mjs)
+    ...hostnet(() => k, net),
+    // The kernel's timers (TCP retransmission, loopback delivery): call timer_fire in ms
+    // milliseconds, 0 = on the next turn of the event loop, <0 = cancel. One at a time.
+    timer(ms) {
+      clearTimeout(ktimer);
+      const g = ++kgen;
+      if (ms < 0) return;
+      const fire = () => { if (g === kgen) k.timer_fire(); };
+      if (ms === 0) yieldTask(fire); else ktimer = setTimeout(fire, ms);
+    },
     wake(pid) {
       const P = procs.get(pid);
       if (P && P.wake) { const w = P.wake; P.wake = null; w(); }

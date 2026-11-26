@@ -5,13 +5,15 @@ update it whenever you finish, break or start something.
 
 ## 1. What works today
 
-One image (`make B=... dist`, 50 programs, 7.8 MB of which 5.8 MB is fonts; 3.8 MB as the
+One image (`make B=... dist`, 60 programs, 8.8 MB of which 5.8 MB is fonts; 4.1 MB as the
 `initrd.tar.gz` the page loads when it is there) boots
 in Chromium to a tiling desktop.
 
 | Area | State | Evidence |
 |---|---|---|
-| Kernel | processes, files, pipes, poll, ptys with line discipline and Ctrl-C, unix sockets, framebuffer, input, time slicing, CPU accounting; audited and fuzzed on 2026-11-26 (branch `fix/kernel-hardening`, not merged yet): inodes are freed, many crash, hang and leak bugs fixed | `ktest`: 109 of 109; `kfuzz` (system call fuzzer, `--init=/bin/kfuzz --args="SEED ITERATIONS"`, or `--args=regress` for the kept seeds): 82 campaign runs, 5.6 million calls; one trap inside the kernel seen once and not reproduced (see below) |
+| Kernel | processes, files, pipes, poll, ptys with line discipline and Ctrl-C, unix sockets, framebuffer, input, time slicing, CPU accounting, timers; audited and fuzzed on 2026-11-26 (branch `fix/kernel-hardening`, not merged yet): inodes are freed, many crash, hang and leak bugs fixed | `ktest`: 109 of 109; `kfuzz` (system call fuzzer, `--init=/bin/kfuzz --args="SEED ITERATIONS"`, or `--args=regress` for the kept seeds): 82 campaign runs, 5.6 million calls; one trap inside the kernel seen once and not reproduced (see below) |
+| Network stack (loopback only) | our own IPv4, ICMP, UDP and TCP in the kernel (ARCHITECTURE.md section 15): TCP with retransmission, flow control, zero-window probes, slow start, fast retransmit and NewReno, delayed ACKs, TIME_WAIT; BSD socket calls; raw and packet sockets; simulated loss and delay on `lo`. 4 MiB over TCP in about 20 ms under Node; 512 KiB arrives intact with 5% loss and 5 ms delay. Tools: `ping`, `nc`, `netstat`, `ifconfig`, `tcpdump`, checked in the shell and in a desktop terminal | `nettest`: 89 of 89, part of `make test` |
+| Router (`routerd`, started by `init` at boot) | the way out of the machine (NETWORKING.md): DNS everywhere; in a browser, HTTP on port 80 sent as https with `fetch()` where the site allows cross-origin reads; under Node, TCP to any port | `routertest`: 24 of 24, part of `make test` (HTTP path, offline, browser behaviour); by hand: example.com through `nc` under Node; Wikipedia's API in headless Chromium |
 | Host and page | boots in Chromium 158 and under Node 26; real keyboard and mouse verified through the DevTools protocol | `tools/tests/browser-desktop.mjs` |
 | C library | stdio, scanf, math, time, termios, getopt and the rest | `libctest`: 290 of 290 |
 | Shell and 30 tools, `bc` | pipelines, redirections, control flow, functions, substitution, globbing; line editor, history, Tab completion, Ctrl-C (also stops shell loops) and Ctrl-D verified in the desktop | `sh-tests`: 238 of 238; `bin/sh/test/interactive.mjs`: 33 of 33 |
@@ -35,6 +37,10 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 | A trap inside the kernel looks like a program crash | The host reports it as the calling process dying with signal 11; the kernel's state after it is unknown. Nothing says so loudly. |
 | One kernel trap from kfuzz is not understood | Seed 306 (4 workers, 20,000 calls) once trapped in `copy_from_user` with "function signature mismatch": the calling process's copy functions were not attached (a null table entry). Not reproduced in 3 reruns or 41 further runs with lifecycle checks on the host calls. |
 | ktest's preemption check is sensitive to load | "a spinning process is preempted" failed after 5 fuzz runs out of about 120 (the parent slept 150 to 257 ms instead of about 40), always while several fuzz runs shared the machine; the same seeds passed when rerun. Cause not proven. |
+| The network reaches the world only through `routerd`, and only partly | In a browser: DNS, and HTTP to sites that allow cross-origin reads. Under Node: TCP to any port. No UDP or ping beyond the machine, no TLS, no web client program. What a full connection still needs is NETWORKING.md section 3. |
+| TCP has no window scaling | At most 64 KiB in flight per connection. No SACK or timestamps either, so recovery from several losses in one window is slow. |
+| Ctrl-C ends `ping` and `tcpdump` without a summary | No signals are delivered to programs. With `-c` they print it. |
+| A background job reads the terminal | `sh` does not give `&` jobs `/dev/null` as input, so `nc -l 8000 &` takes what you type. Redirect it: `nc -l 8000 < /dev/null &`. |
 | A pure CPU loop freezes the tab | Time slicing only works at system calls. Shell loops are covered (the shell calls `intr()` in every loop iteration, and Ctrl-C stops them). A C program that computes without calling the kernel still freezes everything. |
 | Ctrl-C in a non-interactive script is untested | The code path exists (exit status 130); the test runners cannot send Ctrl-C to it. Also untested: Ctrl-C while the `read` builtin waits. |
 | Speed figures in a browser are noisier and higher than under Node | Reading the clock costs about 120 ns in Chrome (330 ns before the performance pass) and it ticks every 0.1 ms. sysbench reports the resolution, shows `n/a` for the cold column there, and times rows on the process CPU clock. Run-to-run spread in Chromium is about 20%. See PERFORMANCE.md. |
@@ -64,7 +70,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
   Worker) and measurements is in `docs/WORKER-PROCESSES.md`; nothing is integrated, and the
   choice is waiting for the owners.
 - `fork`, signals, threads, shared memory.
-- Persistence, networking, sound.
+- Persistence, sound. Networking beyond the machine itself (see the network row above).
 - `/proc` contents, users and permissions, time zones, a clipboard.
 - The minishell port (waiting for the repo from an owner).
 - Running Linux programs: no libc port for recompiling them, no binary emulation.
@@ -73,7 +79,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 ## 4. Waiting for an owner
 
 See DECISIONS.md section 3: Doom game data, Doom A/D keys, hosting, persistence,
-networking, when to build the Worker path, sound, the minishell repo, a linking
+when to build the Worker path, sound, the minishell repo, a linking
 exception for the libraries, the copyright holder line, the brand theme's placeholder
 colours, clearing public use of the 42 glyphs, and the browser floor.
 

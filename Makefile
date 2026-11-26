@@ -101,7 +101,7 @@ $(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/
 	@echo "  TAR   initrd.tar"
 	@tar --format=ustar --owner=0 --group=0 -C $(B)/root -cf $@ .
 
-# Run the kernel, C library and shell suites against this build. Fails if any check fails.
+# Run the kernel, C library, shell, network and router suites against this build. Fails if any check fails.
 test: all
 	@sh tools/test.sh $(B)
 
@@ -116,6 +116,6 @@ $(B)/initrd.tar.gz: $(B)/initrd.tar
 # A directory ready to be served by any static web server.
 dist: all $(B)/initrd.tar.gz
 	@mkdir -p $(B)/dist
-	@cp boot/index.html boot/page.mjs boot/host.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
+	@cp boot/index.html boot/page.mjs boot/host.mjs boot/hostnet.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
 	@echo "  DIST  $(B)/dist"
 .PHONY: dist

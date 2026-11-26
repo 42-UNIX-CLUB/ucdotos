@@ -6,6 +6,7 @@ struct file *dev_open(struct inode *i, int flags) {
   if (i->dev >= DEV_PTS0) return pty_open_slave(i, flags);
   if (i->dev == DEV_FB) return fb_open(i, flags);
   if (i->dev == DEV_INPUT) return ev_open(i, flags);
+  if (i->dev == DEV_HOSTNET) return hostnet_open(i, flags);
   const struct fops *ops = dev_fops(i->dev);
   return ops ? file_new(ops, i, flags, NULL) : NULL;
 }
@@ -26,6 +27,7 @@ EXPORT(kmain) int kmain(u8 *initrd, u32 initrd_len, const char *cmdline) {
   double t0 = host_now();
   vfs_init();
   pty_init();
+  net_init();
   fb_init();
   int files = vfs_load_tar(initrd, initrd_len);
   kprintf("[kernel] %s %s (wasm32), initrd %u KiB, %d files, up in %.2f ms\n", OS_NAME, OS_RELEASE,

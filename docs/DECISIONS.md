@@ -29,6 +29,8 @@ with its date, the options that were on the table, and who chose.
 | 15 | 2026-11-26 | **Name: UC.OS** ("UC dot OS", UNIX CLUB dot OS). The earlier working name DuxOS is dropped. | EpochOS and a long list of others |
 | 16 | 2026-11-26 | **Repository**: https://github.com/42-UNIX-CLUB/ucdotos, branch `main`. The owners run git themselves. | |
 | 17 | 2026-11-26 | **Licence: GPL-2.0-or-later.** | GPL-3.0 |
+| 18 | 2026-11-26 | **Networking: our own TCP/IP stack in the kernel** (IP, ICMP, UDP, TCP, ARP, a DHCP client, a virtual network card). | A1 socket level (kernel sockets forwarded to a relay, no TCP/IP in our code); A3 a third-party stack such as lwIP |
+| 19 | 2026-11-26 | **Where packets go: loopback only, for now.** Other transports can be added later as separate backends. | other tabs in the same browser (BroadcastChannel); an Ethernet relay server over WebSocket; browser to browser (WebRTC) |
 
 Notes that go with these:
 
@@ -66,6 +68,14 @@ Notes that go with these:
 | Source files carry SPDX tags and **no copyright holder line**. | Whose name goes there is the owners' call. | Add a line to the headers and README. |
 | `.gitignore` excludes build output and `bin/doom/wads/`. | Game data licence is undecided. | Edit `.gitignore`. |
 | The club's source documents (guidelines, PDF, PowerPoint, `unix-club-logo/`) are **not in git**. | They contain phone numbers and e-mail addresses. | An owner can add redacted versions. |
+| Network details, inside decisions 18 and 19: `lo` has MTU 65535 like Linux's; TIME_WAIT and the FIN_WAIT2 limit are 60 s; RTO between 200 ms and 60 s; TCP buffers are fixed at 64 KiB; there is no window scaling yet. | Linux's values where Linux has one; the rest kept simple for a first version. | `kernel/tcp.c` (constants at the top), `kernel/netif.c`. |
+| The network tools take their usual UNIX names: `ping`, `nc`, `netstat`, `ifconfig`, `tcpdump`. They are our own programs written for UC.OS, with a subset of the usual options. | The names say what they do; the shell and tools already follow this pattern. | Rename `bin/NAME.c`. |
+| Interfaces and connections are read through private calls (`netstat`, `ifinfo`, `ifctl`, numbers 504 to 506), like `procinfo`, not through `/proc/net` or `ioctl`s. | There is no `/proc`; this mirrors how `ps` and `htop` get the process table. | `abi/abi.h`, `kernel/inet.c`, `kernel/netif.c`. |
+| The router is a user program, `routerd`, as the owners asked; the kernel offers general pieces (`gw0`, transparent listening, `/dev/hostnet`) and does not forward. Addresses follow QEMU's user network: the machine is 10.0.2.15/24; DNS answers on 127.0.0.53 as systemd-resolved does. `init` starts `routerd` at boot (an owner asked for this on 2026-11-26), before the desktop, and does not restart it if it exits. | The owners asked for the router as a user program started at boot; QEMU's and systemd's numbers are familiar. | `bin/routerd.c` (`MY_ADDR`), `bin/init.c`, `rootfs/etc/resolv.conf`. |
+| In a browser, routerd sends port-80 HTTP out as https through `fetch()`, because a page served over https may not fetch plain http. | The only way an ordinary tab can carry it. | `boot/hostnet.mjs`, `http()`. |
+| `nc` does not half-close when its input ends unless given `-N`, as OpenBSD nc. | Some web servers close without answering a half-closed request (checked: example.com behind Cloudflare). | `bin/nc.c`. |
+| `ifconfig` can make `lo` drop packets and add delay (`loss`, `delay`). Off by default. | To test TCP's recovery and to show it. | `IFCTL_LOSS`, `IFCTL_DELAY`. |
+| `/etc/hosts` maps `localhost` to 127.0.0.1 and the host name `42lisboa` to 127.0.1.1, as Debian does. | `getaddrinfo` needs a source of names and there is no DNS. | `rootfs/etc/hosts`. |
 | OS identity strings: `uname` reports `UC.OS`, release `0.1.0`, machine `wasm32`, host name `42lisboa`, user `user`. | Needed something. | `kernel/kernel.h`, `kernel/syscall.c`, `bin/init.c`. |
 
 ## 3. Open: an owner needs to choose
@@ -79,7 +89,6 @@ Notes that go with these:
 | **Doom A/D keys** | turn (now) or strafe | |
 | **Hosting** for dux.ensui.dev and the colleagues' subdomains | Any static host works (`make dist`). Each domain could be an independent copy, redirect to one canonical domain, or show a different machine. No special headers are needed today. | Going live |
 | **Persistence** | none (now): every reload starts fresh; keep files per browser origin (IndexedDB or OPFS); export and import | |
-| **Networking** | none (now); HTTP only through `fetch`; outbound TCP through a relay server someone runs | |
 | **Worker half of the hybrid model** | when, and which programs run there | Freeze-proofing against pure CPU loops |
 | **Sound** | a kernel audio device feeding Web Audio | Doom sound |
 | **minishell** | the owner will provide the repo; it must be adapted from `fork`+`execve` to `spawn` | |

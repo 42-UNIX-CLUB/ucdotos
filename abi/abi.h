@@ -54,6 +54,13 @@ typedef long ssize;
 #define SYS_listen 201
 #define SYS_accept 202
 #define SYS_connect 203
+#define SYS_getsockname 204
+#define SYS_getpeername 205
+#define SYS_sendto 206
+#define SYS_recvfrom 207
+#define SYS_setsockopt 208
+#define SYS_getsockopt 209
+#define SYS_shutdown 210
 #define SYS_wait4 260
 #define SYS_getrandom 278
 /* --- private calls: Linux has no spawn syscall and passes argv on the stack --- */
@@ -61,6 +68,9 @@ typedef long ssize;
 #define SYS_getargs 501  /* (buf, cap) -> bytes: argc, envc, then NUL-terminated strings */
 #define SYS_procinfo 502 /* (index, struct procinfo*) -> 0, or -ESRCH past the end */
 #define SYS_intr 503     /* () -> 1 if Ctrl-C was pressed for this process since the last call (and clears it), else 0 */
+#define SYS_netstat 504  /* (index, struct sockinfo*) -> 0, or -ESRCH past the end: every TCP connection and socket */
+#define SYS_ifinfo 505   /* (index, struct ifinfo*) -> 0, or -ESRCH past the end: network interfaces */
+#define SYS_ifctl 506    /* (index, op, value) -> 0: change an interface (IFCTL_*) */
 
 /* kernel -> user: "sleep until woken, then retry the call" (Linux's ERESTARTSYS) */
 #define ERESTARTSYS 512
@@ -93,8 +103,27 @@ typedef long ssize;
 #define ENOSYS 38
 #define ENOTEMPTY 39
 #define ENOTSOCK 88
+#define EDESTADDRREQ 89
+#define EMSGSIZE 90
+#define EPROTOTYPE 91
+#define ENOPROTOOPT 92
+#define EPROTONOSUPPORT 93
+#define EOPNOTSUPP 95
+#define EAFNOSUPPORT 97
 #define EADDRINUSE 98
+#define EADDRNOTAVAIL 99
+#define ENETDOWN 100
+#define ENETUNREACH 101
+#define ECONNABORTED 103
+#define ECONNRESET 104
+#define ENOBUFS 105
+#define EISCONN 106
+#define ENOTCONN 107
+#define ETIMEDOUT 110
 #define ECONNREFUSED 111
+#define EHOSTUNREACH 113
+#define EALREADY 114
+#define EINPROGRESS 115
 
 /* --- open flags (Linux generic) --- */
 #define O_RDONLY 0
@@ -223,5 +252,101 @@ struct sysinfo {
 #define CLOCK_MONOTONIC 1
 #define CLOCK_PROCESS_CPUTIME_ID 2 /* time this process has spent running */
 #define WNOHANG 1
+
+/* --- sockets (Linux values) --- */
+#define AF_UNIX 1
+#define AF_INET 2
+#define AF_PACKET 17
+#define SOCK_STREAM 1
+#define SOCK_DGRAM 2
+#define SOCK_RAW 3
+#define SOCK_NONBLOCK O_NONBLOCK
+#define SOCK_CLOEXEC O_CLOEXEC
+#define IPPROTO_IP 0
+#define IPPROTO_ICMP 1
+#define IPPROTO_TCP 6
+#define IPPROTO_UDP 17
+#define SOL_SOCKET 1
+#define SO_REUSEADDR 2
+#define SO_TYPE 3
+#define SO_ERROR 4
+#define SO_SNDBUF 7
+#define SO_RCVBUF 8
+#define SO_KEEPALIVE 9
+#define SO_LINGER 13
+#define IP_TTL 2
+#define IP_TRANSPARENT 19 /* a listener that accepts connections to any address (the router) */
+#define IP_TRANSPARENT_PORT 0x5501 /* UC.OS: a transparent listener takes only this destination port (0: all) */
+#define TCP_NODELAY 1
+#define SHUT_RD 0
+#define SHUT_WR 1
+#define SHUT_RDWR 2
+#define MSG_PEEK 2
+#define MSG_DONTWAIT 0x40
+#define ETH_P_ALL 3
+#define ETH_P_IP 0x0800
+#define PACKET_HOST 0
+#define PACKET_OUTGOING 4
+struct linger { int l_onoff, l_linger; }; /* l_onoff 1 and l_linger 0: close() resets the connection */
+struct in_addr { u32 s_addr; }; /* network byte order */
+struct sockaddr_in { u16 sin_family, sin_port; struct in_addr sin_addr; u8 sin_zero[8]; };
+struct sockaddr_ll {
+  u16 sll_family, sll_protocol; /* protocol in network byte order */
+  int sll_ifindex;
+  u16 sll_hatype;
+  u8 sll_pkttype, sll_halen, sll_addr[8];
+};
+/* SYS_netstat: one entry per TCP connection (listeners, children waiting for accept,
+ * connections left to finish after close) and per UDP, raw or packet socket.
+ * Addresses and ports in host byte order. */
+#define TCP_ESTABLISHED 1 /* states use Linux's numbering (include/net/tcp_states.h) */
+#define TCP_SYN_SENT 2
+#define TCP_SYN_RECV 3
+#define TCP_FIN_WAIT1 4
+#define TCP_FIN_WAIT2 5
+#define TCP_TIME_WAIT 6
+#define TCP_CLOSE 7
+#define TCP_CLOSE_WAIT 8
+#define TCP_LAST_ACK 9
+#define TCP_LISTEN 10
+#define TCP_CLOSING 11
+struct sockinfo {
+  u8 proto, state; /* proto: IPPROTO_TCP, IPPROTO_UDP, IPPROTO_ICMP (raw) or 255 (packet) */
+  u16 lport, rport;
+  u16 owner;       /* pid that opened the socket, 0 once closed */
+  u32 laddr, raddr;
+  u32 rx_queue, tx_queue; /* bytes waiting to be read; bytes not yet acknowledged */
+  u32 cwnd, ssthresh, snd_wnd, mss; /* TCP only: congestion window, threshold, peer's window, segment size */
+  u32 srtt_us, rto_ms, retransmits;
+};
+/* SYS_ifinfo */
+#define IFF_UP 1
+#define IFF_LOOPBACK 8
+#define IFF_DEFAULT 0x10000 /* UC.OS: the default route leaves through this interface */
+struct ifinfo {
+  char name[16];
+  u32 flags, mtu, addr, mask; /* addr, mask in host byte order */
+  u64 rx_packets, rx_bytes, tx_packets, tx_bytes, dropped;
+  u32 loss_permille, delay_ms; /* simulated faults, for tests and teaching */
+};
+/* SYS_ifctl ops */
+#define IFCTL_UP 1    /* value: 0 down, 1 up */
+#define IFCTL_MTU 2   /* value: bytes, 68 to 65535 */
+#define IFCTL_LOSS 3  /* value: packets dropped per thousand */
+#define IFCTL_DELAY 4 /* value: milliseconds added to every packet */
+#define IFCTL_ADDR 5  /* value: IPv4 address, host byte order */
+#define IFCTL_MASK 6  /* value: netmask, host byte order */
+#define IFCTL_DEFAULT 7 /* value: 1 = the default route uses this interface, 0 = not */
+
+/* /dev/hostnet: a program asks the host (the browser or Node) to do network work the
+ * page can do. Each open descriptor is one request. Only the router uses it. */
+#define HN_RESOLVE 1  /* host = a name; read gives one IPv4 address per line, then end of file */
+#define HN_HTTP 2     /* write a whole HTTP/1.x request, then HNIOC_DONE; read gives the response */
+#define HN_TCP 3      /* host:port; then a byte stream both ways; HNIOC_DONE ends our side */
+#define HNCAP_TEST (1 << 4) /* HNIOC_CAPS: the host is in test mode (tools/tests/router-http.mjs) */
+#define HNIOC_CAPS 0x4801 /* arg: u32 *, bit (1 << HN_x) set if the host can do HN_x */
+#define HNIOC_OPEN 0x4802 /* arg: struct hn_open * */
+#define HNIOC_DONE 0x4803 /* the request (or our half of the stream) is complete */
+struct hn_open { int op, port; char host[256]; };
 
 #endif
