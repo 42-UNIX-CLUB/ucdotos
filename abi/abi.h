@@ -174,6 +174,7 @@ struct procinfo {
 #define TIOCGWINSZ 0x5413
 #define TIOCSWINSZ 0x5414
 #define TIOCGPTN 0x80045430 /* pty master: get the number N of /dev/pts/N */
+#define EVIOCGRAB 0x40044590 /* /dev/input/event0, arg int: 1 = capture the mouse (the page locks the pointer and sends REL_X/REL_Y), 0 = release */
 #define NCCS 19
 struct termios {
   u32 c_iflag, c_oflag, c_cflag, c_lflag;

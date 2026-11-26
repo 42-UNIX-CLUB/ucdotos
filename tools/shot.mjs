@@ -19,6 +19,8 @@
 //   t.wheel(dy)                 scroll
 //   t.resize(w, h)              change the screen size
 //   t.pixel(x, y)               -> [r, g, b, a] from the framebuffer
+//   t.rel(dx, dy)               move the mouse by dx, dy, as the page does while the pointer is locked
+//   t.pointerLocked()           whether the system asked the page to lock the pointer (EVIOCGRAB)
 //   t.log                       everything the console printed so far (string)
 //   t.sys                       the booted system (see boot/host.mjs)
 import fs from 'node:fs';
@@ -40,6 +42,7 @@ const quiet = args.includes('--quiet');
 let logText = '';
 
 let audioStats = null;
+let pointerLocked = false;
 const sys = await boot({
   kernel: fs.readFileSync(root + build + '/kernel.wasm'),
   initrd: fs.readFileSync(root + build + '/initrd.tar'),
@@ -50,6 +53,7 @@ const sys = await boot({
   remote: nodeRemote(root + build, (s) => { logText += s; if (!quiet) process.stdout.write(s); }, { rate: Number(opt('remote-rate', 0)), off: args.includes('--remote-off') }), // remote files: read from the build directory
   onIdle: () => { console.error('[shot] every process has exited'); },
   sound: { capture: opt('audio-capture', null), expose: (s) => { audioStats = s; } },
+  onPointerLock: (on) => { pointerLocked = on; },
 });
 
 function png(rgba, w, h) {
@@ -121,6 +125,8 @@ const t = {
     await sleep(8);
   },
   wheel(dy) { sys.input(K.EV_REL, K.REL_WHEEL, dy); syn(); },
+  rel(dx, dy) { sys.input(K.EV_REL, K.REL_X, dx); sys.input(K.EV_REL, K.REL_Y, dy); syn(); },
+  pointerLocked() { return pointerLocked; },
   resize(w, h) { sys.resize(w, h); },
 };
 

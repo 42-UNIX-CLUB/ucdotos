@@ -60,8 +60,24 @@ async function main() {
     addEventListener('pointerdown', unlock, true);
     addEventListener('keydown', unlock, true);
   }
+  // Mouse capture for a fullscreen game (the window manager asks through EVIOCGRAB): lock
+  // the browser's pointer so it is hidden and cannot leave the page, and send movement
+  // instead of positions. A browser only grants the lock right after a click or key press;
+  // if this request is refused, the next click on the page takes it (and is not passed on).
+  // Esc always gives the mouse back (the browser's rule); a click takes it again. If the
+  // browser refuses the lock outright (some do, e.g. headless Firefox), clicks are passed
+  // on as usual, so a game still gets its buttons.
+  let wantLock = false, lockRefused = false;
+  document.addEventListener('pointerlockerror', () => { lockRefused = true; });
+  document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement === canvas) lockRefused = false; });
+  const lockPointer = () => { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch { /* no Pointer Lock */ } };
   const sys = await boot({
     sound: { context: audioCtx, expose: (s) => { window.ucosAudio = s; } },
+    onPointerLock: (on) => {
+      wantLock = on;
+      if (on) lockPointer();
+      else if (document.pointerLockElement === canvas) document.exitPointerLock();
+    },
     kernel, initrd,
     cmdline: params.get('cmdline') || '',
     screen: s,
@@ -151,9 +167,30 @@ async function main() {
   // ---- pointer ----
   const pos = (e) => { sys.input(K.EV_ABS, K.ABS_X, Math.round(e.clientX * scale)); sys.input(K.EV_ABS, K.ABS_Y, Math.round(e.clientY * scale)); };
   const buttons = [K.BTN_LEFT, K.BTN_MIDDLE, K.BTN_RIGHT];
-  canvas.addEventListener('pointermove', (e) => { pos(e); syn(); });
-  canvas.addEventListener('pointerdown', (e) => { canvas.focus(); canvas.setPointerCapture(e.pointerId); pos(e); if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 1); syn(); e.preventDefault(); });
-  canvas.addEventListener('pointerup', (e) => { pos(e); if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 0); syn(); e.preventDefault(); });
+  const locked = () => document.pointerLockElement === canvas;
+  canvas.addEventListener('pointermove', (e) => {
+    if (locked()) { /* captured: how far it moved, not where it is */
+      const dx = Math.round(e.movementX * scale), dy = Math.round(e.movementY * scale);
+      if (dx || dy) { sys.input(K.EV_REL, K.REL_X, dx); sys.input(K.EV_REL, K.REL_Y, dy); syn(); }
+      return;
+    }
+    pos(e); syn();
+  });
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.focus();
+    e.preventDefault();
+    if (wantLock && !locked()) {
+      lockPointer();
+      if (!lockRefused) return;            /* this click takes the mouse back, it is not a click in the game */
+    }
+    if (!locked()) {                      /* pointer capture is refused (an exception) while the pointer is locked */
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* not needed */ }
+      pos(e);
+    }
+    if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 1);
+    syn();
+  });
+  canvas.addEventListener('pointerup', (e) => { if (!locked()) pos(e); if (buttons[e.button]) sys.input(K.EV_KEY, buttons[e.button], 0); syn(); e.preventDefault(); });
   canvas.addEventListener('wheel', (e) => { sys.input(K.EV_REL, K.REL_WHEEL, e.deltaY < 0 ? 1 : -1); syn(); e.preventDefault(); }, { passive: false });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.focus();
