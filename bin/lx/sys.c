@@ -74,8 +74,8 @@ static void put_stat(uint64_t ga, const struct lx_stat *s) {
   g.st_dev = s->dev; g.st_ino = s->ino; g.st_mode = s->mode; g.st_nlink = (uint32_t)s->nlink;
   g.st_uid = s->uid; g.st_gid = s->gid; g.st_rdev = s->rdev; g.st_size = s->size;
   g.st_blksize = (int32_t)s->blksize; g.st_blocks = s->blocks;
-  g.st_atime = s->atime; g.st_atime_nsec = s->atime_ns; g.st_mtime = s->mtime; g.st_mtime_nsec = s->mtime_ns;
-  g.st_ctime = s->ctime; g.st_ctime_nsec = s->ctime_ns;
+  g.g_atime = s->atime; g.g_atime_nsec = s->atime_ns; g.g_mtime = s->mtime; g.g_mtime_nsec = s->mtime_ns;
+  g.g_ctime = s->ctime; g.g_ctime_nsec = s->ctime_ns;
   memcpy(g2h(ga), &g, sizeof g);
 }
 

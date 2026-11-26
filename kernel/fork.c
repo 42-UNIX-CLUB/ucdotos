@@ -41,8 +41,13 @@ long sys_pclone(int flags) {
     p->cloexec[i] = par->cloexec[i];
   }
   sig_fork_copy(p, par);
+  /* file system: credentials, umask, chroot and the program are copied; the child's record
+   * locks generation is new, so POSIX record locks are not inherited (flock and OFD locks
+   * belong to the open file, which the child shares) */
+  vfs_proc_start(pid, par->pid, fscred[par->pid].exe);
   int r = host_clone(par->pid, pid);
   if (r < 0) { /* undo; the child never ran and nobody saw its pid */
+    vfs_proc_end(pid);
     for (int i = 0; i < NFD; i++) if (p->fd[i]) { struct file *f = p->fd[i]; p->fd[i] = NULL; file_put(f); }
     inode_put(p->cwd);
     p->cwd = vfs_root;
@@ -84,9 +89,11 @@ long sys_execve(u32 upath, u32 uargv, u32 uenvp) {
   char path[PATH_MAX];
   long err = str_from_user(path, upath, sizeof path);
   if (err < 0) return err;
-  struct inode *exe = vfs_lookup(cur->cwd, path);
-  if (!exe) return -ENOENT;
+  int lerr;
+  struct inode *exe = vfs_lookup_err(cur->cwd, path, &lerr);
+  if (!exe) return lerr;
   if ((exe->mode & S_IFMT) != S_IFREG) return -EACCES;
+  { long e = vfs_may_exec(exe); if (e) return e; } /* file system: execute bit by the enforcement level, or contents still loading from the store (-ERESTARTSYS) */
   if (exe->size < 8 || memcmp(exe->data, "\0asm", 4)) return -ENOEXEC;
   u8 *args;
   u32 len;
@@ -98,6 +105,7 @@ long sys_execve(u32 upath, u32 uargv, u32 uenvp) {
     struct file *f = cur->fd[i];
     cur->fd[i] = NULL;
     cur->cloexec[i] = 0;
+    if (f->ino && f->ino->locks) fs_close_fd(f); /* file system: a close drops the process's record locks, as close(2) */
     file_put(f); /* can hang up a terminal and kill us */
   }
   if (cur->state != P_RUN) { kfree(args); inode_put(exe); return -ERESTARTSYS; }
@@ -106,6 +114,7 @@ long sys_execve(u32 upath, u32 uargv, u32 uenvp) {
   const char *base = strrchr(path, '/');
   strlcpy(cur->name, base ? base + 1 : path, sizeof cur->name);
   sig_exec_reset(cur);
+  vfs_proc_exec(cur->pid, exe); /* file system: /proc/PID/exe */
   cur->in_sigsuspend = 0;
   cur->sleep_until = 0;
   cur->block_ms = -1;

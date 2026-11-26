@@ -99,7 +99,7 @@ export function checkSupport() {
 // kernel gets instead (boot/worker-proto/ext.mjs uses it to run some processes in Workers).
 // remote(url): how remote files are fetched (kernel/remote.c); a Promise of a fetch Response.
 // The page passes fetch relative to its own folder; the Node tools read the build directory.
-export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onPointerLock = () => {}, debug = false, extend = null, sound = {}, net = {}, remote = (url) => fetch(url) }) {
+export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onPointerLock = () => {}, debug = false, extend = null, store = null, storeFlags = 0, sound = {}, net = {}, remote = (url) => fetch(url) }) {
   const dec = new TextDecoder();
   // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
   const deviceMemory = ((globalThis.navigator && globalThis.navigator.deviceMemory) || 4) * 2 ** 30;
@@ -145,6 +145,8 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     fb_dirty() { onFrame(); },
     // /dev/dsp: samples go to the browser's audio thread, or a stand-in (boot/audio.mjs)
     ...audio(() => k, { log, ...sound }),
+    // persistence (boot/store.mjs); without a store the kernel never calls these
+    ...(store ? store.imports : { store_kick() {}, store_fetch() {}, store_wipe() {} }),
     // Remote files: the kernel asks once per file, on its first open (see the block below).
     fetch(id, p, n, dst, size, gz) {
       const url = new TextDecoder().decode(mem().slice(p, p + n));
@@ -414,7 +416,9 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   const initrdPtr = put(initrd);
   const cmdPtr = put(new TextEncoder().encode(cmdline + '\0'));
   if (screen) k.fb_resize(screen.width, screen.height);
+  if (store) store.preboot(k, put, storeFlags); // the stored layer goes over the image inside kmain, before init starts
   const rc = k.kmain(initrdPtr, initrd.length, cmdPtr);
+  if (store) store.started();
   return {
     k, rc, procs,
     memory: k.memory,

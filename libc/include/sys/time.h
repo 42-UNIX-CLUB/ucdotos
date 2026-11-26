@@ -12,6 +12,10 @@ int gettimeofday(struct timeval *, void *);
   if ((r)->tv_usec >= 1000000) { (r)->tv_sec++; (r)->tv_usec -= 1000000; } } while (0)
 #define timersub(a, b, r) do { (r)->tv_sec = (a)->tv_sec - (b)->tv_sec; (r)->tv_usec = (a)->tv_usec - (b)->tv_usec; \
   if ((r)->tv_usec < 0) { (r)->tv_sec--; (r)->tv_usec += 1000000; } } while (0)
+/* ---- appended (libc/src/fs_posix.c) ---- */
+int utimes(const char *, const struct timeval[2]);
+int lutimes(const char *, const struct timeval[2]);
+int futimes(int, const struct timeval[2]);
 /* interval timers: only ITIMER_REAL (SIGALRM) */
 struct itimerval { struct timeval it_interval, it_value; };
 #define ITIMER_REAL 0

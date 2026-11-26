@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* C library calls the core tools need: modes and owners, umask, sync, random
- * bytes, temporary files and ttyname. Most pass straight to the Linux generic
+/* C library calls the core tools need: random bytes, temporary files and
+ * ttyname. (Modes, owners, umask and sync are in fs_posix.c.) Most pass straight to the Linux generic
  * system calls; the kernel may not implement some yet, and then they fail with
  * errno ENOSYS and the caller decides what to do.
- * Defined weak, as in arc_compat.c, so that a strong definition elsewhere in
+ * Defined weak, so that a strong definition elsewhere in
  * the C library takes over without a duplicate-symbol error. */
 #include <stdlib.h>
 #include <string.h>
@@ -16,40 +16,7 @@
 #include <sys/syscall.h>
 
 #define WEAK __attribute__((weak))
-#ifndef SYS_fchmod
-#define SYS_fchmod 52
-#endif
-#ifndef SYS_fchmodat
-#define SYS_fchmodat 53
-#endif
-#ifndef SYS_fchownat
-#define SYS_fchownat 54
-#endif
-#ifndef SYS_fchown
-#define SYS_fchown 55
-#endif
-#ifndef SYS_sync
-#define SYS_sync 81
-#endif
-#ifndef SYS_fsync
-#define SYS_fsync 82
-#endif
-#ifndef SYS_umask
-#define SYS_umask 166
-#endif
-#ifndef AT_SYMLINK_NOFOLLOW
-#define AT_SYMLINK_NOFOLLOW 0x100
-#endif
 
-WEAK int chmod(const char *path, mode_t mode) { return __sysret(__syscall4(SYS_fchmodat, AT_FDCWD, path, mode, 0)); }
-WEAK int fchmod(int fd, mode_t mode) { return __sysret(__syscall2(SYS_fchmod, fd, mode)); }
-WEAK int chown(const char *path, uid_t u, gid_t g) { return __sysret(__syscall6(SYS_fchownat, AT_FDCWD, (long)path, u, g, 0, 0)); }
-WEAK int lchown(const char *path, uid_t u, gid_t g) { return __sysret(__syscall6(SYS_fchownat, AT_FDCWD, (long)path, u, g, AT_SYMLINK_NOFOLLOW, 0)); }
-WEAK int fchown(int fd, uid_t u, gid_t g) { return __sysret(__syscall3(SYS_fchown, fd, u, g)); }
-WEAK int fsync(int fd) { return __sysret(__syscall1(SYS_fsync, fd)); }
-WEAK void sync(void) { __syscall0(SYS_sync); }
-/* umask: without kernel support, report the usual 022 and change nothing */
-WEAK mode_t umask(mode_t m) { long r = __syscall1(SYS_umask, m); return r < 0 ? 022 : (mode_t)r; }
 
 WEAK ssize_t getrandom(void *buf, size_t n, unsigned flags) { return __sysret(__syscall3(SYS_getrandom, buf, n, flags)); }
 

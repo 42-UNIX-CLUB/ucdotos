@@ -10,7 +10,7 @@
 static int recursive, force;
 static int rm(const char *path) {
   struct stat st;
-  if (stat(path, &st) != 0) {
+  if (lstat(path, &st) != 0) { /* a link is removed, never followed */
     if (force && errno == ENOENT) return 0;
     fprintf(stderr, "rm: cannot remove '%s': %s\n", path, strerror(errno));
     return 1;

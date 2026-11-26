@@ -99,9 +99,11 @@ int pid_alloc(void) { /* a free slot, 0 if the table is full */
 }
 int proc_spawn(struct proc *parent, const char *path, u8 *args, u32 args_len, const int *fdmap) {
   if (parent && parent->state != P_RUN) return -ESRCH;
-  struct inode *exe = vfs_lookup(parent ? parent->cwd : vfs_root, path);
-  if (!exe) return -ENOENT;
+  int lerr;
+  struct inode *exe = vfs_lookup_err(parent ? parent->cwd : vfs_root, path, &lerr);
+  if (!exe) return lerr;
   if ((exe->mode & S_IFMT) != S_IFREG) return -EACCES;
+  { int e = vfs_may_exec(exe); if (e) return e; } /* file system: no execute bit, or contents still loading (kernel/vfs.c) */
   if (exe->size < 8 || memcmp(exe->data, "\0asm", 4)) return -ENOEXEC;
   int pid = pid_alloc();
   if (!pid) return -EAGAIN;
@@ -112,6 +114,7 @@ int proc_spawn(struct proc *parent, const char *path, u8 *args, u32 args_len, co
   p->ppid = parent ? parent->pid : 0;
   p->cwd = parent ? parent->cwd : vfs_root;
   inode_get(p->cwd);
+  vfs_proc_start(pid, parent ? parent->pid : 0, exe); /* file system: credentials, umask, chroot */
   p->pgid = parent ? parent->pgid : pid;
   p->sid = parent ? parent->sid : pid;
   p->args = args; p->args_len = args_len;
@@ -138,6 +141,7 @@ static void proc_free(struct proc *p) {
   if (p->args) kfree(p->args);
   p->args = NULL;
   if (p->cwd) inode_put(p->cwd);
+  vfs_proc_end(p->pid); /* file system: drop its chroot, exe and /proc entries */
   /* A process killed inside its own call with no parent to wait for it is freed at once
    * but runs until it next blocks: give it a directory that is never freed, not NULL. */
   p->cwd = vfs_root;
@@ -160,6 +164,7 @@ void proc_exit(struct proc *p, int code) {
     if (c->state == P_ZOMBIE) proc_free(c);
   }
   for (int i = 0; i < NFD; i++) if (p->fd[i]) { struct file *f = p->fd[i]; p->fd[i] = NULL; file_put(f); }
+  locks_proc_end(); /* file system: its record locks go with it, and waiters wake */
   if (p->state != P_ZOMBIE) return; /* its parent died meanwhile and it was reaped */
   struct proc *parent = (p->ppid > 0) ? &procs[p->ppid] : NULL;
   /* a parent that ignores SIGCHLD (or set SA_NOCLDWAIT) does not get zombies, as on Linux */

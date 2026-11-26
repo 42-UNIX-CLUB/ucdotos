@@ -25,6 +25,12 @@
 #include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <dirent.h>
+#include <utime.h>
+#include <sys/file.h>
+#include <sys/statfs.h>
+#include <sys/statvfs.h>
+#include <sys/uio.h>
 
 static int fails, checks;
 static void check(const char *name, int ok) {
@@ -595,6 +601,63 @@ static void test_spawn(const char *self) {
   (void)self;
 }
 
+/* the POSIX file calls in libc/src/fs_posix.c */
+static void test_fs_posix(void) {
+  printf("fs_posix\n");
+  char buf[256];
+  struct stat st;
+  mkdir("/tmp/lfs", 0755);
+  int fd = creat("/tmp/lfs/a", 0644);
+  CHECK("creat", fd >= 0 && write(fd, "hello", 5) == 5);
+  CHECK("pwrite + pread", pwrite(fd, "J", 1, 0) == 1 && pread(fd, buf, 5, 0) == -1 /* write-only */ && errno == EBADF);
+  close(fd);
+  fd = open("/tmp/lfs/a", O_RDWR);
+  CHECK("pread", pread(fd, buf, 5, 0) == 5 && !memcmp(buf, "Jello", 5) && lseek(fd, 0, SEEK_CUR) == 0);
+  struct iovec v[2] = {{buf, 2}, {buf + 10, 3}};
+  CHECK("readv", readv(fd, v, 2) == 5 && !memcmp(buf, "Je", 2) && !memcmp(buf + 10, "llo", 3));
+  CHECK("lockf F_TLOCK / F_TEST / F_ULOCK", lseek(fd, 0, SEEK_SET) == 0 && lockf(fd, F_TLOCK, 0) == 0 && lockf(fd, F_TEST, 0) == 0 && lockf(fd, F_ULOCK, 0) == 0);
+  CHECK("flock", flock(fd, LOCK_EX | LOCK_NB) == 0 && flock(fd, LOCK_UN) == 0);
+  CHECK("fsync, fdatasync", fsync(fd) == 0 && fdatasync(fd) == 0);
+  close(fd);
+  CHECK("symlink + readlink", symlink("a", "/tmp/lfs/l") == 0 && readlink("/tmp/lfs/l", buf, sizeof buf) == 1 && buf[0] == 'a');
+  CHECK("lstat vs stat", lstat("/tmp/lfs/l", &st) == 0 && S_ISLNK(st.st_mode) && stat("/tmp/lfs/l", &st) == 0 && S_ISREG(st.st_mode));
+  char *rp = realpath("/tmp/lfs/../lfs/l", 0);
+  CHECK("realpath follows links and removes ..", rp && !strcmp(rp, "/tmp/lfs/a"));
+  free(rp);
+  CHECK("realpath of a missing file -> ENOENT", !realpath("/tmp/lfs/nope", buf) && errno == ENOENT);
+  CHECK("link + nlink", link("/tmp/lfs/a", "/tmp/lfs/h") == 0 && stat("/tmp/lfs/a", &st) == 0 && st.st_nlink == 2);
+  CHECK("chmod + fstatat", chmod("/tmp/lfs/a", 0600) == 0 && fstatat(AT_FDCWD, "/tmp/lfs/h", &st, 0) == 0 && (st.st_mode & 0777) == 0600);
+  CHECK("chown + lchown", chown("/tmp/lfs/a", 5, 6) == 0 && lchown("/tmp/lfs/l", 7, 7) == 0 && stat("/tmp/lfs/l", &st) == 0 && st.st_uid == 5 && st.st_gid == 6);
+  struct utimbuf ub = {1000, 2000};
+  CHECK("utime", utime("/tmp/lfs/a", &ub) == 0 && stat("/tmp/lfs/a", &st) == 0 && st.st_atime == 1000 && st.st_mtime == 2000);
+  struct timeval tv[2] = {{3000, 5}, {4000, 6}};
+  CHECK("utimes", utimes("/tmp/lfs/a", tv) == 0 && stat("/tmp/lfs/a", &st) == 0 && st.st_mtime == 4000);
+  struct timeval badtv[2] = {{0, 1000000}, {0, 0}};
+  CHECK("utimes with a bad tv_usec -> EINVAL", utimes("/tmp/lfs/a", badtv) == -1 && errno == EINVAL);
+  mode_t old = umask(077);
+  CHECK("umask", umask(old) == 077);
+  CHECK("mkfifo", mkfifo("/tmp/lfs/p", 0600) == 0 && stat("/tmp/lfs/p", &st) == 0 && S_ISFIFO(st.st_mode));
+  CHECK("truncate", truncate("/tmp/lfs/a", 2) == 0 && stat("/tmp/lfs/a", &st) == 0 && st.st_size == 2);
+  CHECK("renameat + unlinkat", renameat(AT_FDCWD, "/tmp/lfs/h", AT_FDCWD, "/tmp/lfs/h2") == 0 && unlinkat(AT_FDCWD, "/tmp/lfs/h2", 0) == 0);
+  CHECK("access and faccessat", access("/tmp/lfs/a", R_OK | W_OK) == 0 && faccessat(AT_FDCWD, "/tmp/lfs/l", F_OK, AT_SYMLINK_NOFOLLOW) == 0 && access("/tmp/lfs/zz", F_OK) == -1);
+  struct statvfs sv;
+  struct statfs sf;
+  CHECK("statvfs and statfs agree", statvfs("/tmp", &sv) == 0 && statfs("/tmp", &sf) == 0 && sv.f_bsize == 4096 && sv.f_blocks == sf.f_blocks && sv.f_namemax == 255);
+  uid_t r, e, sv_;
+  CHECK("getresuid, geteuid, getegid", getresuid(&r, &e, &sv_) == 0 && e == geteuid() && getegid() == getgid());
+  fd = open("/tmp/lfs", O_RDONLY | O_DIRECTORY);
+  DIR *d = fdopendir(fd);
+  int n = 0, n2 = 0;
+  struct dirent *de;
+  while (d && (de = readdir(d))) n++;
+  if (d) rewinddir(d);
+  while (d && (de = readdir(d))) n2++;
+  CHECK("fdopendir, dirfd, rewinddir", d && dirfd(d) == fd && n >= 5 && n == n2);
+  if (d) closedir(d);
+  unlink("/tmp/lfs/a"); unlink("/tmp/lfs/l"); unlink("/tmp/lfs/p");
+  CHECK("rmdir after cleanup", rmdir("/tmp/lfs") == 0);
+}
+
 int main(int argc, char **argv) {
   printf("libctest\n");
   test_math();
@@ -608,6 +671,7 @@ int main(int argc, char **argv) {
   test_getopt();
   test_libgen();
   test_posix();
+  test_fs_posix();
   test_spawn(argc > 0 && argv[0][0] == '/' ? argv[0] : "/bin/libctest");
   printf("libctest: %d checks, %d failed\n", checks, fails);
   return fails ? 1 : 0;
