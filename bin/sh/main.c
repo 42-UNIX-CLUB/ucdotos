@@ -9,7 +9,7 @@ char *hist[NHIST];
 int nhist;
 
 /* ---- variables ---- */
-struct var { char *name, *val; int exp; struct var *next; };
+struct var { char *name, *val; int exp, ro; struct var *next; }; /* val NULL: unset, but exported or read-only */
 static struct var *vars[64];
 static char **env_cache;
 static int env_dirty = 1;
@@ -19,45 +19,66 @@ static struct var *findvar(const char *name) {
   return NULL;
 }
 char *getvar(const char *name) { struct var *v = findvar(name); return v ? v->val : NULL; }
+int is_readonly(const char *name) { struct var *v = findvar(name); return v && v->ro; }
 
-/* Subshells run inside this process, so changes to variables are journaled
- * and undone when the subshell ends. */
-struct jent { char *name, *val; int exp, depth; struct jent *next; };
+/* Subshells run inside this process, so changes to variables, functions and
+ * aliases are journaled and undone when the subshell ends. */
+struct jent { char *name, *val; int had, exp, ro, depth; struct named **list; void *nval; struct jent *next; };
 static struct jent *journal;
 static int jdepth, jrestoring;
 static void jrecord(const char *name) {
   if (!jdepth || jrestoring) return;
   struct var *v = findvar(name);
-  struct jent *j = malloc(sizeof *j);
+  struct jent *j = calloc(1, sizeof *j);
   j->name = strdup(name);
-  j->val = v ? strdup(v->val) : NULL;
+  j->had = v != NULL;
+  j->val = v && v->val ? strdup(v->val) : NULL;
   j->exp = v ? v->exp : 0;
+  j->ro = v ? v->ro : 0;
   j->depth = jdepth;
   j->next = journal;
   journal = j;
 }
+static struct var *newvar(const char *name) {
+  struct var *v = calloc(1, sizeof *v);
+  v->name = strdup(name);
+  unsigned h = hash(name);
+  v->next = vars[h];
+  vars[h] = v;
+  return v;
+}
+static void named_restore(struct jent *j);
 void vars_enter(void) { jdepth++; }
 void vars_leave(void) {
   jrestoring = 1;
   while (journal && journal->depth == jdepth) {
     struct jent *j = journal;
     journal = j->next;
-    if (j->val) { unsetvar(j->name); setvar(j->name, j->val, j->exp); }
-    else unsetvar(j->name);
+    if (j->list) named_restore(j);
+    else {
+      unsetvar(j->name);
+      if (j->had) {
+        struct var *v = newvar(j->name);
+        v->val = j->val;
+        j->val = NULL;
+        v->exp = j->exp;
+        v->ro = j->ro;
+        if (v->exp) env_dirty = 1;
+      }
+    }
     free(j->name); free(j->val); free(j);
   }
   jrestoring = 0;
   jdepth--;
 }
+extern int opt_a, assign_error;
 void setvar(const char *name, const char *val, int exp) {
-  jrecord(name);
   struct var *v = findvar(name);
+  if (v && v->ro && !jrestoring) { outf(2, "sh: %s: is read only\n", name); assign_error = 1; return; }
+  jrecord(name);
+  if (opt_a) exp = 1;
   if (!v) {
-    v = calloc(1, sizeof *v);
-    v->name = strdup(name);
-    unsigned h = hash(name);
-    v->next = vars[h];
-    vars[h] = v;
+    v = newvar(name);
   }
   char *nv = strdup(val);
   free(v->val);
@@ -66,6 +87,8 @@ void setvar(const char *name, const char *val, int exp) {
   if (v->exp) env_dirty = 1;
 }
 void unsetvar(const char *name) {
+  struct var *rv = findvar(name);
+  if (rv && rv->ro && !jrestoring) { outf(2, "sh: unset: %s: is read only\n", name); assign_error = 1; return; }
   jrecord(name);
   for (struct var **pp = &vars[hash(name)]; *pp; pp = &(*pp)->next)
     if (!strcmp((*pp)->name, name)) {
@@ -78,10 +101,16 @@ void unsetvar(const char *name) {
 }
 void export_var(const char *name) {
   struct var *v = findvar(name);
-  if (!v) { setvar(name, "", 1); return; }
   jrecord(name);
+  if (!v) v = newvar(name); /* exported, still unset: not passed on until it gets a value */
   v->exp = 1;
   env_dirty = 1;
+}
+void set_readonly(const char *name) {
+  struct var *v = findvar(name);
+  jrecord(name);
+  if (!v) v = newvar(name);
+  v->ro = 1;
 }
 int valid_name(const char *s, size_t n) {
   if (!n || !(isalpha((unsigned char)s[0]) || s[0] == '_')) return 0;
@@ -92,12 +121,12 @@ char **build_env(void) {
   if (!env_dirty && env_cache) return env_cache;
   if (env_cache) { for (char **e = env_cache; *e; e++) free(*e); free(env_cache); }
   int n = 0;
-  for (int h = 0; h < 64; h++) for (struct var *v = vars[h]; v; v = v->next) n += v->exp;
+  for (int h = 0; h < 64; h++) for (struct var *v = vars[h]; v; v = v->next) n += v->exp && v->val;
   env_cache = malloc((n + 1) * sizeof *env_cache);
   n = 0;
   for (int h = 0; h < 64; h++)
     for (struct var *v = vars[h]; v; v = v->next) {
-      if (!v->exp) continue;
+      if (!v->exp || !v->val) continue;
       char *kv = malloc(strlen(v->name) + strlen(v->val) + 2);
       sprintf(kv, "%s=%s", v->name, v->val);
       env_cache[n++] = kv;
@@ -112,21 +141,26 @@ static void put_value(const char *v) {
   for (; *v; v++) { if (*v == '\'') outs(1, "'\\''"); else sh_write(1, v, 1); }
   outs(1, "'");
 }
-void list_vars(int exported_only) {
+/* what: 0 all set variables (set), 1 exported (export -p), 2 read-only (readonly -p) */
+static void list_some(int what) {
   int n = 0;
   for (int h = 0; h < 64; h++) for (struct var *v = vars[h]; v; v = v->next) n++;
   struct var **all = malloc((n + 1) * sizeof *all);
   n = 0;
-  for (int h = 0; h < 64; h++) for (struct var *v = vars[h]; v; v = v->next) if (!exported_only || v->exp) all[n++] = v;
+  for (int h = 0; h < 64; h++)
+    for (struct var *v = vars[h]; v; v = v->next)
+      if (what == 1 ? v->exp : what == 2 ? v->ro : v->val != NULL) all[n++] = v;
   qsort(all, n, sizeof *all, cmpvar);
   for (int i = 0; i < n; i++) {
-    if (exported_only) outs(1, "export ");
-    outf(1, "%s=", all[i]->name);
-    put_value(all[i]->val);
+    if (what) outs(1, what == 1 ? "export " : "readonly ");
+    outs(1, all[i]->name);
+    if (all[i]->val) { outs(1, "="); put_value(all[i]->val); }
     outs(1, "\n");
   }
   free(all);
 }
+void list_vars(int exported_only) { list_some(exported_only ? 1 : 0); }
+void list_readonly(void) { list_some(2); }
 
 /* ---- functions and aliases: small linked lists ---- */
 struct named { char *name; void *val; struct named *next; };
@@ -135,8 +169,32 @@ static struct named **find_named(struct named **list, const char *name) {
   for (; *list; list = &(*list)->next) if (!strcmp((*list)->name, name)) return list;
   return list;
 }
+/* a subshell journals the old definition (functions: the node; aliases: a copy of the text) */
+static void njrecord(struct named **list, const char *name) {
+  if (!jdepth || jrestoring) return;
+  struct named **p = find_named(list, name);
+  struct jent *j = calloc(1, sizeof *j);
+  j->list = list;
+  j->name = strdup(name);
+  j->had = *p != NULL;
+  if (*p) j->nval = list == &aliases ? (void *)strdup((*p)->val) : (*p)->val;
+  j->depth = jdepth;
+  j->next = journal;
+  journal = j;
+}
+static void named_restore(struct jent *j) {
+  struct named **p = find_named(j->list, j->name);
+  if (!j->had) {
+    if (*p) { struct named *n = *p; *p = n->next; if (j->list == &aliases) free(n->val); free(n->name); free(n); }
+    return;
+  }
+  if (!*p) { *p = calloc(1, sizeof **p); (*p)->name = strdup(j->name); }
+  else if (j->list == &aliases) free((*p)->val);
+  (*p)->val = j->nval;
+}
 node *getfunc(const char *name) { struct named **p = find_named(&funcs, name); return *p ? (*p)->val : NULL; }
 void setfunc(const char *name, node *body) {
+  njrecord(&funcs, name);
   struct named **p = find_named(&funcs, name);
   if (!*p) { *p = calloc(1, sizeof **p); (*p)->name = strdup(name); }
   /* the body points into its parse arena, which is kept alive for it */
@@ -148,10 +206,13 @@ void setfunc(const char *name, node *body) {
 }
 void unsetfunc(const char *name) {
   struct named **p = find_named(&funcs, name);
+  if (*p) njrecord(&funcs, name);
+  p = find_named(&funcs, name);
   if (*p) { struct named *n = *p; *p = n->next; free(n->name); free(n); }
 }
 char *getalias(const char *name) { struct named **p = find_named(&aliases, name); return *p ? (*p)->val : NULL; }
 void setalias(const char *name, const char *val) {
+  njrecord(&aliases, name);
   struct named **p = find_named(&aliases, name);
   if (!*p) { *p = calloc(1, sizeof **p); (*p)->name = strdup(name); }
   else free((*p)->val);
@@ -160,6 +221,7 @@ void setalias(const char *name, const char *val) {
 int unalias(const char *name) {
   struct named **p = find_named(&aliases, name);
   if (!*p) return -1;
+  njrecord(&aliases, name);
   struct named *n = *p;
   *p = n->next;
   free(n->name); free(n->val); free(n);
@@ -168,7 +230,7 @@ int unalias(const char *name) {
 void unalias_all(void) { while (aliases) unalias(aliases->name); }
 void list_aliases(void) {
   for (struct named *a = aliases; a; a = a->next) {
-    outf(1, "alias %s=", a->name);
+    outf(1, "%s=", a->name);
     put_value(a->val);
     outs(1, "\n");
   }
@@ -234,6 +296,7 @@ char *read_file(const char *path, size_t *len) {
 }
 
 void sh_exit(int code) {
+  code = run_exit_trap(code);
   tty_restore();
   fflush(stdout);
   exit(code);
@@ -273,6 +336,7 @@ static void repl(int tty) {
   for (;;) {
     reap_jobs(interactive);
     char *line = read_line(tty, buf ? "PS2" : "PS1", buf ? "> " : DEFAULT_PS1);
+    if (line && opt_v) outs(2, line);
     if (!line) {
       if (buf) { outs(2, "sh: syntax error: unexpected end of file\n"); last_status = 2; }
       break;
@@ -347,20 +411,11 @@ int main(int argc, char **argv) {
   /* pid 1 is started as "init": present ourselves as sh */
   if (!strcmp(shell_name, "init")) shell_name = "sh";
 
-  int i = 1, force_i = 0;
+  shell_start();
+  int force_i = 0, read_stdin = 0;
   const char *cmd = NULL;
-  for (; i < argc && argv[i][0] == '-' && argv[i][1]; i++) {
-    if (!strcmp(argv[i], "--")) { i++; break; }
-    for (char *f = argv[i] + 1; *f; f++) {
-      if (*f == 'c') { if (i + 1 >= argc) { outs(2, "sh: -c: option requires an argument\n"); return 2; } cmd = argv[++i]; goto opts_done; }
-      else if (*f == 'i') force_i = 1;
-      else if (*f == 'x') opt_x = 1;
-      else if (*f == 's' || *f == 'l') {}
-      else { outf(2, "sh: -%c: invalid option\nusage: sh [-ix] [-c command | file] [args...]\n", *f); return 2; }
-    }
-  }
-opts_done:
-  if (cmd) i++;
+  int i = parse_args(argc, argv, &cmd, &force_i, &read_stdin);
+  if (i < 0) return 2;
   if (cmd) {
     if (i < argc) shell_name = argv[i++];
     top_frame.argc = argc - i;
@@ -368,7 +423,7 @@ opts_done:
     run_text(cmd, NULL);
     sh_exit(exit_pending ? exit_code : intr_pending ? 130 : last_status);
   }
-  if (i < argc) {
+  if (i < argc && !read_stdin) {
     size_t len;
     char *text = read_file(argv[i], &len);
     if (!text) { outf(2, "sh: %s: %s\n", argv[i], strerror(errno)); return 127; }
@@ -380,7 +435,8 @@ opts_done:
   }
   int tty = tty_init();
   interactive = tty || force_i;
-  top_frame.argv = argv + argc;
+  top_frame.argc = argc - i;
+  top_frame.argv = argv + i;
   if (interactive) {
     if (tty) {
       __syscall0(SYS_setsid);
@@ -388,6 +444,7 @@ opts_done:
       __syscall3(SYS_ioctl, 0, TIOCSPGRP, &me);
       if (!getvar("TERM")) setvar("TERM", "xterm-256color", 1);
     }
+    jobs_init(tty);
     if (!getvar("PS1")) setvar("PS1", DEFAULT_PS1, 0);
     source_if_exists("/etc/profile");
     const char *home = getvar("HOME");

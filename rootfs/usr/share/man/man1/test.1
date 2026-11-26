@@ -1,0 +1,27 @@
+TEST(1)                   UC.OS Manual                   TEST(1)
+
+NAME
+       test - check files and compare values
+
+SYNOPSIS
+       test expression
+       [ expression ]
+
+DESCRIPTION
+       test is the shell's test builtin as a program, for callers
+       that cannot reach a builtin: find -exec test, xargs test,
+       env test. It uses the same code as the builtin (see sh(1)
+       for the expressions). Called by the name [, its last
+       argument must be ].
+
+       There is no /bin/[ in the image yet: a program cannot be
+       named [ under bin/. Inside the shell, [ is the builtin.
+
+EXIT STATUS
+       0 if the expression is true, 1 if it is false, 2 on an
+       error.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                     TEST(1)
