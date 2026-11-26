@@ -1,0 +1,5 @@
+build a.out from a.in stem a
+build b.out from b.in stem b
+A
+B
+make: Nothing to be done for 'all'.

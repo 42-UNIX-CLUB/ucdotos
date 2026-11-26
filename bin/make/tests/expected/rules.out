@@ -1,0 +1,1139 @@
+##### pattern-rule
+=== make
+--- status 0
+--- stdout
+cp a.in a.out
+cp b.in b.out
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== files
+Makefile: "all: a.out b.out\n%.out: %.in\n\tcp $< $@\n"
+a.in: "A\n"
+a.out: "A\n"
+b.in: "B\n"
+b.out: "B\n"
+##### pattern-dir-stem
+=== make
+--- status 0
+--- stdout
+src/x.o from src/x.c stem src/x
+--- stderr
+
+=== files
+Makefile: "all: src/x.o\n%.o: %.c ; @echo '$@ from $< stem $*'\n"
+src/
+src/x.c: "\n"
+##### pattern-with-slash
+=== make
+--- status 0
+--- stdout
+out/x.o from src/x.c stem x
+--- stderr
+
+=== files
+Makefile: "all: out/x.o\nout/%.o: src/%.c ; @echo '$@ from $< stem $*'\n"
+src/
+src/x.c: "\n"
+##### pattern-shortest-stem
+=== make
+--- status 0
+--- stdout
+specific lib/foo.o
+--- stderr
+
+=== files
+Makefile: "all: lib/foo.o\n%.o: %.c ; @echo generic $@\nlib/%.o: lib/%.c ; @echo specific $@\n"
+lib/
+lib/foo.c: "\n"
+##### pattern-order
+=== make
+--- status 0
+--- stdout
+from c
+--- stderr
+
+=== files
+Makefile: "all: x.o\n%.o: %.c ; @echo from c\n%.o: %.s ; @echo from s\n"
+x.c: "\n"
+x.s: "\n"
+##### pattern-choose-existing
+=== make
+--- status 0
+--- stdout
+from s
+--- stderr
+
+=== files
+Makefile: "all: x.o\n%.o: %.c ; @echo from c\n%.o: %.s ; @echo from s\n"
+x.s: "\n"
+##### pattern-multi-target
+=== make
+--- status 0
+--- stdout
+run once for x.tab.c x
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== files
+Makefile: "all: x.tab.c x.tab.h\n%.tab.c %.tab.h: %.y\n\t@echo run once for $@ $*\n\t@touch $*.tab.c $*.tab.h\n"
+x.tab.c: ""
+x.tab.h: ""
+x.y: "\n"
+##### pattern-no-recipe-cancels
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'x.o', needed by 'all'.  Stop.
+
+=== files
+Makefile: "%.o: %.c ; @echo compile\n%.o: %.c\nall: x.o\n"
+x.c: "\n"
+##### pattern-order-only
+=== make
+--- status 0
+--- stdout
+made dir
+made out/a.txt
+--- stderr
+
+=== touch a.src
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+made out/a.txt
+--- stderr
+
+=== files
+Makefile: "all: out/a.txt\nout/%.txt: %.src | out\n\t@cp $< $@ && echo made $@\nout:\n\t@mkdir out && echo made dir\n"
+a.src: "s\n"
+out/
+out/a.txt: "s\n"
+##### static-pattern
+=== make
+--- status 0
+--- stdout
+foo.o <- foo.c (foo)
+bar.o <- bar.c (bar)
+--- stderr
+
+=== files
+Makefile: "OBJS = foo.o bar.o\nall: $(OBJS)\n$(OBJS): %.o: %.c\n\t@echo '$@ <- $< ($*)'\n"
+bar.c: "\n"
+foo.c: "\n"
+##### static-pattern-mismatch
+=== make; echo "status $?"
+--- status 0
+--- stdout
+foo.o
+bar.x
+status 0
+--- stderr
+Makefile:2: target 'bar.x' doesn't match the target pattern
+
+=== files
+Makefile: "all: foo.o bar.x\nfoo.o bar.x: %.o: %.c ; @echo '$@'\n"
+foo.c: "\n"
+##### static-pattern-filter
+=== make
+--- status 0
+--- stdout
+C bar.o
+C lose.o
+EL foo.elc
+--- stderr
+
+=== files
+Makefile: "files = foo.elc bar.o lose.o\nall: $(filter %.o,$(files)) $(filter %.elc,$(files))\n$(filter %.o,$(files)): %.o: %.c ; @echo C $@\n$(filter %.elc,$(files)): %.elc: %.el ; @echo EL $@\n"
+bar.c: "\n"
+foo.el: "\n"
+lose.c: "\n"
+##### double-colon
+=== touch -d '2001-01-01' out a b
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== touch a
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+from a
+--- stderr
+
+=== files
+Makefile: "out:: a ; @echo from a\nout:: b ; @echo from b\n"
+a: ""
+b: ""
+out: ""
+##### double-colon-no-prereqs
+=== touch all
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+always
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+always
+--- stderr
+
+=== files
+Makefile: "all:: ; @echo always\n"
+all: ""
+##### single-double-mix
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:2: *** target file 'x' has both : and :: entries.  Stop.
+
+=== files
+Makefile: "x: ; @echo a\nx:: ; @echo b\n"
+##### order-only
+=== make
+--- status 0
+--- stdout
+made dir
+build out
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== touch dir
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'out' is up to date.
+--- stderr
+
+=== touch in
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+build out
+--- stderr
+
+=== files
+Makefile: "out: in | dir\n\t@echo build out\n\t@touch out\ndir:\n\t@mkdir -p dir\n\t@echo made dir\n"
+dir/
+in: "\n"
+out: ""
+##### order-only-and-normal
+=== make
+--- status 0
+--- stdout
+[a] [b]
+--- stderr
+
+=== files
+Makefile: "all: a | a b ; @echo '[$^] [$|]'\na b: ;\n"
+##### phony
+=== touch clean all
+--- status 0
+--- stdout
+--- stderr
+
+=== make clean
+--- status 0
+--- stdout
+cleaning
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+all
+--- stderr
+
+=== files
+Makefile: ".PHONY: clean all\nall: ; @echo all\nclean: ; @echo cleaning\n"
+all: ""
+clean: ""
+##### phony-prereq-forces
+=== make
+--- status 0
+--- stdout
+rebuilt
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+rebuilt
+--- stderr
+
+=== files
+Makefile: "out: force ; @echo rebuilt; touch out\nforce: ;\n.PHONY: force\n"
+out: ""
+##### force-idiom
+=== make
+--- status 0
+--- stdout
+rebuilt
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+rebuilt
+--- stderr
+
+=== files
+Makefile: "out: FORCE ; @echo rebuilt; touch out\nFORCE:\n"
+out: ""
+##### multiple-rules-merge
+=== make
+--- status 0
+--- stdout
+[b a c] [b]
+--- stderr
+
+=== files
+Makefile: "all: x\nx: a\nx: b ; @echo '[$^] [$<]'\nx: c\na b c: ;\n"
+##### override-recipe
+=== make
+--- status 0
+--- stdout
+second
+--- stderr
+Makefile:2: warning: overriding recipe for target 'all'
+Makefile:1: warning: ignoring old recipe for target 'all'
+
+=== files
+Makefile: "all: ; @echo first\nall: ; @echo second\n"
+##### circular
+=== make
+--- status 0
+--- stdout
+b
+a
+--- stderr
+make: Circular b <- a dependency dropped.
+
+=== files
+Makefile: "a: b ; @echo a\nb: a ; @echo b\n"
+##### self-dependency
+=== make
+--- status 0
+--- stdout
+a
+--- stderr
+make: Circular a <- a dependency dropped.
+
+=== files
+Makefile: "a: a ; @echo a\n"
+##### grouped
+=== make
+--- status 0
+--- stdout
+run x
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== files
+Makefile: "all: x y\nx y &: src\n\t@echo run $@\n\t@touch x y\n"
+src: "\n"
+x: ""
+y: ""
+##### not-grouped
+=== make
+--- status 0
+--- stdout
+run x
+run y
+--- stderr
+
+=== files
+Makefile: "all: x y\nx y: src\n\t@echo run $@\n\t@touch $@\n"
+src: "\n"
+x: ""
+y: ""
+##### default-target
+=== make
+--- status 0
+--- stdout
+default for missing1
+default for missing2
+--- stderr
+
+=== files
+Makefile: "all: missing1 missing2\n.DEFAULT: ; @echo default for $@\n"
+##### no-rule
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'missing', needed by 'all'.  Stop.
+
+=== make -k; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'missing', needed by 'all'.
+make: Target 'all' not remade because of errors.
+
+=== make nothing-here; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'nothing-here'.  Stop.
+
+=== files
+Makefile: "all: missing\n"
+##### no-rule-keep-going
+=== make; echo "status $?"
+--- status 0
+--- stdout
+a
+status 2
+--- stderr
+make: *** No rule to make target 'missing', needed by 'all'.  Stop.
+
+=== make -k; echo "status $?"
+--- status 0
+--- stdout
+a
+b
+status 2
+--- stderr
+make: *** No rule to make target 'missing', needed by 'all'.
+make: Target 'all' not remade because of errors.
+
+=== files
+Makefile: "all: a missing b ; @echo all\na: ; @echo a\nb: ; @echo b\n"
+##### keep-going-recipe
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:2: bad] Error 1
+
+=== make -k; echo "status $?"
+--- status 0
+--- stdout
+good
+status 2
+--- stderr
+make: *** [Makefile:2: bad] Error 1
+make: Target 'all' not remade because of errors.
+
+=== files
+Makefile: "all: bad good ; @echo all\nbad: ; @false\ngood: ; @echo good\n"
+##### ignore-all
+=== make -i; echo "status $?"
+--- status 0
+--- stdout
+false
+all
+status 0
+--- stderr
+make: [Makefile:2: bad] Error 1 (ignored)
+
+=== files
+Makefile: "all: bad ; @echo all\nbad: ; false\n"
+##### dot-ignore
+=== make; echo "status $?"
+--- status 0
+--- stdout
+false
+all
+status 0
+--- stderr
+make: [Makefile:3: bad] Error 1 (ignored)
+
+=== files
+Makefile: ".IGNORE: bad\nall: bad ; @echo all\nbad: ; false\n"
+##### dot-silent
+=== make
+--- status 0
+--- stdout
+quiet
+echo loud
+loud
+--- stderr
+
+=== files
+Makefile: ".SILENT: quiet\nall: quiet loud\nquiet: ; echo quiet\nloud: ; echo loud\n"
+##### dot-silent-all
+=== make
+--- status 0
+--- stdout
+hush
+--- stderr
+
+=== files
+Makefile: ".SILENT:\nall: ; echo hush\n"
+##### delete-on-error
+=== make; echo "status $?"; ls
+--- status 0
+--- stdout
+echo partial > out; false
+status 2
+Makefile
+--- stderr
+make: *** [Makefile:2: out] Error 1
+make: *** Deleting file 'out'
+
+=== files
+Makefile: ".DELETE_ON_ERROR:\nout: ; echo partial > $@; false\n"
+##### delete-on-error-precious
+=== make; echo "status $?"; ls
+--- status 0
+--- stdout
+echo partial > out; false
+status 2
+Makefile
+out
+--- stderr
+make: *** [Makefile:3: out] Error 1
+
+=== files
+Makefile: ".DELETE_ON_ERROR:\n.PRECIOUS: out\nout: ; echo partial > $@; false\n"
+out: "partial\n"
+##### no-delete-by-default
+=== make; echo "status $?"; ls
+--- status 0
+--- stdout
+echo partial > out; false
+status 2
+Makefile
+out
+--- stderr
+make: *** [Makefile:1: out] Error 1
+
+=== files
+Makefile: "out: ; echo partial > $@; false\n"
+out: "partial\n"
+##### second-expansion
+=== make
+--- status 2
+--- stdout
+obj main.o
+obj util.o
+main: main.o util.o
+obj lib.o
+lib: lib.o
+obj all.o
+cc   all.o main lib   -o all
+--- stderr
+/usr/bin/ld: cannot find all.o: No such file or directory
+/usr/bin/ld: cannot find main: No such file or directory
+/usr/bin/ld: cannot find lib: No such file or directory
+collect2: error: ld returned 1 exit status
+make: *** [<builtin>: all] Error 1
+
+=== files
+Makefile: ".SECONDEXPANSION:\nmain_OBJS := main.o util.o\nlib_OBJS := lib.o\nall: main lib\nmain lib: $$($$@_OBJS) ; @echo '$@: $^'\n%.o: ; @echo obj $@\n"
+##### second-expansion-auto
+=== make
+--- status 0
+--- stdout
+a b
+--- stderr
+
+=== files
+Makefile: ".SECONDEXPANSION:\nall: x\nx: a b $$(addsuffix .2,$$^) ; @echo '$^'\na b a.2 b.2: ;\n"
+##### second-expansion-pattern
+=== make
+--- status 2
+--- stdout
+--- stderr
+make: *** No rule to make target 'foo.out', needed by 'all'.  Stop.
+
+=== files
+Makefile: ".SECONDEXPANSION:\nall: foo.out\n%.out: $$(patsubst %,%.in,$$*) ; @echo '$@ from $^'\nfoo.in: ;\n"
+##### second-expansion-off
+=== make
+--- status 0
+--- stdout
+making $X
+$X
+--- stderr
+
+=== files
+Makefile: "X = a\nall: $$X ; @echo '$^'\n$$X: ; @echo making '$@'\n"
+##### wait
+=== make
+--- status 0
+--- stdout
+a
+b
+all
+--- stderr
+
+=== make -j4
+--- status 0
+--- stdout
+a
+b
+all
+--- stderr
+
+=== files
+Makefile: "all: a .WAIT b ; @echo all\na b: ; @echo $@\n"
+##### suffix-rule
+=== make
+--- status 0
+--- stdout
+x.out from x.in (x)
+--- stderr
+
+=== files
+Makefile: ".SUFFIXES: .in .out\n.in.out:\n\t@cp $< $@ && echo '$@ from $< ($*)'\nall: x.out\n"
+x.in: "\n"
+x.out: "\n"
+##### suffix-rule-single
+=== make
+--- status 0
+--- stdout
+make prog from prog.sh2
+--- stderr
+
+=== files
+Makefile: ".SUFFIXES: .sh2\n.sh2:\n\t@echo make $@ from $<\nall: prog\n"
+prog.sh2: "\n"
+##### suffix-cleared
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'x.o', needed by 'all'.  Stop.
+
+=== files
+Makefile: ".SUFFIXES:\nall: x.o\n"
+x.c: "\n"
+##### suffix-rule-with-prereq
+=== make -n
+--- status 0
+--- stdout
+make: 'dep' is up to date.
+--- stderr
+Makefile:1: warning: ignoring prerequisites on suffix rule definition
+
+=== files
+Makefile: ".c.o: dep ; @echo odd\ndep: ;\nall: x.o ; @echo all\n"
+x.c: "\n"
+##### vpath-var
+=== make
+--- status 0
+--- stdout
+build from src/a.c other/b.c first src/a.c
+--- stderr
+
+=== files
+Makefile: "VPATH = src:other\nall: prog\nprog: a.c b.c ; @echo 'build from $^ first $<'\n"
+other/
+other/b.c: "\n"
+src/
+src/a.c: "\n"
+##### vpath-directive
+=== make
+--- status 0
+--- stdout
+src/a.c include/x.h
+--- stderr
+
+=== files
+Makefile: "vpath %.c src\nvpath %.h include\nall: prog\nprog: a.c x.h ; @echo '$^'\n"
+include/
+include/x.h: "\n"
+src/
+src/a.c: "\n"
+##### vpath-pattern-rule
+=== make
+--- status 0
+--- stdout
+a.o from src/a.c
+--- stderr
+
+=== files
+Makefile: "vpath %.c src\nall: a.o\n%.o: %.c ; @echo '$@ from $<'\n"
+src/
+src/a.c: "\n"
+##### vpath-clear
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'a.c', needed by 'all'.  Stop.
+
+=== files
+Makefile: "vpath %.c src\nvpath %.c\nall: a.c ; @echo found\n"
+src/
+src/a.c: "\n"
+##### vpath-target-uptodate
+=== mkdir build && touch in.txt && sleep 0.01 && touch build/out.txt && make
+--- status 0
+--- stdout
+build/out.txt
+--- stderr
+
+=== files
+Makefile: "VPATH = build\nall: out.txt ; @echo '$<'\nout.txt: in.txt ; @echo rebuilding\n"
+build/
+build/out.txt: ""
+in.txt: ""
+##### intermediate
+=== make
+--- status 0
+--- stdout
+mid
+final
+rm x.mid
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+x.final
+x.src
+--- stderr
+
+=== files
+Makefile: "all: x.final\n%.final: %.mid ; @cp $< $@ && echo final\n%.mid: %.src ; @cp $< $@ && echo mid\n"
+x.final: "s\n"
+x.src: "s\n"
+##### intermediate-not-remade
+=== make
+--- status 0
+--- stdout
+mid
+final
+rm x.mid
+--- stderr
+
+=== touch x.final
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: Nothing to be done for 'all'.
+--- stderr
+
+=== touch x.src
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+mid
+final
+rm x.mid
+--- stderr
+
+=== files
+Makefile: "all: x.final\n%.final: %.mid ; @cp $< $@ && echo final\n%.mid: %.src ; @cp $< $@ && echo mid\n"
+x.final: "s\n"
+x.src: "s\n"
+##### intermediate-explicit
+=== make
+--- status 0
+--- stdout
+mid
+final
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+x.final
+x.mid
+x.src
+--- stderr
+
+=== files
+Makefile: "all: x.final\nx.final: x.mid\n%.final: %.mid ; @cp $< $@ && echo final\n%.mid: %.src ; @cp $< $@ && echo mid\n"
+x.final: "s\n"
+x.mid: "s\n"
+x.src: "s\n"
+##### secondary
+=== make
+--- status 0
+--- stdout
+mid
+final
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+x.final
+x.mid
+x.src
+--- stderr
+
+=== files
+Makefile: ".SECONDARY: x.mid\nall: x.final\n%.final: %.mid ; @cp $< $@ && echo final\n%.mid: %.src ; @cp $< $@ && echo mid\n"
+x.final: "\n"
+x.mid: "\n"
+x.src: "\n"
+##### dot-intermediate
+=== make
+--- status 0
+--- stdout
+mid
+final
+rm x.mid
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+x.final
+x.src
+--- stderr
+
+=== files
+Makefile: ".INTERMEDIATE: x.mid\nall: x.final\nx.final: x.mid ; @cp $< $@ && echo final\nx.mid: x.src ; @cp $< $@ && echo mid\n"
+x.final: "\n"
+x.src: "\n"
+##### precious-pattern
+=== make
+--- status 0
+--- stdout
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+x.final
+x.mid
+x.src
+--- stderr
+
+=== files
+Makefile: ".PRECIOUS: %.mid\nall: x.final\n%.final: %.mid ; @cp $< $@\n%.mid: %.src ; @cp $< $@\n"
+x.final: "\n"
+x.mid: "\n"
+x.src: "\n"
+##### notintermediate
+=== make
+--- status 0
+--- stdout
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+x.final
+x.mid
+x.src
+--- stderr
+
+=== files
+Makefile: ".NOTINTERMEDIATE:\nall: x.final\n%.final: %.mid ; @cp $< $@\n%.mid: %.src ; @cp $< $@\n"
+x.final: "\n"
+x.mid: "\n"
+x.src: "\n"
+##### chain-three
+=== make
+--- status 0
+--- stdout
+a
+b
+c
+rm x.a x.b
+--- stderr
+
+=== ls
+--- status 0
+--- stdout
+Makefile
+x.c
+x.z
+--- stderr
+
+=== files
+Makefile: "all: x.c\n%.c: %.b ; @cp $< $@ && echo c\n%.b: %.a ; @cp $< $@ && echo b\n%.a: %.z ; @cp $< $@ && echo a\n"
+x.c: "\n"
+x.z: "\n"
+##### terminal-rule
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'x.out', needed by 'all'.  Stop.
+
+=== files
+Makefile: "all: x.out\n%.out:: %.in ; @echo terminal $@\n%.in: %.src ; @echo never\n"
+x.src: "\n"
+##### match-anything
+=== make
+--- status 0
+--- stdout
+generate foo from foo.tmpl
+--- stderr
+
+=== files
+Makefile: "all: foo\n%: %.tmpl ; @echo generate $@ from $<\n"
+foo.tmpl: "\n"
+##### match-anything-specific
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'x.c', needed by 'all'.  Stop.
+
+=== files
+Makefile: "%: %.tmpl ; @echo generate $@\nall: x.c ; @echo all\n"
+x.c.tmpl: "\n"
+##### implicit-with-explicit-prereqs
+=== make
+--- status 0
+--- stdout
+x.o: x.c x.h [x.c]
+--- stderr
+
+=== files
+Makefile: "all: x.o\nx.o: x.h\n%.o: %.c ; @echo '$@: $^ [$<]'\n"
+x.c: "\n"
+x.h: "\n"
+##### target-is-directory
+=== make
+--- status 0
+--- stdout
+mkdir dir
+all
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+all
+--- stderr
+
+=== files
+Makefile: "all: dir ; @echo all\ndir: ; mkdir dir\n"
+dir/
+##### wildcard-in-prereqs
+=== make
+--- status 0
+--- stdout
+a.txt b.txt
+--- stderr
+
+=== files
+Makefile: "all: *.txt ; @echo '$^'\n"
+a.txt: "\n"
+b.txt: "\n"
+##### wildcard-no-match
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target '*.none', needed by 'all'.  Stop.
+
+=== files
+Makefile: "all: *.none ; @echo '$^'\n"
+##### dot-slash
+=== make
+--- status 0
+--- stdout
+making foo
+foo
+--- stderr
+
+=== files
+Makefile: "all: ./foo foo ; @echo '$^'\nfoo: ; @echo making $@\n"
+##### mixed-implicit-normal
+=== make; echo "status $?"
+--- status 0
+--- stdout
+x
+status 0
+--- stderr
+Makefile:1: *** mixed implicit and normal rules: deprecated syntax
+
+=== files
+Makefile: "a %.o: ; @echo x\n"
+##### missing-separator
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** missing separator.  Stop.
+
+=== files
+Makefile: "just some words\n"
+##### eight-spaces
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:2: *** missing separator (did you mean TAB instead of 8 spaces?).  Stop.
+
+=== files
+Makefile: "all:\n        echo x\n"
+##### recipe-before-target
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** recipe commences before first target.  Stop.
+
+=== files
+Makefile: "\techo early\nall: ;\n"
+##### tab-line-after-assignment
+=== make; echo "status $?"
+--- status 0
+--- stdout
+v
+status 0
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(V)\nV = v\n\tW = w\n"
+##### empty-target-list
+=== make
+--- status 0
+--- stdout
+all
+--- stderr
+
+=== files
+Makefile: "NONE =\n$(NONE): foo\n\t@echo never\nall: ; @echo all\n"
+##### variable-rule
+=== make gen
+--- status 0
+--- stdout
+generated
+--- stderr
+
+=== files
+Makefile: "RULE = gen: ; @echo generated\n$(RULE)\n"
+##### archive-member
+=== make -n
+--- status 0
+--- stdout
+touch a.o
+echo 'member a.o of lib.a from a.o'
+touch b.o
+echo 'member b.o of lib.a from b.o'
+echo 'archive lib.a newer: a.o b.o'
+--- stderr
+
+=== files
+Makefile: "lib.a: lib.a(a.o) lib.a(b.o)\n\t@echo 'archive $@ newer: $?'\nlib.a(%.o): %.o ; @echo 'member $% of $@ from $<'\na.o b.o: ; @touch $@\n"
+##### dot-silent-messages
+=== make
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+--- stderr
+
+=== make up
+--- status 0
+--- stdout
+--- stderr
+
+=== make -t x.final
+--- status 0
+--- stdout
+--- stderr
+
+=== make -n
+--- status 0
+--- stdout
+--- stderr
+
+=== files
+Makefile: ".SILENT:\nall: x.final\n%.final: %.mid ; cp $< $@\n%.mid: %.src ; cp $< $@\nup: ; \n"
+x.final: "\n"
+x.src: "\n"
+##### dot-silent-submake
+=== make
+--- status 0
+--- stdout
+make[1]: Entering directory '<DIR>/sub'
+sub
+make[1]: Leaving directory '<DIR>/sub'
+--- stderr
+
+=== files
+Makefile: "all: ; @$(MAKE) -C sub\n"
+sub/
+sub/Makefile: ".SILENT:\nall: ; echo sub\n"

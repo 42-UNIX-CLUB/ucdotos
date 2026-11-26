@@ -1,0 +1,239 @@
+##### c-object
+=== make -n foo.o
+--- status 0
+--- stdout
+cc    -c -o foo.o foo.c
+--- stderr
+
+=== make -n foo.o CC=mycc CFLAGS=-O2 CPPFLAGS=-DX TARGET_ARCH=-m
+--- status 0
+--- stdout
+mycc -O2 -DX -m -c -o foo.o foo.c
+--- stderr
+
+=== files
+foo.c: "int f(void) { return 1; }\n"
+##### c-program
+=== make -n hello
+--- status 0
+--- stdout
+cc     hello.c   -o hello
+--- stderr
+
+=== make -n hello LDFLAGS=-L. LDLIBS=-lm
+--- status 0
+--- stdout
+cc   -L.  hello.c  -lm -o hello
+--- stderr
+
+=== files
+hello.c: "int main(void) { return 0; }\n"
+##### c-program-from-object
+=== make -n
+--- status 0
+--- stdout
+cc    -c -o prog.o prog.c
+cc    -c -o util.o util.c
+cc   prog.o util.o   -o prog
+--- stderr
+
+=== files
+Makefile: "prog: prog.o util.o\n"
+prog.c: "int main(void) { return 0; }\n"
+util.c: "int u(void) { return 0; }\n"
+##### c-real-build
+=== make
+--- status 0
+--- stdout
+cc -O1   -c -o prog.o prog.c
+cc -O1   -c -o util.o util.c
+cc   prog.o util.o   -o prog
+--- stderr
+
+=== ./prog; echo "prog exit $?"
+--- status 0
+--- stdout
+prog exit 0
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+make: 'prog' is up to date.
+--- stderr
+
+=== touch util.h
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+cc -O1   -c -o prog.o prog.c
+cc   prog.o util.o   -o prog
+--- stderr
+
+=== files
+Makefile: "CFLAGS = -O1\nprog: prog.o util.o\nprog.o: util.h\n"
+prog: 15840 bytes sha1 9251828f783ea1ca50fbf5458177cb7d09c84923
+prog.c: "#include \"util.h\"\nint main(void) { return u(); }\n"
+prog.o: 1336 bytes sha1 14fae3aeca2778347a8ead8abcde75ff1dd3c20c
+util.c: "int u(void) { return 0; }\n"
+util.h: "int u(void);\n"
+util.o: 1208 bytes sha1 733e75015897937bfc2d8e48034cb09f8199b481
+##### cxx-object
+=== make -n a.o b.o c.o
+--- status 0
+--- stdout
+g++    -c -o a.o a.cc
+g++    -c -o b.o b.cpp
+g++    -c -o c.o c.C
+--- stderr
+
+=== files
+a.cc: "\n"
+b.cpp: "\n"
+c.C: "\n"
+##### asm-object
+=== make -n a.o b.o
+--- status 0
+--- stdout
+as   -o a.o a.s
+cc    -c -o b.o b.S
+--- stderr
+
+=== files
+a.s: "\n"
+b.S: "\n"
+##### yacc-lex-chain
+=== make -n p.o
+--- status 0
+--- stdout
+yacc  p.y 
+mv -f y.tab.c p.c
+cc    -c -o p.o p.c
+rm p.c
+--- stderr
+
+=== files
+p.y: "\n"
+##### lex-chain
+=== make -n l.c
+--- status 0
+--- stdout
+rm -f l.c 
+lex  -t l.l > l.c
+--- stderr
+
+=== files
+l.l: "\n"
+##### shell-script-rule
+=== make tool
+--- status 0
+--- stdout
+cat tool.sh >tool 
+chmod a+x tool
+--- stderr
+
+=== ./tool
+--- status 0
+--- stdout
+tool
+--- stderr
+
+=== files
+tool: "echo tool\n"
+tool.sh: "echo tool\n"
+##### builtin-vars
+=== make
+--- status 0
+--- stdout
+CC=cc CXX=g++ AR=ar ARFLAGS=-rv RM=rm -f
+COMPILE.c=    -c
+LINK.c=    
+LINK.o=  
+OUTPUT_OPTION=-o  CPP= -E
+origin=default undefined
+--- stderr
+/bin/sh: line 1: CC: command not found
+/bin/sh: line 1: CFLAGS: command not found
+/bin/sh: line 1: CPPFLAGS: command not found
+/bin/sh: line 1: TARGET_ARCH: command not found
+/bin/sh: line 1: CC: command not found
+/bin/sh: line 1: CFLAGS: command not found
+/bin/sh: line 1: CPPFLAGS: command not found
+/bin/sh: line 1: LDFLAGS: command not found
+/bin/sh: line 1: TARGET_ARCH: command not found
+/bin/sh: line 1: CC: command not found
+/bin/sh: line 1: LDFLAGS: command not found
+/bin/sh: line 1: TARGET_ARCH: command not found
+/bin/sh: line 1: CC: command not found
+
+=== files
+Makefile: "all:\n\t@echo \"CC=$(CC) CXX=$(CXX) AR=$(AR) ARFLAGS=$(ARFLAGS) RM=$(RM)\"\n\t@echo \"COMPILE.c=$(value COMPILE.c)\"\n\t@echo \"LINK.c=$(value LINK.c)\"\n\t@echo \"LINK.o=$(value LINK.o)\"\n\t@echo \"OUTPUT_OPTION=$(value OUTPUT_OPTION) CPP=$(value CPP)\"\n\t@echo \"origin=$(origin CC) $(origin CFLAGS)\"\n"
+##### override-builtin-rule
+=== make
+--- status 0
+--- stdout
+custom x.o
+--- stderr
+
+=== files
+Makefile: "%.o: %.c ; @echo custom $@\nall: x.o\n"
+x.c: "\n"
+##### cancel-builtin
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'x.o', needed by 'all'.  Stop.
+
+=== files
+Makefile: "%.o: %.c\nall: x.o\n"
+x.c: "\n"
+##### suffix-overrides-builtin
+=== make
+--- status 0
+--- stdout
+suffix x.o from x.c
+--- stderr
+
+=== files
+Makefile: ".c.o: ; @echo suffix $@ from $<\nall: x.o\n"
+x.c: "\n"
+##### no-makefile-builtin
+=== make -n prog
+--- status 0
+--- stdout
+cc     prog.c   -o prog
+--- stderr
+
+=== files
+prog.c: "int main(void) { return 0; }\n"
+##### archive-rule
+=== make -n
+--- status 0
+--- stdout
+ar -rv lib.a x.o
+--- stderr
+
+=== files
+Makefile: "lib.a: lib.a(x.o)\n"
+x.o: "\n"
+##### dot-default-suffixes
+=== make
+--- status 0
+--- stdout
+35 .out
+--- stderr
+
+=== make -r
+--- status 0
+--- stdout
+0
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(words $(SUFFIXES)) $(firstword $(SUFFIXES))\n"

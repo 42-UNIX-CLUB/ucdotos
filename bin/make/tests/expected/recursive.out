@@ -1,0 +1,203 @@
+##### recursive-basic
+=== make
+--- status 0
+--- stdout
+top
+make -C sub
+make[1]: Entering directory '<DIR>/sub'
+sub level 1
+make[1]: Leaving directory '<DIR>/sub'
+back
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo top\n\t$(MAKE) -C sub\n\t@echo back\n"
+sub/
+sub/Makefile: "all: ; @echo sub level $(MAKELEVEL)\n"
+##### recursive-no-print-directory
+=== make
+--- status 0
+--- stdout
+sub
+--- stderr
+
+=== files
+Makefile: "all: ; @$(MAKE) --no-print-directory -C sub\n"
+sub/
+sub/Makefile: "all: ; @echo sub\n"
+##### recursive-s
+=== make -s
+--- status 0
+--- stdout
+sub
+--- stderr
+
+=== files
+Makefile: "all: ; $(MAKE) -C sub\n"
+sub/
+sub/Makefile: "all: ; echo sub\n"
+##### recursive-flags
+=== make -k V=val
+--- status 0
+--- stdout
+make[1]: Entering directory '<DIR>/sub'
+k=k V=val origin=command line
+make[1]: Leaving directory '<DIR>/sub'
+--- stderr
+
+=== make V=x
+--- status 0
+--- stdout
+make[1]: Entering directory '<DIR>/sub'
+k= V=x origin=command line
+make[1]: Leaving directory '<DIR>/sub'
+--- stderr
+
+=== files
+Makefile: "all: ; @$(MAKE) -C sub\n"
+sub/
+sub/Makefile: "all: ; @echo \"k=$(findstring k,$(firstword $(MAKEFLAGS))) V=$(V) origin=$(origin V)\"\n"
+##### recursive-n
+=== make -n
+--- status 0
+--- stdout
+make -C sub
+make[1]: Entering directory '<DIR>/sub'
+echo in sub
+make[1]: Leaving directory '<DIR>/sub'
+--- stderr
+
+=== files
+Makefile: "all:\n\t$(MAKE) -C sub\n"
+sub/
+sub/Makefile: "all: ; echo in sub\n"
+##### recursive-error
+=== make; echo "status $?"
+--- status 0
+--- stdout
+make -C sub
+make[1]: Entering directory '<DIR>/sub'
+make[1]: Leaving directory '<DIR>/sub'
+status 2
+--- stderr
+make[1]: *** [Makefile:1: all] Error 4
+make: *** [Makefile:2: all] Error 2
+
+=== files
+Makefile: "all:\n\t$(MAKE) -C sub\n\t@echo not reached\n"
+sub/
+sub/Makefile: "all: ; @exit 4\n"
+##### recursive-keep-going
+=== make -k; echo "status $?"
+--- status 0
+--- stdout
+make[1]: Entering directory '<DIR>/s1'
+make[1]: Leaving directory '<DIR>/s1'
+make[1]: Entering directory '<DIR>/s2'
+s2 ok
+make[1]: Leaving directory '<DIR>/s2'
+status 2
+--- stderr
+make[1]: *** [Makefile:1: all] Error 1
+make: *** [Makefile:2: s1] Error 2
+make: Target 'all' not remade because of errors.
+
+=== files
+Makefile: "all: s1 s2\ns1 s2: ; @$(MAKE) -C $@\n.PHONY: s1 s2\n"
+s1/
+s1/Makefile: "all: ; @false\n"
+s2/
+s2/Makefile: "all: ; @echo s2 ok\n"
+##### recursive-export
+=== make
+--- status 0
+--- stdout
+[exported] [] [environment]
+--- stderr
+
+=== make B=cmdline
+--- status 0
+--- stdout
+[exported] [cmdline] [environment]
+--- stderr
+
+=== files
+Makefile: "export A = exported\nB = notexported\nall: ; @$(MAKE) -s -C sub\n"
+sub/
+sub/Makefile: "all: ; @echo \"[$(A)] [$(B)] [$(origin A)]\"\n"
+##### recursive-plus
+=== make -n
+--- status 0
+--- stdout
+echo plus runs
+plus runs
+echo plain
+--- stderr
+
+=== files
+Makefile: "all:\n\t+@echo plus runs\n\t@echo plain\n"
+##### recursive-make-var-name
+=== make -n
+--- status 0
+--- stdout
+make -s -f sub.mk
+--- stderr
+
+=== files
+Makefile: "SUB = $(MAKE) -s -f sub.mk\nall: ; $(SUB)\n"
+sub.mk: "x: ; @echo sub\n"
+##### recursive-makelevel
+=== make
+--- status 0
+--- stdout
+1
+2
+3
+--- stderr
+
+=== files
+Makefile: "all: ; @$(MAKE) -s -f lvl.mk\n"
+lvl.mk: "all: ; @echo $(MAKELEVEL); $(if $(filter 3,$(MAKELEVEL)),,$(MAKE) -f lvl.mk)\n"
+##### recursive-cmdgoals
+=== make
+--- status 0
+--- stdout
+one [one two]
+two [one two]
+--- stderr
+
+=== files
+Makefile: "all: ; @$(MAKE) -s -C sub one two\n"
+sub/
+sub/Makefile: "one two: ; @echo $@ [$(MAKECMDGOALS)]\n"
+##### recursive-cd
+=== make
+--- status 0
+--- stdout
+cd sub && make
+make[1]: Entering directory '<DIR>/sub'
+in sub
+make[1]: Leaving directory '<DIR>/sub'
+--- stderr
+
+=== files
+Makefile: "all: ; cd sub && $(MAKE)\n"
+sub/
+sub/Makefile: "all: ; @echo in $(notdir $(CURDIR))\n"
+##### recursive-override-cmdline
+=== make
+--- status 0
+--- stdout
+top2
+--- stderr
+
+=== make X=cmd
+--- status 0
+--- stdout
+cmd2
+--- stderr
+
+=== files
+Makefile: "X = top\nall: ; @$(MAKE) -s -C sub X=$(X)2\n"
+sub/
+sub/Makefile: "X = sub\nall: ; @echo $(X)\n"

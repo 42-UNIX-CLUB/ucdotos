@@ -1,0 +1,6 @@
+make
+make
+sleep 1
+echo v2 > in
+make
+cat out

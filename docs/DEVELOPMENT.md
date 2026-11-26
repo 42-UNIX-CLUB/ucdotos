@@ -133,7 +133,26 @@ Component suites:
 | cc random expressions | `bin/cc/tests/fuzz.py`, `fuzz.sh` | `sh bin/cc/tests/fuzz.sh B SEED COUNT` (keep runs under a minute) | 6,750 expressions, 0 differences |
 | programs built by cc, in the OS | `bin/cc/tests/os.sh`, `buildall.sh` | `sh bin/cc/tests/os.sh B "prog ..."` | see STATUS.md |
 
+| make vs GNU Make | `bin/make/tests/cases/*.mk`, `expected/` | native: `node bin/make/tests/run.mjs` (builds make with `cc` and ASan; compares with the host's GNU Make 4.x, or with the stored outputs if there is none) | see STATUS.md |
+| make in the OS | `bin/make/tests/os/cases.mk` -> `rootfs/usr/share/tests/make/` | `sh bin/make/tests/os/run.sh build-NAME` (builds the image and runs the cases inside UC.OS) | see STATUS.md |
+| shell features recipes use | `rootfs/usr/share/tests/make/shell-survey.sh` | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/make/shell-survey.sh\nexit\n'` | see STATUS.md |
+| make speed | `bin/make/tests/perf/gen.mk` (also in the image as `/usr/share/tests/make/perf-gen.mk`) | instructions at the top of the file | PERFORMANCE.md |
+
 Gap to know about: the vi/htop/fetch test scripts are not in the repository.
+
+### Testing make
+
+- A case file holds several cases, each starting with `##### name`, then `--- Makefile`,
+  `--- file NAME` and `--- run` sections. Every `run` line is a shell command run in a
+  scratch directory; standard output, standard error, the exit status and every file left
+  behind are compared. `node bin/make/tests/run.mjs NAME` runs the files or cases whose
+  name contains NAME; `-v` lists passes; `--keep` keeps the scratch directories.
+- After adding or changing cases, refresh the stored outputs with `--update` (needs GNU
+  Make 4.x) so the suite still runs on a machine without GNU Make.
+- Use `touch -d '2001-01-01' file` for old files instead of `sleep`: the host file system
+  has nanosecond times. In-OS cases must use `sleep 1`: UC.OS keeps whole seconds.
+- After editing `bin/make/tests/os/cases.mk`, run `node bin/make/tests/os/gen.mjs`: it
+  writes the case tree into `rootfs/usr/share/tests/make/` with GNU Make's output.
 
 ### Writing a kernel test
 
