@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* keys: the keybinding cheat sheet. Two small windows, both app_id "keys":
- *   - the sheet, in the top-left corner: every `bind` line of ~/.config/wm/wm.uconf, shown
+ *   - the sheet, in the top-right corner: every `bind` line of ~/.config/wm/wm.uconf, shown
  *     as it is written there ($mod SHIFT, q    kill)
  *   - the hint, at the bottom: the key that toggles them ($mod, slash)
  * The window manager's `toggle keys` command (bound to $mod / by default) hides and shows
@@ -185,7 +185,7 @@ static void open_windows(void) {
   measure(&sw, &sh, &hw, &hh);
   if (sheet && (sw != asked_sw || sh != asked_sh)) { ui_close(sheet); sheet = NULL; }
   if (hint && (hw != asked_hw || hh != asked_hh)) { ui_close(hint); hint = NULL; }
-  if (!sheet) { sheet = ui_open("keybindings", "keys", sw, sh, UI_FLOATING_TOPLEFT | FLAGS); asked_sw = sw; asked_sh = sh; }
+  if (!sheet) { sheet = ui_open("keybindings", "keys", sw, sh, UI_FLOATING_TOPRIGHT | FLAGS); asked_sw = sw; asked_sh = sh; }
   if (!hint) { hint = ui_open("keybindings hint", "keys", hw, hh, UI_FLOATING_BOTTOM | FLAGS); asked_hw = hw; asked_hh = hh; }
 }
 

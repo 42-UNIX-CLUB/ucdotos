@@ -356,9 +356,9 @@ static int handle_hello(client *c) {
   int role = h.role & ~(UI_STICKY | UI_NOFOCUS);
   c->sticky = !!(h.role & UI_STICKY);
   c->nofocus = !!(h.role & UI_NOFOCUS);
-  c->role = role == UI_BAR ? UI_BAR : role == UI_FLOATING || role == UI_FLOATING_BOTTOM || role == UI_FLOATING_TOPLEFT ? UI_FLOATING : UI_NORMAL;
+  c->role = role == UI_BAR ? UI_BAR : role == UI_FLOATING || role == UI_FLOATING_BOTTOM || role == UI_FLOATING_TOPRIGHT ? UI_FLOATING : UI_NORMAL;
   c->bottom = role == UI_FLOATING_BOTTOM;
-  c->topleft = role == UI_FLOATING_TOPLEFT;
+  c->topright = role == UI_FLOATING_TOPRIGHT;
   c->fullscreen = role == UI_FULLSCREEN;
   c->floating = c->role == UI_FLOATING;
   c->req_w = h.w < 1 ? 1 : h.w > UIP_MAX_DIM ? UIP_MAX_DIM : h.w;

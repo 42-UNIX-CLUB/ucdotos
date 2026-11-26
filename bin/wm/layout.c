@@ -85,9 +85,9 @@ void relayout(void) {
       if (w > a.w) w = a.w;
       if (h > a.h) h = a.h;
       c->r.w = w; c->r.h = h;
-      if (!c->placed || c->topleft || c->bottom) { /* anchored ones follow the area (the bar, the screen size) */
-        c->r.x = c->topleft ? a.x : a.x + (a.w - w) / 2;
-        c->r.y = c->bottom ? a.y + a.h - h : c->topleft ? a.y : a.y + (a.h - h) / 3;
+      if (!c->placed || c->topright || c->bottom) { /* anchored ones follow the area (the bar, the screen size) */
+        c->r.x = c->topright ? a.x + a.w - w : a.x + (a.w - w) / 2;
+        c->r.y = c->bottom ? a.y + a.h - h : c->topright ? a.y : a.y + (a.h - h) / 3;
         c->placed = 1;
       }
       if (c->r.x + w > scr_w) c->r.x = scr_w - w;

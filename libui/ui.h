@@ -17,7 +17,7 @@ typedef struct ui_window ui_window;
 #define UI_BAR 2      /* a strip docked at the top of the screen, full width, height = h */
 #define UI_FULLSCREEN 4
 #define UI_FLOATING_BOTTOM 8 /* a floating popup centred at the bottom of the screen: the theme picker */
-#define UI_FLOATING_TOPLEFT 16 /* a floating popup in the top-left corner: the keybinding cheat sheet */
+#define UI_FLOATING_TOPRIGHT 16 /* a floating popup in the top-right corner: the keybinding cheat sheet */
 /* flags to add to a role */
 #define UI_STICKY 32  /* shown on every workspace */
 #define UI_NOFOCUS 64 /* never takes the keyboard focus (an overlay to read, not to type into) */

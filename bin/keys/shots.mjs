@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// The keybinding cheat sheet (top left) and its hint (bottom), started by the default wm.uconf.
+// The keybinding cheat sheet (top right) and its hint (bottom), started by the default wm.uconf.
 //   node tools/shot.mjs --build=build-NAME --init=/bin/wm --size=1280x720 --script=bin/keys/shots.mjs
 import { check, done, same, hex, until, DECK } from '../wm/tests/lib.mjs';
 import { screen, waitPrompt } from '../term/tests/os/lib.mjs';
 
-const SHEET = [700, 590], HINT = [640, 700];   // empty spots inside the sheet (below its second column) and the hint
+const SHEET = [1150, 570], HINT = [640, 700];  // empty spots inside the sheet (below its second column) and the hint
 const DRACULA_PANEL = [0x44, 0x47, 0x5a];
 const count = (t) => { const m = [...t.log.matchAll(/keys: (\d+) bindings/g)]; return m.length ? +m[m.length - 1][1] : -1; };
 const shown = (t, at, panel = DECK.bar) => same(t.pixel(...at), panel); // deck: panel = 3c3836, the bar colour
@@ -27,7 +27,7 @@ export default async (t) => {
   await waitPrompt(t, 10000);
   await until(t, () => count(t) > 0, 4000);
   t.shot('50-keys-at-launch');
-  check('at launch: the sheet shows, top left', shown(t, SHEET), hex(t.pixel(...SHEET)));
+  check('at launch: the sheet shows, top right', shown(t, SHEET), hex(t.pixel(...SHEET)));
   check('at launch: the hint shows, at the bottom', shown(t, HINT), hex(t.pixel(...HINT)));
   check('the sheet lists every bind line of wm.uconf', count(t) >= 40, String(count(t)));
 

@@ -97,7 +97,7 @@ bind = $mod CTRL, Right, open, right term
 bind = $mod CTRL, Up, open, up term
 bind = $mod CTRL, Down, open, down term
 
-# the keybinding cheat sheet (top left) and its hint (bottom): both hide and come back
+# the keybinding cheat sheet (top right) and its hint (bottom): both hide and come back
 bind = $mod, slash, toggle, keys
 
 bind = $mod, t, theme, next
