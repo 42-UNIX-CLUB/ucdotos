@@ -43,7 +43,7 @@ done
 if [ -f "$W/freedoom1.wad" ] && [ -f "$W/freedoom-COPYING.txt" ]; then
   command cp "$W/freedoom-COPYING.txt" "$F/freedoom-COPYING.txt"
   command cp "$W/freedoom-COPYING.txt" "$B/root/usr/share/games/doom/freedoom-COPYING.txt"
-  printf 'name=Freedoom\nexec=doom -iwad freedoom1.wad\ncomment=Doom with free game data\n' > "$B/root/usr/share/applications/freedoom.app"
+  printf 'name=Freedoom\nexec=doom -iwad freedoom1.wad -fullscreen\ncomment=Doom with free game data\n' > "$B/root/usr/share/applications/freedoom.app"
 else # an earlier build with Freedoom left these in the staging directory
   for f in "$B/root/usr/share/applications/freedoom.app" "$B/root/usr/share/games/doom/freedoom-COPYING.txt"; do [ -f "$f" ] && rm "$f"; done
 fi
