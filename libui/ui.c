@@ -133,10 +133,12 @@ static int pump(ui_window *win, int timeout_ms) {
 
 static int resize_buffer(ui_window *win, int w, int h) {
   if (w == win->w && h == win->h && win->px) return 0;
-  unsigned *n = calloc((size_t)w * h, 4);
-  if (!n) return -1;
+  /* Free first: the old pixels are not kept, and wasm memory never shrinks, so allocating
+   * before freeing would leave both sizes claimed for good. */
   free(win->px);
-  win->px = n; win->w = w; win->h = h;
+  win->px = calloc((size_t)w * h, 4);
+  if (!win->px) { win->w = win->h = 0; return -1; }
+  win->w = w; win->h = h;
   return 0;
 }
 
