@@ -1,0 +1,49 @@
+# The UC.OS static site, inside its container. Plain HTTP on port 8080: TLS ends in front of
+# it (a Cloudflare Tunnel, or any reverse proxy that speaks https to the outside). The page
+# needs https or localhost in the browser: sound uses an interface browsers give only there.
+{
+	auto_https off
+	admin off
+}
+
+:8080 {
+	root * /srv/ucos
+	file_server
+
+	# Types the page depends on. No `encode` directive on purpose: initrd.tar.gz must be sent
+	# as a plain file (the page unpacks it itself), never with Content-Encoding.
+	@wasm path *.wasm
+	header @wasm Content-Type application/wasm
+	@mjs path *.mjs
+	header @mjs Content-Type "text/javascript; charset=utf-8"
+	@gz path *.gz
+	header @gz Content-Type application/gzip
+
+	# The page, its code, the kernel and the image are always revalidated, so a new
+	# deployment shows at once and a browser never runs an old kernel with a new page.
+	@fresh path / /index.html *.mjs *.js *.wasm /initrd.tar /initrd.tar.gz
+	header @fresh Cache-Control no-cache
+
+	header {
+		Strict-Transport-Security "max-age=300"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		# Enforced: only rules that cannot break the page.
+		Content-Security-Policy "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+		# The full policy, reported in the browser console but not enforced until it has been
+		# checked. connect-src keeps https: and wss: open: the router fetches other hosts.
+		Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: wss:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+		-Server
+	}
+	# Later, on the same origin: the web platform as a second service of the compose project
+	# (internal port 8090, not published).
+	# @platform path /auth/* /api/* /proxy/* /relay
+	# handle @platform {
+	# 	reverse_proxy platform:8090
+	# }
+
+	# No access log: addresses of visitors are personal data and nothing here needs them.
+	log {
+		output discard
+	}
+}
