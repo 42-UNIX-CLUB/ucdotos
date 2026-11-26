@@ -267,7 +267,8 @@ The host tells the kernel how long a process ran each time it parks
   kfree`. wasm memory never shrinks.
 - Each process has its own linear memory, exported as `memory`. Its `malloc`
   (`libc/src/malloc.c`) is the same allocator and grows its own memory with no system
-  call. The program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack
+  call. A request above 0x7fffffff bytes (PTRDIFF_MAX, glibc's limit too), a `calloc` whose
+  product does not fit, or memory that cannot grow, returns NULL with `errno` ENOMEM. The program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack
   overflow traps instead of corrupting data.
 - **User memory access.** The kernel cannot address another instance's memory directly.
   Per process, the host instantiates `SHIM`, a module that imports two memories (kernel
@@ -654,6 +655,7 @@ How it maps onto UC.OS:
 | file size, file offset | just under 2 GiB, 2^31 - 1 | `kmalloc`, `sys_lseek` |
 | one `getrandom` call | 33,554,431 bytes (Linux's figure) | `sys_getrandom` |
 | argv + environment | 64 KiB | `sys_spawn` |
+| one `malloc` in a program | 0x7fffffff bytes | `MALLOC_MAX` in `libc/src/malloc.c` |
 | ptys | 16 | `NPTY` |
 | pipe buffer / socket buffer | 64 KiB / 512 KiB per direction | |
 | window manager clients | 24 | |

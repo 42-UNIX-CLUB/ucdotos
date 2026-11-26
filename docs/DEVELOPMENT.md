@@ -106,7 +106,7 @@ first three and fails if any check fails. Counts as of 2026-11-26.
 | Suite | Command | Passes at |
 |---|---|---|
 | kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 109 checks, 0 failed` |
-| C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 290 checks, 0 failed` (284 if `/bin/sh` is not in the image) |
+| C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 298 checks, 0 failed` (292 if `/bin/sh` is not in the image) |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
 | desktop | `node tools/shot.mjs --build=B --script=tools/tests/desktop.mjs` | six screenshots; look at them |
 | browser | `node tools/browser.mjs --build=B --script=tools/tests/browser-desktop.mjs` | four screenshots; look at them |
