@@ -529,13 +529,13 @@ for right and down). Defaults: $mod CTRL h j k l or the arrows open a terminal l
 above, right.
 
 **Window roles** (`libui/ui.h`): `UI_NORMAL`, `UI_FLOATING`, `UI_BAR`, `UI_FULLSCREEN`,
-`UI_FLOATING_BOTTOM` (centred at the bottom), `UI_FLOATING_TOPLEFT` (top-left corner), plus two
+`UI_FLOATING_BOTTOM` (centred at the bottom), `UI_FLOATING_TOPRIGHT` (top-right corner), plus two
 flags: `UI_STICKY` (shown on every workspace, and left in place during the workspace slide) and
-`UI_NOFOCUS` (never takes the keyboard focus, not even on a click). Bottom and top-left windows
+`UI_NOFOCUS` (never takes the keyboard focus, not even on a click). Bottom and top-right windows
 are placed again on every relayout, so they follow the bar and the screen size.
 
 **keys** (`bin/keys/`, autostarted, $mod /): the keybinding cheat sheet. Two sticky, no-focus
-windows with app_id `keys`: the sheet in the top-left corner lists every `bind` line of
+windows with app_id `keys`: the sheet in the top-right corner lists every `bind` line of
 `~/.config/wm/wm.uconf` as written there (`$mod SHIFT, q` and `kill`; the parser keeps each
 value as written next to the expanded one, `uconf_entry.raw`), with later lines replacing earlier
 ones for the same keys and `unbind` removing them, as in the window manager; the hint at the
