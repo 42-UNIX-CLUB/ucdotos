@@ -144,7 +144,7 @@ static int theme_names(char names[][32], int cap) {
   int n = 0;
   for (struct dirent *e; d && (e = readdir(d)) && n < cap;) {
     int l = strlen(e->d_name);
-    if (l > 6 && l < 38 && !strcmp(e->d_name + l - 6, ".theme")) {
+    if (l > 6 && l < 38 && !strcmp(e->d_name + l - 6, ".uconf")) {
       memcpy(names[n], e->d_name, l - 6);
       names[n][l - 6] = 0;
       n++;
