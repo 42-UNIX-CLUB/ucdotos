@@ -6,7 +6,7 @@ How the system works, layer by layer. Everything here describes the code as it i
 Contents: 1 the big picture, 2 the host, 3 the system call path, 4 blocking and
 scheduling, 5 processes, 6 memory, 7 files and devices, 8 terminals, 9 sockets,
 10 screen and input, 11 the desktop stack, 12 the C library, 13 the toolchain,
-14 limits and what does not exist, 15 sound, 16 networking.
+14 limits and what does not exist, 15 sound, 16 networking, 17 the package manager.
 
 ## 1. The big picture
 
@@ -592,6 +592,43 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
   or three parameters and wasm checks signatures.
 - Each program is statically linked. A minimal program is about 1.6 KB; `sh` about 100 KB.
 
+### libarc: compression, archives, checksums (`libarc/`)
+
+A static library like `libgfx` and `libui`; a program opts in with a `USE_ARC` file in
+its directory. The interface is `libarc/arc.h`; the package manager is written against
+it, so its first block of declarations does not change (only additions below it).
+
+- **Decoders** behind one pull stream (`arc_open`, `arc_read`): gzip (with concatenated
+  members), zlib, raw deflate, xz (LZMA2, delta filter, concatenated streams, CRC32,
+  CRC64 and SHA-256 checks), Zstandard (skippable frames, XXH64 checksum). `ARC_AUTO`
+  recognises gzip, xz, zstd and otherwise passes bytes through. The caller supplies
+  compressed bytes through a callback (`arc_src`), so any source works: a file, an `ar`
+  member, a socket later.
+- **Encoder**: deflate with gzip, zlib or raw framing (`arc_wopen`, `arc_write`), levels
+  0 to 9. xz and zstd compression are not written.
+- **Containers**: `ar` reading and writing (GNU and BSD long names), `tar` reading
+  (ustar, GNU, pax) and writing (the GNU format).
+- **Checksums**: CRC32, CRC64, Adler-32, XXH64, MD5, SHA-256, SHA-512.
+- **Memory**: input is buffered 64 KiB at a time. Output goes into a window buffer that
+  holds the format's history (32 KiB for deflate, the dictionary for xz, the window for
+  zstd) plus room for new output; it grows only as data actually arrives, so a short
+  stream that declares a large dictionary stays small. Use does not grow with the length
+  of the data. A header asking for more than the memory limit (`arc_set_memlimit`,
+  128 MiB by default) is refused before anything is allocated.
+- **Hostile input**: every length is checked against its buffer; every integrity check
+  the format carries is verified (gzip CRC32 and length, xz header, block, index and
+  footer checks, zstd checksum and frame size, tar header checksums). The xz index is
+  compared with the blocks through running sums and a hash, so its memory does not grow
+  with the number of blocks.
+- **Not supported**: bzip2, LZMA-alone (`.lzma`), xz BCJ filters, zstd dictionaries,
+  sparse tar members, multi-volume tar. Each gives a clear error.
+
+The tools built on it are `gzip` (also `gunzip zcat xz unxz xzcat zstd unzstd zstdcat`
+through `bin/gzip/ALIASES`), `tar`, `ar`, `sha256sum` (also `sha512sum md5sum`).
+`libc/src/arc_compat.c` adds the POSIX calls tar needs to restore files (`symlink`,
+`link`, `chmod`, `lchown`, `utimensat`, `mknod`, ...) as thin system call wrappers;
+the kernel answers `ENOSYS` for most of them today and tar reports that once per kind.
+
 ## 13. The toolchain
 
 - `clang --target=wasm32-unknown-unknown -O2 -ffreestanding -nostdlib -fvisibility=hidden`
@@ -724,6 +761,8 @@ How it maps onto UC.OS:
 | `/dev/hostnet` requests open at once | 32 | `HN_MAX` in `hostnet.c` |
 | window manager clients | 24 | |
 | time slice | 8 ms | `SLICE_MS` |
+| libarc window or dictionary | 128 MiB by default | `ARC_MEMLIMIT_DEFAULT`, `arc_set_memlimit`, `xz -M`, `zstd -M` |
+| tar extended header (pax, GNU long name) | 1 MiB; names up to 4095 bytes | `libarc/tar.c` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
 `fork`, signals, threads, shared memory, persistence, networking beyond the machine
@@ -875,3 +914,85 @@ half-close when input ends), `netstat`
 (also sets `loss` and `delay`), `tcpdump` (a packet socket; filters `tcp udp icmp port N
 host A`). `bin/nettest.c` is the test suite. UC.OS has no signals, so Ctrl-C ends `ping`
 and `tcpdump` without their closing summary; give them `-c` to get it.
+
+## 17. The package manager (`libpkg/`, `libarc/`, `bin/dpkg*`, `bin/apt*`)
+
+Debian's package tools, written from the published formats (deb(5), deb-control(5),
+deb-version(7), Debian Policy, the dpkg database files, the repository format on
+wiki.debian.org). No Debian source code. Programs that contain Linux machine code cannot
+run until the binary engine exists; packages can still be unpacked, queried and removed.
+
+```
+bin/dpkg, dpkg-query, dpkg-deb, apt, apt-get, apt-cache   one-line mains (USE_PKG)
+libpkg/cli_dpkg.c  cli_apt.c                               command lines, output formats
+libpkg/dpkg.c      unpack, configure, remove, purge, triggers, conffiles
+libpkg/script.c    maintainer scripts; run_command (spawn on UC.OS, posix_spawn on the host)
+libpkg/db.c        /var/lib/dpkg: status, info/*.list, md5sums, conffiles, arch, dpkg.log
+libpkg/deb.c       .deb reading (ar, control.tar, data.tar) through libarc
+libpkg/control.c   RFC 822 paragraphs, streaming, no per-field allocation
+libpkg/version.c   deb-version(7) comparison;   deps.c   relationship fields
+libpkg/repo.c      sources.list, *.sources, Release, apt update;   fetch.c  pkg_fetch()
+libpkg/index.c     compact in-memory index;     solve.c  CDCL solver and install order
+libpkg/aptconf.c   apt.conf syntax;             conf.c   dpkg.cfg, --root, the architecture
+libarc/            archives and compression (section 12, "libarc"); USE_PKG also links it
+```
+
+- **One root for everything.** Every path goes through `root_path()`. The root comes
+  from `--root`/`--instdir`, else `DPKG_ROOT`, else `root` in `/etc/dpkg/dpkg.cfg`
+  (the image sets the placeholder `/debian`), else `/`. apt's `Dir` defaults to the same
+  root, so its state lives under it too. A host build refuses to run without a root.
+- **The architecture is one value**, `pkg_cfg.arch`: compile-time `PKG_NATIVE_ARCH`
+  (placeholder `amd64`), overridable by `native-architecture` in dpkg.cfg and, for apt,
+  `APT::Architecture`. Foreign architectures are in `ADMINDIR/arch`.
+- **States.** The status file is rewritten whole and atomically (write `status.new`,
+  fsync, rename; the previous one is kept as `status-old`) at every state change, so an
+  interrupted run leaves `half-installed` (with `reinstreq`), `unpacked` or
+  `half-configured`, which `dpkg --configure -a`, a reinstall or `apt -f install`
+  repairs. dpkg's `updates/` journal is not used.
+- **Unpack** extracts every file as `NAME.dpkg-new` first and checks ownership against
+  all `.list` files (refused unless `Replaces` or `--force-overwrite`); on any error the
+  new files are deleted and the old version is untouched. Then everything is renamed
+  into place, files the old version had and the new one does not are removed (deepest
+  first; directories only when empty and not listed by another package), and the info
+  files are replaced. Conffiles stay `.dpkg-new` until configure compares three MD5
+  sums (on disk, recorded, new): keep the user's change (new copy as `.dpkg-dist`), or
+  with `--force-confnew` install the new one (old as `.dpkg-old`).
+- **Maintainer scripts** run with Policy's arguments and dpkg's environment. Root `/`:
+  through the script's interpreter. Another root: through `script-runner` (meant for the
+  binary engine), or with `--force-script-chrootless` through this system's shell and
+  `DPKG_ROOT`. Otherwise the script cannot run: the step fails and the package stays in
+  the matching state, or with `--force-unrunnable-scripts` it is logged to
+  `info/PKG.unrun` and treated as done.
+- **Triggers**: file triggers (`interest PATH`) and named triggers (`activate NAME`) as
+  `triggers/File` and `triggers/NAME`, run as `postinst triggered` at the end of a run.
+  Awaiting is not implemented: every trigger behaves as `-noawait`.
+- **Unsupported system calls.** `chmod`, `chown`, `symlink`, `link`, `fsync` and
+  `utimensat` are tried; `ENOSYS` (or `EINVAL`) prints one warning per operation and the
+  work continues (`pkg_unsupported`). Hard links fall back to copies; symbolic links to
+  a copy of the target when it is a regular file in the same package.
+- **apt update** fetches `InRelease` (else `Release`), checks `Valid-Until`, then each
+  `Packages` index the Release lists (`.xz`, `.gz`, `.zst`, then plain, or
+  `Acquire::CompressionTypes::Order`; by-hash when the Release offers it), checks size and
+  SHA-256 against Release, decompresses and checks the uncompressed sum too, and stores
+  it under `Dir::State::lists` with apt's file names. **OpenPGP signatures are not
+  checked**; every update says so on stderr and no option silences it.
+- **Fetching** is `pkg_fetch(url, dest, progress)` in `fetch.c` and nowhere else:
+  `file:`/`copy:` copy; `http:`/`https:` run `Acquire::http::Command` entries (default
+  `curl -fsSL -o %o %u`, then `wget -q -O %o %u`) into `DEST.partial`.
+- **The index** (`index.c`) streams every list and keeps per version only what the
+  solver needs (relationship fields, sizes, priority, flags) in an arena, plus the byte
+  offset of the stanza; `apt show` and downloads re-read the stanza. A full Debian `main`
+  index for one architecture (68,829 stanzas, 55 MB) takes 28 MB of arena in UC.OS
+  (32-bit pointers; 35 MB on a 64-bit host) and loads in about 0.5 to 1.1 s under Node.
+  There is no on-disk binary cache like apt's `pkgcache.bin`.
+- **The solver** (`solve.c`) turns versions into boolean variables and Depends,
+  Pre-Depends, Conflicts, Breaks, one-version-per-name, requests and installed Essential
+  packages into clauses, and runs conflict-driven clause learning. Decisions follow
+  apt's preferences (first alternative, installed version, candidate, providers by
+  priority; keep or upgrade installed packages; Recommends last), so a solution looks
+  like apt's, and a problem with no solution is reported as such. `solve_order` gives
+  removals first, then strongly connected components in dependency order: each
+  component is unpacked whole and then configured, which is how dpkg tolerates Depends
+  cycles. Pinning (`preferences`) is not implemented: repositories are 500, the status
+  file 100.
+

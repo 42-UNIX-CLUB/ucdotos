@@ -29,7 +29,7 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
   cannot corrupt each other.
 - `PROGS=` exists because every `bin/*.c` and `bin/*/` is a program, and someone else's
   half-written program would otherwise break your build.
-- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `bin/NAME` (wasm files with no
+- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `libarc.a`, `libpkg.a`, `bin/NAME` (wasm files with no
   extension), `root/` (the staged filesystem), `initrd.tar`, and with `dist`: `initrd.tar.gz`
   (the same archive, `gzip -9`) and `dist/`, which holds both. The page fetches
   `initrd.tar.gz` and unpacks it with the browser's `DecompressionStream`, and falls back to
@@ -60,6 +60,9 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
 | `bin/NAME/*.c` | every `.c` directly in the directory is compiled and linked. Subdirectories are not picked up (put tests there) |
 | `bin/NAME/CFLAGS` | optional file: extra compiler and linker flags for that program |
 | `bin/NAME/USE_GFX` | optional empty file: also link `libui.a` and `libgfx.a` |
+| `bin/NAME/USE_ARC` | optional empty file: also link `libarc.a` (compression, tar, ar, checksums; `libarc/arc.h`) |
+| `bin/NAME/USE_PKG` | optional empty file: also link `libpkg.a` and then `libarc.a` (the package tools use it) |
+| `bin/NAME/ALIASES` | optional: more names, one per line, under which the same program is copied into `/bin` (there are no links in the file system yet). The program looks at `argv[0]`. `bin/gzip/ALIASES` gives `gunzip`, `zcat`, `xz`, `xzcat`, ... |
 
 `main` may be `main(void)`, `main(int, char **)` or `main(int, char **, char **)`.
 The link tries `crt0_2.o` first and falls back to `crt0_3.o`.
@@ -147,6 +150,10 @@ Component suites:
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs the data files in the build (`make WADS=DIR`, or `tools/get-doom-data.sh` first). `mkimage.sh` no longer puts a data file in the image: it arrives as a remote file. `launcher.mjs`, `message.mjs`, `import.mjs` and `browser.mjs` cover the launcher entries, the messages, a dropped file and Chromium | play, demo, window tests pass |
 | Linux programs (`lx`) | `bin/lx/tests/` | native: `sh bin/lx/tests/run.sh` (add `LX_SCRATCH=DIR` after `LX_SCRATCH=DIR sh bin/lx/tests/fetch-debian.sh`, which downloads Debian riscv64 packages outside the repository, for the Debian milestones); in UC.OS: `sh bin/lx/tests/mkimage.sh BUILD FILE:PATH...` then for example `node tools/run.mjs --build=BUILD --init=/bin/lx --args="/usr/bin/busybox sh /lx/m2.sh /usr/bin/busybox /tmp"` (busybox script) or `--args="/usr/bin/dash /lx/m34.sh"` (dynamic programs), with the small Debian root from `bin/lx/tests/mkimage-debian.sh`. The scripts need exactly these arguments: without them the busybox script reports 29 failures that are not real. Full commands in `docs/LINUX-BINARIES.md` section 11 | 23 of 23 native; in the OS 37 of 37 (busybox) and 10 of 10 (dynamic programs), 2026-11-26 |
+| libarc and the archive tools | `libarc/tests/run.sh` | native, one command: `bash libarc/tests/run.sh` (add `ARC_DEBS=dir` to also compare real `.deb` files with GNU tar and bsdtar). Needs host gzip, xz, zstd, GNU tar, bsdtar, binutils ar, python3 | see STATUS.md |
+| libarc fuzzing | `libarc/tests/fuzz.c` | native, build line in its header; `./fuzz SECONDS seed...` | see STATUS.md |
+| archive tools in the OS | `rootfs/usr/share/tests/arc-tests.sh` | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/arc-tests.sh\nexit\n'` (needs `sh echo cat cp ls mkdir rm head seq wc gzip tar ar sha256sum` in the image) | `arc-tests: 52 checks, 52 passed` |
+| real packages in the OS | `libarc/tests/os-debs.sh` | `sh libarc/tests/os-debs.sh BUILD DEB...`: extracts each `.deb` inside UC.OS with `ar x` and `tar xf` and compares the file contents with the host's GNU tar | 7 of 7 identical (2026-11-26) |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
 | C compiler and linker | `bin/cc/tests/` | `sh bin/cc/tests/build.sh B` once, then `sh bin/cc/tests/run.sh B` | 37: 19 programs compared with clang, 3 mixed links, 15 diagnostics (2026-11-26) |
 | cc random expressions | `bin/cc/tests/fuzz.py`, `fuzz.sh` | `sh bin/cc/tests/fuzz.sh B SEED COUNT` (keep runs under a minute) | 6,750 expressions, 0 differences |
@@ -156,6 +163,12 @@ Component suites:
 | make in the OS | `bin/make/tests/os/cases.mk` -> `rootfs/usr/share/tests/make/` | `sh bin/make/tests/os/run.sh build-NAME` (builds the image and runs the cases inside UC.OS) | see STATUS.md |
 | shell features recipes use | `rootfs/usr/share/tests/make/shell-survey.sh` | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/make/shell-survey.sh\nexit\n'` | see STATUS.md |
 | make speed | `bin/make/tests/perf/gen.mk` (also in the image as `/usr/share/tests/make/perf-gen.mk`) | instructions at the top of the file | PERFORMANCE.md |
+| package manager | `libpkg/tests/run.sh` | native, no network: `sh libpkg/tests/run.sh [OUTDIR]` (builds with ASan and UBSan, makes .deb fixtures from text with tar and ar) | 272 checks (235 unit checks inside) |
+| package manager in the OS | `libpkg/tests/os-test.sh`, `os/pkg-os.sh` | `sh libpkg/tests/os-test.sh build-NAME` (builds an image, stages fixtures, boots under Node) | 37 checks |
+| package manager on real repositories | `libpkg/tests/real-repos.sh`, `check-plan.py` | optional, DOWNLOADS about 75 MB of Debian and Ubuntu indexes; resolves packages per distribution and architecture | 48 resolutions; plans checked by `check-plan.py` |
+| maintainer script survey | `libpkg/tests/survey-scripts.py` | optional, DOWNLOADS the first few KiB of about 50 .debs | |
+| full index inside the OS | `libpkg/tests/os-bigindex.sh` | optional: `sh libpkg/tests/os-bigindex.sh PACKAGES_FILE [BUILD] [PKG...]` with a plain `Packages` or a `Packages.xz`; runs `apt update` on it inside UC.OS and samples apt's memory with `ps` | about 35 MB peak for Debian 13 `main` amd64 (68,829 stanzas), 2026-11-26 |
+| real Debian packages installed in the OS | `libpkg/tests/os-real.sh` | optional: `sh libpkg/tests/os-real.sh BUILD DEBIAN_DEB... -- UBUNTU_DEB...` (the .deb files are not in the repository): `apt update`, `apt install -y hello`, `dpkg -l/-L/-V`, remove, purge, autoremove, the name-length limit, inside UC.OS | passes with Debian hello and its three dependencies (2026-11-26) |
 
 Gap to know about: the vi/htop/fetch test scripts are not in the repository.
 
@@ -213,6 +226,14 @@ from `dev_open()` in `kernel/main.c`, and implement `struct fops`.
 
 **Change a default dotfile.** They are in `rootfs/etc/` and `rootfs/home/user/`. They are
 written to teach: keep every line commented.
+
+**Work on the package manager.** The logic is plain C in `libpkg/` and builds for the
+host: `sh libpkg/tests/build-native.sh OUTDIR` gives `OUTDIR/bin/dpkg`, `apt` and the
+rest. A host build refuses to touch `/`: always pass `--root=DIR` (dpkg) or `-o Dir=DIR`
+(apt), or set `DPKG_ROOT`. `UCOS_PKG_CONFDIR` points dpkg at another `dpkg.cfg`
+directory (tests use an empty one). Maintainer scripts in another root need
+`--force-script-chrootless`. The archive formats come from the real `libarc`, natively as well (`build-native.sh`
+compiles `libpkg/*.c` and `libarc/*.c`).
 
 **Start a process from C.** `spawn(path, argv, envp, fdmap)` or `spawnp(file, argv,
 fdmap)`. For a pipeline: create pipes with `pipe2(p, O_CLOEXEC)`, spawn each stage with

@@ -385,7 +385,30 @@ time of `/usr/bin/time`; UC.OS figures come from time stamps on the console unde
   `node --cpu-prof`). Directory size, not make, dominates there.
 
 
-## 11. How to measure properly
+## 11. Decompression (libarc)
+
+Output throughput in MB/s (10^6 bytes of decompressed data per second), on the same
+laptop, single thread. "Native" is libarc compiled with the host `cc -O2`; the host
+tools are GNU gzip 1.15, xz 5.8.4 (`-T1`), zstd 1.5.7.
+
+Baseline, before any tuning (2026-11-26 06:28, load average 1.9), whole-process time,
+best of 3, on the data member of Debian's `libllvm19` package (a 124 MB tar; xz as
+shipped, gzip -6 and zstd -19 made from the same tar):
+
+| Format | libarc native | host tool |
+|---|---|---|
+| gzip | 288 | 240 |
+| xz | 60.5 | 101.5 |
+| zstd | 231 | 486 |
+
+After the decoders were tuned, and inside UC.OS: not measured yet (the machine stayed too
+loaded for a valid benchmark on 2026-11-26).
+
+How: `libarc/tests/arcbench.c` decompresses a file from memory several times and prints
+the first (cold) run and the best run; it builds natively and for UC.OS, and
+`libarc/tests/os-bench.sh BUILD FILE...` runs it inside UC.OS under Node.
+
+## 12. How to measure properly
 
 1. Put the timed loop in a `noinline` function and call it many times. V8 does not
    replace a running wasm loop with optimised code, so a loop entered once measures
@@ -404,7 +427,7 @@ time of `/usr/bin/time`; UC.OS figures come from time stamps on the console unde
    `clockcost.mjs` (the clock import), `spawncost.mjs` (process start, step by step),
    `frames-ab.mjs` and `present-check.mjs` (the screen), `boot-ab.mjs` (boot phases).
 
-## 12. Sound (2026-11-26)
+## 13. Sound (2026-11-26)
 
 The design (DECISIONS.md 20, SOUND.md) was chosen from benchmarks of each piece, compiled
 to WebAssembly the same way as the real code, median of 7 batches, this machine:

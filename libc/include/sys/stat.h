@@ -15,4 +15,18 @@ int mkdir(const char *, mode_t);
 int chmod(const char *, mode_t);
 int fchmod(int, mode_t);
 mode_t umask(mode_t);
+/* permissions, times and special files (libc/src/arc_compat.c; the kernel may answer ENOSYS) */
+#ifndef _DEV_T_DEFINED
+#define _DEV_T_DEFINED
+typedef unsigned long long dev_t;
+#endif
+#define S_ISLNK(m) (((m)&S_IFMT) == S_IFLNK)
+#define S_ISBLK(m) (((m)&S_IFMT) == S_IFBLK)
+#define S_ISSOCK(m) (((m)&S_IFMT) == S_IFSOCK)
+int fchmodat(int, const char *, mode_t, int);
+int utimensat(int, const char *, const struct timespec[2], int);
+int futimens(int, const struct timespec[2]);
+int mknod(const char *, mode_t, dev_t);
+int mknodat(int, const char *, mode_t, dev_t);
+int mkfifo(const char *, mode_t);
 #endif
