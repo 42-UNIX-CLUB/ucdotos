@@ -275,9 +275,16 @@ int sources_parse_deb822(const char *text, const char *origin, apt_sources *out)
 void sources_free(apt_sources *s);
 char *apt_uri_to_filename(const char *uri);  /* apt's lists/ naming: http://a/b/ -> a_b_ */
 int apt_update(void);
+/* keyring.c: the keys a source trusts (Signed-By, else the default keyrings);
+ * NULL with err set when a named keyring cannot be read. used, if given,
+ * receives the files read. */
+typedef struct sig_keyring sig_keyring;
+sig_keyring *apt_source_keyring(const char *signed_by, sbuf *err, strlist *used);
+long long apt_signature_time(void);   /* time(0), or Debug::Acquire::Signature-Time for tests */
+int keyring_main(int argc, char **argv);  /* the apt-keyring program */
 /* Release file entries */
 typedef struct { char *path; uint64_t size; char sha256[65]; } rel_entry;
-typedef struct { ctl_para f; rel_entry *e; int n; int signed_clearsign; } rel_file;
+typedef struct { ctl_para f; rel_entry *e; int n; } rel_file;
 int release_parse(const char *data, size_t n, rel_file *out, char **err);
 void release_free(rel_file *r);
 const rel_entry *release_find(const rel_file *r, const char *path);
@@ -316,6 +323,8 @@ typedef struct {
   strlist files;             /* index files by file_id (0: the status file) */
   strlist file_base;         /* repository base URI for downloads */
   strlist file_label;        /* "URI SUITE/COMP ARCH" for apt policy */
+  unsigned char *file_untrusted;  /* by file_id: 1 when its Release file was not authenticated */
+  int nfile_untrusted;
   strmap intern;
   pkgdb *db;
 } pkgindex;
@@ -328,6 +337,7 @@ pkgver *index_candidate(pkgindex *ix, pkgname *pn);
 pkgver *index_installed(pkgname *pn);
 void index_free(pkgindex *ix);
 int index_stanza(pkgindex *ix, const pkgver *v, ctl_para *out);  /* the full paragraph */
+int index_untrusted(const pkgindex *ix, const pkgver *v);        /* from a repository that was not authenticated */
 int prio_value(const char *s);
 const char *prio_name(int p);
 int arch_ok_native(const char *a);         /* native, all, or a foreign architecture */

@@ -20,7 +20,7 @@ cd "$top"
 nice -n 15 make B="$B" PROGS="sh cat grep ps sleep date dpkg apt" >/dev/null
 R=$top/$B/root/big
 mkdir -p "$R/etc/apt" "$R/var/lib/apt/lists" "$R/var/lib/dpkg"
-echo "deb file:/mirror trixie main" > "$R/etc/apt/sources.list"
+echo "deb [trusted=yes] file:/mirror trixie main" > "$R/etc/apt/sources.list"   # the Release file is made here, unsigned
 : > "$R/var/lib/dpkg/status"
 case $PK in
 *.xz)

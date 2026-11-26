@@ -29,7 +29,7 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
   cannot corrupt each other.
 - `PROGS=` exists because every `bin/*.c` and `bin/*/` is a program, and someone else's
   half-written program would otherwise break your build.
-- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `libarc.a`, `libpkg.a`, `bin/NAME` (wasm files with no
+- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `libarc.a`, `libpkg.a`, `libsig.a`, `bin/NAME` (wasm files with no
   extension), `root/` (the staged filesystem), `initrd.tar`, and with `dist`: `initrd.tar.gz`
   (the same archive, `gzip -9`) and `dist/`, which holds both. The page fetches
   `initrd.tar.gz` and unpacks it with the browser's `DecompressionStream`, and falls back to
@@ -60,7 +60,7 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
 | `bin/NAME/*.c` | every `.c` directly in the directory is compiled and linked. Subdirectories are not picked up (put tests there) |
 | `bin/NAME/CFLAGS` | optional file: extra compiler and linker flags for that program |
 | `bin/NAME/USE_GFX` | optional empty file: also link `libui.a` and `libgfx.a` |
-| `bin/NAME/USE_PKG` | optional empty file: also link `libpkg.a` and then `libarc.a` (the package tools use it) |
+| `bin/NAME/USE_PKG` | optional empty file: also link `libpkg.a`, `libsig.a` and then `libarc.a` (the package tools use it) |
 | `bin/NAME/USE_ARC` | optional empty file: also link `libarc.a` (compression, tar, ar, checksums; `libarc/arc.h`) |
 | `bin/NAME/ALIASES` | optional: more names, one per line, under which the same program is copied into `/bin` (there are no links in the file system yet). The program looks at `argv[0]`. `bin/gzip/ALIASES` gives `gunzip`, `zcat`, `xz`, `xzcat`, ... |
 
@@ -158,8 +158,12 @@ Component suites:
 | libarc fuzzing | `libarc/tests/fuzz.c` | native, build line in its header; `./fuzz SECONDS seed...` | see STATUS.md |
 | archive tools in the OS | `rootfs/usr/share/tests/arc-tests.sh` | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/arc-tests.sh\nexit\n'` (needs `sh echo cat cp ls mkdir rm head seq wc gzip tar ar sha256sum` in the image) | `arc-tests: 52 checks, 52 passed` |
 | real packages in the OS | `libarc/tests/os-debs.sh` | `sh libarc/tests/os-debs.sh BUILD DEB...`: extracts each `.deb` inside UC.OS with `ar x` and `tar xf` and compares the file contents with the host's GNU tar | 7 of 7 identical (2026-11-26) |
-| package manager | `libpkg/tests/run.sh` | native, no network: `sh libpkg/tests/run.sh [OUTDIR]` (builds with ASan and UBSan, makes .deb fixtures from text with tar and ar) | 272 checks (235 unit checks inside), 2026-11-26 |
-| package manager in the OS | `libpkg/tests/os-test.sh`, `os/pkg-os.sh` | `sh libpkg/tests/os-test.sh build-NAME` (builds an image, stages fixtures, boots under Node) | 37 checks, 2026-11-26 |
+| package manager | `libpkg/tests/run.sh` | native, no network: `sh libpkg/tests/run.sh [OUTDIR]` (builds with ASan and UBSan, makes .deb fixtures from text with tar and ar; needs the host's gpg, which signs the test repositories) | 321 checks, 2026-11-26 |
+| package manager in the OS | `libpkg/tests/os-test.sh`, `os/pkg-os.sh` | `sh libpkg/tests/os-test.sh build-NAME` (builds an image, stages fixtures, signs the test repository with the host's gpg, boots under Node) | 49 checks, 2026-11-26 |
+| real signed archive in the OS | `libpkg/tests/os-signed.sh` | `sh libpkg/tests/os-signed.sh BUILD [DATA]` with a full build (it needs `lx`). DOWNLOADS once from deb.debian.org: today's trixie InRelease, `main/binary-riscv64/Packages.xz` (about 10 MB) and 14 riscv64 packages. Checks with the keys in `keyrings/`: `apt update` with no warning, installs hello, base-files, mawk, busybox-static; runs busybox through `lx`; refuses a changed InRelease, a missing signature, no keys, a clock in 2040 | 16 checks, 2026-11-26 |
+| shipped archive keys | `libpkg/tests/keyrings-check.sh` | `sh libpkg/tests/keyrings-check.sh [OUT]`. DOWNLOADS Debian's key page (ftp-master.debian.org/keys.html) and today's trixie InRelease: every fingerprint in `keyrings/` must be on the page, and the InRelease must verify with those keys alone | 3 of 3 listed, InRelease trusted, 2026-11-26 |
+| OpenPGP verification | `libsig/tests/run.sh` | native: `sh libsig/tests/run.sh [OUTDIR]` (default `build-sig/`: pass another name if that is your build directory). Each part says SKIP when its input is missing: published vectors (`sh libsig/tests/fetch-vectors.sh` first, DOWNLOADS), crafted cases (Python's `cryptography`), interop with the host's gpg, real archives (`libpkg/tests/fetch-signed.sh` and `fetch-keyrings.sh` first, DOWNLOAD) | 148 checks, 0 failed (vectors 18,470, crafted cases 161), 2026-11-26 |
+| libsig fuzzing and timing | `libsig/tests/fuzz.c`, `os-bench.sh` | fuzz: build line in its header, modes keyring, armor, clear, detached, bignum; `sh libsig/tests/os-bench.sh BUILD KEYRING INRELEASE...` times verification inside UC.OS | see STATUS.md |
 | package manager on real repositories | `libpkg/tests/real-repos.sh`, `check-plan.py` | optional, DOWNLOADS about 75 MB of Debian and Ubuntu indexes; resolves packages per distribution and architecture | 48 resolutions; plans checked by `check-plan.py` |
 | maintainer script survey | `libpkg/tests/survey-scripts.py` | optional, DOWNLOADS the first few KiB of about 50 .debs | |
 | full index inside the OS | `libpkg/tests/os-bigindex.sh` | optional: `sh libpkg/tests/os-bigindex.sh PACKAGES_FILE [BUILD] [PKG...]` with a plain `Packages` or a `Packages.xz`; runs `apt update` on it inside UC.OS and samples apt's memory with `ps` | about 35 MB peak for Debian 13 `main` amd64 (68,829 stanzas), 2026-11-26 on the previous `main`; not run for riscv64 |
@@ -238,7 +242,8 @@ their behaviour from `argv[0]`, as the alias names do in the image). A host buil
 (apt), or set `DPKG_ROOT`. `UCOS_PKG_CONFDIR` points dpkg at another `dpkg.cfg`
 directory (tests use an empty one). Maintainer scripts in another root need
 `--force-script-chrootless`. The archive formats come from the real `libarc`, natively as well (`build-native.sh`
-compiles `libpkg/*.c` and `libarc/*.c`).
+compiles `libpkg/*.c`, `libarc/*.c` and `libsig/*.c`). `apt -o Debug::Acquire::Signature-Time=EPOCH`
+sets the clock used for key expiry in tests.
 
 **Start a process from C.** `spawn(path, argv, envp, fdmap)` or `spawnp(file, argv,
 fdmap)`. For a pipeline: create pipes with `pipe2(p, O_CLOEXEC)`, spawn each stage with

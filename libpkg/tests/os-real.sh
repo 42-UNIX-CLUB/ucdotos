@@ -11,6 +11,9 @@
 # with xz (Debian) or zstd (Ubuntu); then apt update, apt install hello, dpkg -L,
 # dpkg -V, remove and purge. Maintainer scripts cannot run yet (they need the
 # binary engine), so --force-unrunnable-scripts records them as not run.
+# The Release files are made here and not signed, so the sources are marked
+# [trusted=yes] (apt prints its loud warning). libpkg/tests/os-signed.sh is the
+# same kind of test with Debian's real, signed InRelease.
 set -eu
 B=${1:?usage: os-real.sh BUILD DEBIAN_DEB... -- UBUNTU_DEB...}; shift
 top=$(cd "$(dirname "$0")/../.." && pwd)
@@ -63,7 +66,7 @@ cat > "$ST/run.sh" <<'EOF'
 F=--force-unrunnable-scripts
 echo "=== Debian: apt update (Packages.xz)"
 mkdir -p /real/d/etc/apt
-echo "deb file:/real/deb trixie main" > /real/d/etc/apt/sources.list
+echo "deb [trusted=yes] file:/real/deb trixie main" > /real/d/etc/apt/sources.list
 A="apt -o Dir=/real/d -o DPkg::Options::=$F"
 $A update; echo "exit $?"
 echo "=== apt install -y hello"
@@ -92,7 +95,7 @@ $A autoremove -y; echo "exit $?"
 dpkg --root=/real/d -l
 echo "=== Ubuntu: apt update (Packages.zst)"
 mkdir -p /real/u/etc/apt
-echo "deb file:/real/ubu resolute main" > /real/u/etc/apt/sources.list
+echo "deb [trusted=yes] file:/real/ubu resolute main" > /real/u/etc/apt/sources.list
 U="apt -o Dir=/real/u -o DPkg::Options::=$F"
 $U update; echo "exit $?"
 apt-cache -o Dir=/real/u policy hello
@@ -104,7 +107,7 @@ dpkg --root=/real/u $F -P hello; echo "exit $?"
 dpkg-query --root=/real/u -W -f '${db:Status-Status}\n' hello
 echo "=== limits: apt update with list names over 63 bytes"
 mkdir -p /real/l/etc/apt
-echo "deb file:/real/archive.ubuntu.com/ubuntu resolute main" > /real/l/etc/apt/sources.list
+echo "deb [trusted=yes] file:/real/archive.ubuntu.com/ubuntu resolute main" > /real/l/etc/apt/sources.list
 apt -o Dir=/real/l update; echo "exit $?"
 echo "=== limits: dpkg -i of a package with a 60-byte file name"
 dpkg --root=/real/l -i /real/longname_1_all.deb; echo "exit $?"

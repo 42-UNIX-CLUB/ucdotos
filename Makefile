@@ -36,6 +36,16 @@ ARC_HDR     := $(wildcard libarc/*.h)
 # A program directory containing a file named USE_PKG links libpkg (the package
 # manager's logic) and libarc (archives and compression).
 PKG_SRC     := $(wildcard libpkg/*.c)
+# libsig verifies OpenPGP signatures (apt's InRelease); USE_PKG links it too.
+SIG_SRC     := $(wildcard libsig/*.c)
+SIG_HDR     := $(wildcard libsig/*.h)
+# Archive keyrings for apt: the *.gpg, *.asc and *.pgp files in this directory
+# are copied to /debian/etc/apt/trusted.gpg.d/ in the image (the default
+# keyrings of apt's root). keyrings/ holds Debian's trixie archive keys, each
+# fingerprint compared with Debian's published list (libpkg/tests/keyrings-check.sh).
+# KEYRINGS=/some/dir picks another directory for a local build.
+KEYRINGS    ?= keyrings
+KEYRING_FILES := $(wildcard $(KEYRINGS)/*.gpg $(KEYRINGS)/*.asc $(KEYRINGS)/*.pgp)
 
 all: $(B)/kernel.wasm $(B)/initrd.tar
 
@@ -77,15 +87,19 @@ $(B)/obj/libarc/%.o: libarc/%.c $(LIBC_HDR) $(ARC_HDR)
 $(B)/libarc.a: $(patsubst %.c,$(B)/obj/%.o,$(ARC_SRC))
 	@echo "  AR    libarc.a"
 	@$(AR) rcs $@ $^
-$(patsubst %.c,$(B)/obj/%.o,$(PKG_SRC)): libpkg/pkg.h $(ARC_HDR)
+$(patsubst %.c,$(B)/obj/%.o,$(PKG_SRC)): libpkg/pkg.h $(ARC_HDR) $(SIG_HDR)
 $(B)/libpkg.a: $(patsubst %.c,$(B)/obj/%.o,$(PKG_SRC))
 	@echo "  AR    libpkg.a"
+	@$(AR) rcs $@ $^
+$(patsubst %.c,$(B)/obj/%.o,$(SIG_SRC)): $(SIG_HDR) $(ARC_HDR)
+$(B)/libsig.a: $(patsubst %.c,$(B)/obj/%.o,$(SIG_SRC))
+	@echo "  AR    libsig.a"
 	@$(AR) rcs $@ $^
 
 
 # Link with the crt0 that matches main's signature: try (argc, argv) first, then (argc, argv, envp).
 gfx_lib = $(if $(wildcard bin/$(1)/USE_CLIP),$(B)/libclip.a) $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a)
-pkg_lib = $(if $(wildcard bin/$(1)/USE_PKG),$(B)/libpkg.a)
+pkg_lib = $(if $(wildcard bin/$(1)/USE_PKG),$(B)/libpkg.a $(B)/libsig.a)
 arc_lib = $(if $(wildcard bin/$(1)/USE_ARC bin/$(1)/USE_PKG),$(B)/libarc.a)
 arc_hdr = $(if $(wildcard bin/$(1)/USE_ARC bin/$(1)/USE_PKG),$(ARC_HDR))
 define LINK
@@ -140,9 +154,10 @@ $(B)/alias/%: tools/alias/stub.c $(B)/libc.a $(CRT)
 	@echo "  ALIAS $*"
 	@$(CC) $(UCFLAGS) $(ULDFLAGS) -DTARGET='"/bin/$*"' -o $@ $(B)/obj/crt0_3.o $< $(B)/libc.a
 
-$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT) $(B)/root/etc/remote-files $(wildcard bin/*/ALIASES) $(addprefix $(B)/alias/,$(ALIASED))
+$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT) $(B)/root/etc/remote-files $(wildcard bin/*/ALIASES) $(addprefix $(B)/alias/,$(ALIASED)) $(KEYRING_FILES)
 	@mkdir -p $(B)/root/bin
 	@cp -r rootfs/. $(B)/root/
+	@if [ -n "$(KEYRING_FILES)" ]; then mkdir -p $(B)/root/debian/etc/apt/trusted.gpg.d && cp $(KEYRING_FILES) $(B)/root/debian/etc/apt/trusted.gpg.d/ && echo "  KEYS  $(notdir $(KEYRING_FILES))"; fi
 	@cp $(addprefix $(B)/bin/,$(PROGS)) $(B)/root/bin/
 	@for p in $(ALIASED); do for a in `cat bin/$$p/ALIASES`; do cp $(B)/alias/$$p $(B)/root/bin/$$a; done; done
 	@echo "  TAR   initrd.tar"

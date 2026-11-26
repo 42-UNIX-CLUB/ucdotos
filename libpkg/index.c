@@ -215,6 +215,19 @@ static char *list_name(const char *listdir, const char *url) {
   free(f);
   return p;
 }
+static void set_untrusted(pkgindex *ix, int untrusted) {
+  int fid = ix->files.n - 1;
+  if (fid >= ix->nfile_untrusted) {
+    int n = fid + 16;
+    ix->file_untrusted = xrealloc(ix->file_untrusted, n);
+    memset(ix->file_untrusted + ix->nfile_untrusted, 0, n - ix->nfile_untrusted);
+    ix->nfile_untrusted = n;
+  }
+  ix->file_untrusted[fid] = (unsigned char)untrusted;
+}
+int index_untrusted(const pkgindex *ix, const pkgver *v) {
+  return v->file_id > 0 && v->file_id < ix->nfile_untrusted && ix->file_untrusted[v->file_id];
+}
 int index_load(pkgindex *ix, pkgdb *db) {
   memset(ix, 0, sizeof *ix);
   index_add_status(ix, db);
@@ -231,6 +244,11 @@ int index_load(pkgindex *ix, pkgdb *db) {
     if (s->arches.n) for (int a = 0; a < s->arches.n; a++) sl_add(&arches, s->arches.v[a]);
     else { sl_add(&arches, pkg_cfg.arch); for (int a = 0; a < pkg_cfg.foreign.n; a++) sl_add(&arches, pkg_cfg.foreign.v[a]); }
     sl_add(&arches, "all");
+    /* authenticated: apt update keeps InRelease or Release.gpg only after the signature checked */
+    char *u1 = xasprintf("%sInRelease", distbase), *u2 = xasprintf("%sRelease.gpg", distbase);
+    char *inrel = list_name(listdir, u1), *relgpg = list_name(listdir, u2);
+    int untrusted = !s->trusted && !path_exists(inrel) && !path_exists(relgpg);
+    free(u1); free(u2); free(inrel); free(relgpg);
     int ncomp = flat ? 1 : s->comps.n;
     for (int c = 0; c < ncomp; c++)
       for (int a = 0; a < arches.n; a++) {
@@ -243,6 +261,7 @@ int index_load(pkgindex *ix, pkgdb *db) {
             *sm_slot(&seen, p) = (void *)1;
             char *label = flat ? xasprintf("%s %s", s->uri, s->suite) : xasprintf("%s %s/%s %s", s->uri, s->suite, s->comps.v[c], arches.v[a]);
             index_add_file(ix, p, s->uri, label);
+            set_untrusted(ix, untrusted);
             free(label);
             free(p);
             break;
@@ -320,6 +339,7 @@ void index_free(pkgindex *ix) {
   free(ix->tab);
   ar_free(&ix->a);
   sl_free(&ix->files); sl_free(&ix->file_base); sl_free(&ix->file_label);
+  free(ix->file_untrusted);
   sm_free(&ix->intern);
   memset(ix, 0, sizeof *ix);
 }

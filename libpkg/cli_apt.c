@@ -573,6 +573,29 @@ static int cmd_change(pkgdb *db, pkgindex *ix, const char *cmd, char **args, int
     si_size((uint64_t)r.inst_kib * 1024, b, sizeof b);
     fprintf(stderr, "plan: %d packages, download %s (%llu bytes), installed size %s (%llu KiB)\n", r.n, a, (unsigned long long)r.dl_bytes, b, (unsigned long long)r.inst_kib);
   }
+  /* apt-secure(8): packages from a repository whose Release file was not authenticated */
+  strlist unauth = {0};
+  for (int i = 0; i < r.n; i++) if (r.steps[i].action == 1 && index_untrusted(ix, r.steps[i].v)) sl_add(&unauth, r.steps[i].v->pn->name);
+  for (int i = 0; i < nre; i++) if (index_untrusted(ix, reinst[i])) sl_add(&unauth, reinst[i]->pn->name);
+  int unauth_ok = 1;
+  if (unauth.n) {
+    wrap_list("WARNING: The following packages cannot be authenticated!", &unauth);
+    if (!aptconf_bool("APT::Get::AllowUnauthenticated", 0) && !opt_sim) {
+      if (opt_yes) { fflush(stdout); fprintf(stderr, "E: There were unauthenticated packages and -y was used without --allow-unauthenticated\n"); unauth_ok = 0; }
+      else {
+        printf("Install these packages without verification? [y/N] ");
+        fflush(stdout);
+        char line[64];
+        if (!fgets(line, sizeof line, stdin) || (line[0] != 'y' && line[0] != 'Y')) { fflush(stdout); fprintf(stderr, "E: Some packages could not be authenticated\n"); unauth_ok = 0; }
+      }
+    }
+  }
+  sl_free(&unauth);
+  if (!unauth_ok) {
+    sl_free(&extra); sl_free(&newp); sl_free(&upg); sl_free(&down); sl_free(&rem); sl_free(&rec_missing); sl_free(&sugg); sl_free(&kept); sl_free(&reins);
+    solve_result_free(&r); free(jobs); free(reinst); sm_free(&autom);
+    return 100;
+  }
   /* like apt-get: no question when the only change is exactly what was asked for */
   int only_asked = !rem.n && !down.n && !upg.n && !extra.n && !nre;
   int go = changes && (opt_sim || only_asked || confirm());
@@ -604,6 +627,7 @@ static void usage(void) {
            "  depends PKG  rdepends PKG  download PKG...  check  clean\n");
   printf("\nOptions: -y (assume yes)  -s (simulate)  -f (fix broken)  -d (download only)\n"
          "  -q  --no-install-recommends  --install-recommends  --reinstall  --purge\n"
+         "  --allow-insecure-repositories  --allow-unauthenticated (see apt-secure(8))\n"
          "  -o Key=Value (apt.conf, e.g. -o Dir=/scratch/root -o APT::Architecture=arm64)  -c FILE\n");
 }
 
@@ -632,6 +656,9 @@ int apt_main(int argc, char **argv, const char *personality) {
     if (!strcmp(a, "--installed")) { opt_installed = 1; continue; }
     if (!strcmp(a, "--upgradable")) { opt_upgradable = 1; continue; }
     if (!strcmp(a, "-a") || !strcmp(a, "--all-versions")) { opt_allver = 1; continue; }
+    if (!strcmp(a, "--allow-insecure-repositories")) { sl_add(&cmdline_o, "Acquire::AllowInsecureRepositories=true"); continue; }
+    if (!strcmp(a, "--allow-downgrade-to-insecure-repositories")) { sl_add(&cmdline_o, "Acquire::AllowDowngradeToInsecureRepositories=true"); continue; }
+    if (!strcmp(a, "--allow-unauthenticated")) { sl_add(&cmdline_o, "APT::Get::AllowUnauthenticated=true"); continue; }
     if (!strcmp(a, "--names-only")) { sl_add(&cmdline_o, "APT::Cache::NamesOnly=true"); continue; }
     if (!strcmp(a, "-q") || !strcmp(a, "--quiet")) { opt_quiet++; continue; }
     if (!strcmp(a, "-qq")) { opt_quiet += 2; continue; }
@@ -734,6 +761,11 @@ int apt_main(int argc, char **argv, const char *personality) {
       pkgver *v = index_candidate(&ix, j.pn);
       if (j.verstr) for (pkgver *w = j.pn->vers; w; w = w->next) if (!strcmp(w->ver, j.verstr)) v = w;
       if (!v) { rc = 100; continue; }
+      if (index_untrusted(&ix, v) && !aptconf_bool("APT::Get::AllowUnauthenticated", 0)) {
+        fflush(stdout);
+        fprintf(stderr, "E: %s comes from a repository that is not authenticated; --allow-unauthenticated downloads it anyway\n", v->pn->name);
+        rc = 100; continue;
+      }
       char *p = archive_path(v), *base = strrchr(p, '/');
       if (download(&ix, v, base + 1, i + 1) < 0) rc = 100;
       free(p);

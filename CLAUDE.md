@@ -123,6 +123,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 48,000 + Doom (without tests) |
 | `libarc/` | gzip, xz and zstd decoders, a deflate encoder, tar and ar, checksums; programs opt in with `USE_ARC` | 3,500 |
 | `libpkg/` | the package manager (dpkg and apt work-alikes): .deb files, the dpkg database, repositories, a dependency solver; programs opt in with `USE_PKG` | 6,400 |
+| `libsig/` | OpenPGP signature checks (RSA, Ed25519, keyrings, cleartext) for apt; `keyrings/` holds Debian's archive keys for the image | 1,660 |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
 | `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 1,120 (plus the suites under `tests/`) |
 | `docs/` | the detailed context files listed below | |

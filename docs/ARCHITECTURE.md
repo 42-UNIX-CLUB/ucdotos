@@ -978,6 +978,9 @@ libpkg/version.c   deb-version(7) comparison;   deps.c   relationship fields
 libpkg/repo.c      sources.list, *.sources, Release, apt update;   fetch.c  pkg_fetch()
 libpkg/index.c     compact in-memory index;     solve.c  CDCL solver and install order
 libpkg/aptconf.c   apt.conf syntax;             conf.c   dpkg.cfg, --root, the architecture
+libpkg/keyring.c   which keys a source trusts; apt-keyring (bin/apt-keyring)
+libsig/            OpenPGP verification: pgp.c packets, keys, policy; clear.c armor and
+                   cleartext; rsa.c bignum and RSA; ed25519.c. USE_PKG links it
 libarc/            archives and compression (section 12, "libarc"); USE_PKG also links it
 ```
 
@@ -1021,8 +1024,28 @@ libarc/            archives and compression (section 12, "libarc"); USE_PKG also
   `Packages` index the Release lists (`.xz`, `.gz`, `.zst`, then plain, or
   `Acquire::CompressionTypes::Order`; by-hash when the Release offers it), checks size and
   SHA-256 against Release, decompresses and checks the uncompressed sum too, and stores
-  it under `Dir::State::lists` with apt's file names. **OpenPGP signatures are not
-  checked**; every update says so on stderr and no option silences it.
+  it under `Dir::State::lists` with apt's file names.
+- **Signatures** (apt-secure(8)). `apt update` verifies `InRelease`, or `Release` with
+  `Release.gpg`, against the source's keyring before it reads a byte of it, and parses
+  only the text the signature covers. The keyring is `Signed-By` (files, fingerprints, or
+  a key block in a deb822 field), else `trusted.gpg` and `*.gpg`/`*.asc` in
+  `trusted.gpg.d/` under `Dir`. A file is trusted when at least one signature is good and
+  none is bad; NO_PUBKEY, expired, revoked and unsupported signatures count neither way.
+  Failure prints apt's lines (`W: GPG error: ...`, `E: The repository ... is not signed.`),
+  stores nothing and exits 100. `[trusted=yes]` skips the check with a loud warning;
+  `--allow-insecure-repositories` accepts an unsigned repository and marks its packages
+  unauthenticated, which `install` refuses without `--allow-unauthenticated`. A
+  repository that was signed before and is not now is refused unless
+  `--allow-downgrade-to-insecure-repositories`.
+- **libsig** checks version 4 signatures over SHA-256, SHA-384 or SHA-512 made with RSA
+  (2048 to 8192 bits, PKCS#1 v1.5, checked by building the whole expected encoding and
+  comparing) or Ed25519 (legacy EdDSA and the v4 Ed25519 algorithm; S < L, canonical
+  keys, no small-order keys). Keys need a SHA-2 self-signature, signing flags, and for a
+  subkey a valid binding with its back-signature. The cleartext parser is strict: the
+  file must start with the BEGIN line, only `Hash:` headers, no NUL, no bare CR, nothing
+  after the END line but blank lines. SHA-384 and SHA-1 (fingerprints only) come from
+  `libarc/hash.c`; the kernel keeps its own SHA-256 in `kernel/remote.c`. Written from
+  RFC 4880, RFC 9580, RFC 8017, RFC 8032 and FIPS 180-4.
 - **Fetching** is `pkg_fetch(url, dest, progress)` in `fetch.c` and nowhere else:
   `file:`/`copy:` copy; `http:`/`https:` run `Acquire::http::Command` entries (default
   `curl -fsSL -o %o %u`, then `wget -q -O %o %u`) into `DEST.partial`.
