@@ -329,10 +329,13 @@ static int begin_present(client *c) {
       (unsigned long long)c->cur.len != sizeof *p + (unsigned long long)p->w * p->h * 4)
     return -1;
   if (p->bw != c->pw || p->bh != c->ph) {
-    unsigned *n = calloc((size_t)p->bw * p->bh, 4);
-    if (!n) return -1;
+    /* Free first: the old pixels are dropped anyway, and wasm memory never shrinks, so
+     * allocating before freeing would leave both sizes claimed for good. */
     free(c->buf);
-    c->buf = n; c->pw = p->bw; c->ph = p->bh;
+    c->buf = calloc((size_t)p->bw * p->bh, 4);
+    c->pw = c->ph = 0;
+    if (!c->buf) return -1;
+    c->pw = p->bw; c->ph = p->bh;
   }
   c->in_pixels = 1;
   c->px_got = 0;
