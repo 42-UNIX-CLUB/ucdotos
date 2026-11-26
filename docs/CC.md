@@ -117,6 +117,12 @@ threads) during all of them, so timings are indicative only.
   itself in the engine.
 - A second run of the same script at 08:40 (load about 5, final sources): 136 ms for the
   clang-built cc, 293 ms for cc2; cc2 and cc3 identical again.
+- The whole tree (2026-11-26, `main` with the fix for `c ? pointer : NULL`, natively
+  with `bin/cc/tests/buildall.sh`): 86 of the 87 programs in `bin/` compile and link.
+  The one that does not is the Linux engine, `bin/lx`: `rv_interp.c` uses
+  `__attribute__((musttail))` (guaranteed tail calls, WebAssembly's `return_call`), which
+  cc does not support. Support for it is deferred, not planned. awk built by cc is
+  95,652 bytes (clang: 106,373) and passes all 285 of awk's checks inside UC.OS.
 - Doom (`bin/cc/tests/os/doom.sh`, doom1.wad, `-timedemo demo1`): the cc build plays the
   demo in 5026 gametics, the same as the clang build, so the game logic replayed
   identically. One run each under load 5 to 6: clang 242 realtics, cc 195 realtics. Not a
