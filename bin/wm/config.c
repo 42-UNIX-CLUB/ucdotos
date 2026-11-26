@@ -70,7 +70,10 @@ static void default_binds(void) {
     {"Mod+Right", "focus next"}, {"Mod+Left", "focus prev"},
     {"Mod+Shift+j", "swap next"}, {"Mod+Shift+k", "swap prev"}, {"Mod+Shift+Down", "swap next"}, {"Mod+Shift+Up", "swap prev"},
     {"Mod+h", "master shrink"}, {"Mod+l", "master grow"}, {"Mod+f", "fullscreen"}, {"Mod+Shift+space", "float"},
-    {"Mod+t", "theme next"}, {"Mod+Shift+r", "reload"}, {"Mod+Shift+e", "exit"},
+    {"Mod+t", "theme next"}, {"Mod+Shift+t", "exec themes"}, {"Mod+Shift+r", "reload"}, {"Mod+Shift+e", "exit"},
+    {"Mod+s", "layout toggle"},
+    {"Mod+Ctrl+h", "open left term"}, {"Mod+Ctrl+l", "open right term"}, {"Mod+Ctrl+k", "open up term"}, {"Mod+Ctrl+j", "open down term"},
+    {"Mod+Ctrl+Left", "open left term"}, {"Mod+Ctrl+Right", "open right term"}, {"Mod+Ctrl+Up", "open up term"}, {"Mod+Ctrl+Down", "open down term"},
     {"Ctrl+equal", "zoom in"}, {"Ctrl+Shift+equal", "zoom in"}, {"Ctrl+minus", "zoom out"}, {"Ctrl+0", "zoom reset"},
   };
   for (unsigned i = 0; i < sizeof d / sizeof d[0]; i++) bind(d[i][0], d[i][1]);
@@ -156,6 +159,9 @@ void config_load(int first) {
   cfg.gap = uconf_int(&c, "general.gaps", -1, 0, 100);
   cfg.workspace_count = uconf_int(&c, "general.workspaces", 4, 1, MAX_WS);
   cfg.animation_ms = uconf_int(&c, "general.animation", 160, 0, 5000);
+  const char *lay = uconf_str(&c, "general.layout", "master");
+  if (strcmp(lay, "master") && strcmp(lay, "split")) fprintf(stderr, "%s: layout = %s is not master or split\n", c.name, lay);
+  for (int ws = 0; ws < MAX_WS; ws++) layout_of[ws] = !strcmp(lay, "split") ? LAYOUT_SPLIT : LAYOUT_MASTER;
   float f = (float)uconf_num(&c, "general.master_ratio", 0.5); /* 0.55 or 55 (percent) */
   if (f > 1) f /= 100.f;
   cfg.master = f < 0.1f ? 0.1f : f > 0.9f ? 0.9f : f;

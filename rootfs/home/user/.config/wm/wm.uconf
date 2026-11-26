@@ -21,6 +21,9 @@
 $mod = ALT
 
 [general]
+layout       = master # master: one big window on the left, the rest stacked on the right
+                      # split: every new window halves the focused one (like i3, Hyprland)
+                      # ($mod s switches the workspace you are on between the two)
 gaps         = 12     # pixels between windows and around the screen edge
 workspaces   = 4      # how many workspaces the bar shows (at most 9)
 master_ratio = 0.55   # share of the screen width for the master (left) window
@@ -44,7 +47,10 @@ border {
 #     kill                  ask the focused window to close (twice: force it)
 #     focus next|prev       move the keyboard focus through the windows
 #     swap next|prev|master move the focused window in the stack
-#     master grow|shrink    resize the master area
+#     master grow|shrink    resize the master area (split layout: the focused window)
+#     open DIR PROGRAM      start a program beside the focused window: DIR is left,
+#                           right, up or down (in the master layout: before or after it)
+#     layout master|split|toggle   the layout of the workspace you are on
 #     fullscreen  float     toggle the focused window's state
 #     workspace N  move N   switch workspace / send the window to workspace N
 #     zoom in|out|reset     make the focused window's text bigger, smaller, normal
@@ -79,7 +85,19 @@ bind = $mod, l, master, grow
 bind = $mod, f, fullscreen
 bind = $mod SHIFT, space, float
 
+# layouts, and new terminals beside the focused window ($mod CTRL and a direction)
+bind = $mod, s, layout, toggle
+bind = $mod CTRL, h, open, left term
+bind = $mod CTRL, l, open, right term
+bind = $mod CTRL, k, open, up term
+bind = $mod CTRL, j, open, down term
+bind = $mod CTRL, Left, open, left term
+bind = $mod CTRL, Right, open, right term
+bind = $mod CTRL, Up, open, up term
+bind = $mod CTRL, Down, open, down term
+
 bind = $mod, t, theme, next
+bind = $mod SHIFT, t, exec, themes      # the theme picker
 bind = $mod SHIFT, r, reload
 bind = $mod SHIFT, e, exit
 

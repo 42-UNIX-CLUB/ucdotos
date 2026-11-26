@@ -54,7 +54,9 @@ void relayout(void) {
     }
   rect a = tile_area();
   int g = G_gap;
+  tree_sync(); /* every workspace keeps its split tree up to date, whatever its layout */
   for (int ws = 0; ws < MAX_WS; ws++) {
+    if (tree_place(ws, a)) continue; /* the split layout */
     int n = 0, k = 0;
     for (int i = 0; i < nclients; i++) if (is_tiled(order[i]) && order[i]->ws == ws) n++;
     int mw = n > 1 ? (int)((a.w - g) * master_of[ws]) : a.w;
@@ -82,7 +84,7 @@ void relayout(void) {
       if (w > a.w) w = a.w;
       if (h > a.h) h = a.h;
       c->r.w = w; c->r.h = h;
-      if (!c->placed) { c->r.x = a.x + (a.w - w) / 2; c->r.y = a.y + (a.h - h) / 3; c->placed = 1; }
+      if (!c->placed) { c->r.x = a.x + (a.w - w) / 2; c->r.y = c->bottom ? a.y + a.h - h : a.y + (a.h - h) / 3; c->placed = 1; }
       if (c->r.x + w > scr_w) c->r.x = scr_w - w;
       if (c->r.y + h > scr_h) c->r.y = scr_h - h;
       if (c->r.x < 0) c->r.x = 0;
@@ -217,11 +219,24 @@ int layout_command(const char *verb, const char *arg) {
     while (order[a] != f) a++;
     while (order[b] != c) b++;
     order[a] = c; order[b] = f;
+    tree_swap(f, c);
+    relayout();
+    return 0;
+  }
+  if (!strcmp(verb, "layout")) { /* master | split | toggle, for this workspace */
+    int l = !strcmp(arg, "master") ? LAYOUT_MASTER : !strcmp(arg, "split") ? LAYOUT_SPLIT :
+            !strcmp(arg, "toggle") ? !layout_of[cur_ws] : -1;
+    if (l < 0) return -1;
+    layout_of[cur_ws] = l;
     relayout();
     return 0;
   }
   if (!strcmp(verb, "master")) {
     float d = !strcmp(arg, "grow") ? 0.05f : !strcmp(arg, "shrink") ? -0.05f : 0;
+    if (layout_of[cur_ws] == LAYOUT_SPLIT) { /* in a split tree: grow or shrink the focused window */
+      if (tree_resize(f, d) == 0) relayout();
+      return 0;
+    }
     float m = master_of[cur_ws] + d;
     master_of[cur_ws] = m < 0.1f ? 0.1f : m > 0.9f ? 0.9f : m;
     relayout();
