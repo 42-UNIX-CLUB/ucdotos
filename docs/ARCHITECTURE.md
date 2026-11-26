@@ -6,7 +6,7 @@ How the system works, layer by layer. Everything here describes the code as it i
 Contents: 1 the big picture, 2 the host, 3 the system call path, 4 blocking and
 scheduling, 5 processes, 6 memory, 7 files and devices, 8 terminals, 9 sockets,
 10 screen and input, 11 the desktop stack, 12 the C library, 13 the toolchain,
-14 limits and what does not exist, 15 sound.
+14 limits and what does not exist, 15 sound, 16 networking.
 
 ## 1. The big picture
 
@@ -43,9 +43,10 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
 
 ## 2. The host (`boot/host.mjs`)
 
-`boot({ kernel, initrd, cmdline, screen, log, onIdle, onFrame, debug, extend })` does this
+`boot({ kernel, initrd, cmdline, screen, log, onIdle, onFrame, debug, extend, net })` does this
 (`extend` is a research hook, off by default, used only by the Worker prototype in
-`boot/worker-proto/`; see WORKER-PROCESSES.md):
+`boot/worker-proto/`; see WORKER-PROCESSES.md; `net` is passed to `boot/hostnet.mjs`, and
+`{ test: url }` puts it in the test mode described in NETWORKING.md):
 
 1. Compiles two hand-assembled modules that are byte arrays in the source: `SHIM` and
    `TRAMPOLINE` (see sections 3 and 6).
@@ -65,6 +66,8 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `fetch(id, url, url_len, dst, size, gz)` | fetch a remote file (section 7) straight into the kernel buffer at `dst`, chunk by chunk through the kernel exports `remote_data(id, len)` and `remote_end(id, ok)`; never called back from inside the import (`queueMicrotask`). It uses the `remote(url)` option of `boot()` |
    | `audio_rate audio_open audio_write audio_close audio_volume audio_reset` | the host half of `/dev/dsp` (`boot/audio.mjs`): samples go to the mixer on the browser's audio thread, or to a real-time stand-in under Node. See section 15 |
    | `pointer_lock(on)` | the window manager captured (1) or released (0) the mouse (`EVIOCGRAB`); the page locks or unlocks the browser's pointer (section 10) |
+   | `timer(ms)` | call the kernel export `timer_fire` in ms milliseconds (0: on the next turn of the event loop; below 0: cancel). One timeout at a time; each call replaces the last |
+   | `hn_caps hn_open hn_send hn_done hn_more hn_close` | the host half of `/dev/hostnet` (`boot/hostnet.mjs`): DNS, HTTP through `fetch()`, and under Node real TCP. See NETWORKING.md |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
    kernel export `boot_alloc`, calls `fb_resize(w, h)` if there is a screen, then
@@ -75,7 +78,8 @@ Kernel command line: `init=/path/to/program -- arg1 arg2`. Default init is `/bin
 Kernel exports the host uses: `kmain boot_alloc syscall_pid proc_attach proc_state
 proc_crashed proc_account proc_resumed block_timeout console_input input_event fb_resize
 fb_addr fb_damage fb_width fb_height audio_played audio_underrun remote_data remote_end
-remote_buf remote_scratch import_begin memory __indirect_function_table`. (`set_current` still exists and is
+remote_buf remote_scratch import_begin timer_fire hn_alloc hn_push hn_end memory
+__indirect_function_table`. (`set_current` still exists and is
 harmless; the kernel no longer depends on it.)
 
 The object `boot()` returns: `k` (kernel exports), `memory`, `procs`, `frame()`,
@@ -140,12 +144,13 @@ kernel:       syscall_pid(pid, nr, ...)               kernel/syscall.c: sets `cu
   loops: `while ((r = host.syscall(...)) == -512) host.block();`.
 
 Call numbers follow Linux's generic table (`include/uapi/asm-generic/unistd.h`), the
-one every new Linux architecture uses. Implemented today (47 cases):
+one every new Linux architecture uses. Implemented today (54 cases):
 
 `getcwd dup dup3 fcntl ioctl mkdirat unlinkat renameat utimensat ftruncate chdir openat
 close pipe2 getdents64 lseek read write pread64 pwrite64 ppoll newfstatat fstat exit
 exit_group nanosleep clock_gettime sched_yield kill uname getpid getppid getuid sysinfo
-setpgid getpgid setsid socket bind listen accept connect wait4 getrandom`
+setpgid getpgid setsid socket bind listen accept connect getsockname getpeername sendto
+recvfrom setsockopt getsockopt shutdown wait4 getrandom`
 
 Private calls (Linux has no equivalent):
 
@@ -155,6 +160,9 @@ Private calls (Linux has no equivalent):
 | 501 | `getargs(buf, cap)` | the argument and environment blob for `_start` |
 | 502 | `procinfo(index, struct procinfo *)` | one row of the process table; `-ESRCH` past the end |
 | 503 | `intr()` | 1 if Ctrl-C was pressed for this process since the last call, then clears it |
+| 504 | `netstat(index, struct sockinfo *)` | one TCP connection or other socket, with TCP internals (cwnd, RTT, retransmits); `-ESRCH` past the end |
+| 505 | `ifinfo(index, struct ifinfo *)` | one network interface with its counters; `-ESRCH` past the end |
+| 506 | `ifctl(index, op, value)` | change an interface: up/down, MTU, simulated loss and delay, address, netmask, default route (`IFCTL_*`) |
 
 Anything else returns `-ENOSYS`.
 
@@ -387,7 +395,12 @@ There is no `SIGWINCH`: programs re-read the size when they redraw.
 `write`, `ppoll`. 512 KiB buffer per direction, backlog 16, short writes, `-EPIPE` when
 the peer is gone, `-ECONNREFUSED` with no listener (and when the backlog is full). A bound
 socket keeps its inode alive: unlinking the path while the socket is open is safe. No datagrams, no `socketpair`, no
-`accept4` (set close-on-exec with `fcntl` after `accept`), no networking of any kind.
+`accept4` (set close-on-exec with `fcntl` after `accept`). `send` and `recv` on a unix
+socket are `write` and `read`; `accept` reports the peer as an unnamed `AF_UNIX` address.
+
+`AF_INET` and `AF_PACKET` sockets go to `kernel/inet.c`: `sys_socket`, `sys_bind`,
+`sys_listen`, `sys_connect` and `sys_accept` hand over any descriptor that is not a unix
+socket. See section 16.
 
 ## 10. Screen and input (`kernel/fb.c`, `boot/page.mjs`, `boot/keys.mjs`)
 
@@ -454,8 +467,10 @@ init -> wm (owns /dev/fb0 and /dev/input/event0, listens on /run/wm.sock)
           +- doom, uidemo, any libui client
 ```
 
-**init** (`bin/init.c`) tries `/bin/wm`, then `/bin/term --fb`, then `/bin/sh` on the
-console, restarting each up to three times. `init PROGRAM ARGS` runs one program.
+**init** (`bin/init.c`) first starts `/bin/routerd` (the router, see NETWORKING.md) and
+does not wait for it, then tries `/bin/wm`, then `/bin/term --fb`, then `/bin/sh` on the
+console, restarting each up to three times. `init PROGRAM ARGS` runs one program, without
+the router (the test suites run that way, or as init themselves).
 
 **libui** (`libui/ui.h`, `ui.c`, `uiproto.h`). The client API: `ui_open(title, app_id,
 w, h, role)`, `ui_pixels`, `ui_width`, `ui_height`, `ui_present(x, y, w, h)`, `ui_fd`,
@@ -703,11 +718,16 @@ How it maps onto UC.OS:
 | ptys | 16 | `NPTY` |
 | pipe buffer / socket buffer | 64 KiB / 512 KiB per direction | |
 | sound streams (`/dev/dsp` opens) / buffer per stream | 8 / 512 bytes to 256 KiB (default 16 KiB) | `NSTREAM`, `BUF_MAX` in `audio.c` |
+| TCP buffers | 64 KiB send, 65535 bytes receive per connection | `SBUF`, `RBUF` in `tcp.c` |
+| UDP, raw, packet receive queue | 256 KiB per socket (`SO_RCVBUF`, up to 1 MiB) | `inet.c` |
+| listen backlog | 64 | `tcp_listen` |
+| `/dev/hostnet` requests open at once | 32 | `HN_MAX` in `hostnet.c` |
 | window manager clients | 24 | |
 | time slice | 8 ms | `SLICE_MS` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
-`fork`, signals, threads, shared memory, persistence, networking, sound input (recording), `/proc`
+`fork`, signals, threads, shared memory, persistence, networking beyond the machine
+itself (section 16), sound input (recording), `/proc`
 contents, users and permissions, time zones, a clipboard, dynamic linking for UC.OS
 programs. Unmodified Linux binaries run through an ordinary program,
 `bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
@@ -770,3 +790,88 @@ at most ~60 ms ahead of real time; with `-c` it takes `pause`, `resume`, `volume
 `stop` on stdin. Doom's music module (`bin/doom/i_ucossound.c`) writes the song and
 GENMIDI to `/tmp/doom/` and runs it.
 
+## 16. Networking (`kernel/net.h timer.c netif.c ip.c udp.c tcp.c inet.c`)
+
+Our own TCP/IP stack in the kernel (DECISIONS.md 18). Packets go only through the
+loopback interface for now (DECISIONS.md 19): every address in 127.0.0.0/8 is this
+machine, and anything else is `-ENETUNREACH` unless the router (`bin/routerd.c`) runs.
+The Ethernet layer, ARP, the DHCP client and a network card for the host are part of
+decision 18 but are not built: with only loopback there is nothing for them to talk to.
+They come with the first other transport. What the router reaches today, and what a full
+connection still needs, is in NETWORKING.md.
+
+**The router's kernel pieces.** `gw0` is a second looped interface, down and without an
+address until `routerd` gives it 10.0.2.15/24 and makes it the default route (`ifctl`
+`IFCTL_ADDR`, `IFCTL_MASK`, `IFCTL_DEFAULT`). `ip_input` takes a datagram for an outside
+address only if it came back through the default-route interface: TCP goes to a
+transparent listener (`IP_TRANSPARENT`; `IP_TRANSPARENT_PORT` limits it to one
+destination port), anything else gets ICMP host unreachable. The kernel never forwards.
+A normal listener never answers for an outside address. `/dev/hostnet`
+(`kernel/hostnet.c`) gives each open descriptor one host request: resolve, HTTP, or TCP
+(`HNIOC_OPEN`, `HNIOC_DONE`, `HNIOC_CAPS`); replies queue in the kernel (256 KiB, then
+the host is asked to pause).
+
+```
+socket calls (inet.c)  ->  tcp.c / udp.c (UDP and raw)  ->  ip.c (IPv4, ICMP)  ->  netif.c (lo)
+                                                                                    |
+   ip_input  <-----------------------------  lo_deliver, on a later event-loop turn
+```
+
+**Timers** (`timer.c`). A sorted list of `struct ktimer`. The kernel asks the host for
+one timeout at the earliest deadline (`host.timer`); the host calls `timer_fire()`,
+which runs every timer that is due. Timer callbacks run outside any system call, with
+no current process, so they may wake anyone. TCP's retransmission, persist, delayed ACK
+and TIME_WAIT timers, and loopback delivery, are all timers.
+
+**Loopback** (`netif.c`). Sending queues the datagram; a timer delivers it to
+`ip_input` on a later turn of the event loop, never inside the sender's call. This
+matters: delivering inline could wake a process that has not parked yet, and the host
+would drop that wake-up. One delivery pass takes only what was queued before it, so two
+sockets answering each other cannot hold the page. MTU 65535. `ifctl` can add loss (per
+thousand packets) and delay (milliseconds), so TCP's recovery can be watched; both are
+off by default. Packet sockets (`AF_PACKET`) get a copy of every datagram as it is sent.
+
+**IPv4 and ICMP** (`ip.c`). 20-byte header, no options, "don't fragment" always set,
+arriving fragments dropped, header checksum checked. ICMP answers echo requests, sends
+port and protocol unreachable (never about another ICMP error), and passes port
+unreachable to connected UDP sockets as `ECONNREFUSED`. Raw sockets (`SOCK_RAW`) see
+every datagram of their protocol with its IP header; what they send gets one added.
+
+**UDP** (`udp.c`). Checksums on, 65507-byte datagrams at most, delivery to the most
+specific socket (connected, then bound address, then wildcard), `SO_REUSEADDR` to share
+a port.
+
+**TCP** (`tcp.c`). The RFC 9293 state machine, with Linux's state numbers. Retransmission
+timer per RFC 6298 (initial 1 s, minimum 200 ms, maximum 60 s, Karn's rule); go-back
+from the first unacknowledged byte on a timeout. Slow start (initial window per RFC
+6928), congestion avoidance, fast retransmit on three duplicate ACKs, NewReno recovery.
+Receiver and sender silly window avoidance, zero-window probes, delayed ACKs (40 ms, or
+at once every second full segment), an out-of-order queue. MSS option from the route's
+MTU. TIME_WAIT lasts 60 s; a closed socket waiting in FIN_WAIT2 gives up after 60 s.
+Closing with unread data sends a reset (RFC 2525). A connection whose socket is closed
+lives on in the kernel until it finishes. Not built: window scaling (so at most 64 KiB in
+flight), timestamps, SACK, keepalive, urgent data, Nagle (every write goes out at once,
+as with `TCP_NODELAY`).
+
+**Sockets** (`inet.c`). Linux's calls and values: `socket bind listen accept connect
+send recv sendto recvfrom getsockname getpeername setsockopt getsockopt shutdown`, plus
+`read write ppoll close`. Options: `SO_REUSEADDR SO_ERROR SO_TYPE SO_RCVBUF SO_SNDBUF
+SO_KEEPALIVE IP_TTL TCP_NODELAY` (keepalive and send buffer sizes are accepted and do
+nothing). Non-blocking connect returns `EINPROGRESS` and completes with `POLLOUT`, with
+the result in `SO_ERROR`. Ephemeral ports are 49152 to 65535. Port sharing follows Linux:
+two TCP sockets may share a port if both set `SO_REUSEADDR` and neither listens.
+`MSG_PEEK` and `MSG_DONTWAIT` work; `sendmsg`, `recvmsg`, `accept4` and `socketpair` do
+not exist.
+
+**C library.** `<sys/socket.h> <netinet/in.h> <netinet/tcp.h> <arpa/inet.h> <netdb.h>`.
+`getaddrinfo` and `gethostbyname` read `/etc/hosts` (and always know `localhost`), then
+send a DNS query for A records to the server in `/etc/resolv.conf` (127.0.0.53, where
+`routerd` answers): two tries of 2.5 s. No server gives `EAI_AGAIN` at once. Services
+must be numeric ports.
+
+**Tools.** `routerd`, `ping`, `nc` (client, `-l` server, `-u` UDP, `-z` port scan, `-N`
+half-close when input ends), `netstat`
+(`-e` shows congestion window, RTT, RTO and retransmits; `-i` the interfaces), `ifconfig`
+(also sets `loss` and `delay`), `tcpdump` (a packet socket; filters `tcp udp icmp port N
+host A`). `bin/nettest.c` is the test suite. UC.OS has no signals, so Ctrl-C ends `ping`
+and `tcpdump` without their closing summary; give them `-c` to get it.
