@@ -77,7 +77,9 @@ EXPANSIONS
        * ? [abc] [a-z] [!x]       file names (dotfiles need a dot)
 
 COMMANDS
-       a | b | c            pipeline; the status is the last one's
+       a | b | c            pipeline; the status is the last one's.
+                            Each stage runs in a subshell, so
+                            `echo x | read v` does not set v here
        ! pipeline           negate the status
        a ; b                one after the other
        a && b   a || b      b only if a succeeded / failed
@@ -107,7 +109,8 @@ BUILTINS
        alias [name=value]  unalias name|-a
        source file [args]  . file [args]  eval args
                             (. and source look for a name without /
-                            in PATH, then in the current directory)
+                            in PATH only; in a script, a file that
+                            is not found ends the shell)
        command [-p] [-v|-V] name [args]   run name, skipping
                             functions; -v / -V say what name is
        getopts optstring name [args]
@@ -120,7 +123,9 @@ BUILTINS
                             operands lists the traps
        kill [-s sig | -sig] pid|job...   kill -l [status]
        wait [pid|job...]  jobs [-l|-p]  fg [job]  bg [job]
-       disown [job]  umask [-S] [mode]  help
+       disown [job]  help
+       umask [-S] [mode]    the shell keeps the mask; it reaches the
+                            kernel when the kernel has the call
        exec >file           make redirections permanent
        exec command         replace the shell with command; on a
                             kernel without exec, and inside a
@@ -129,7 +134,8 @@ BUILTINS
        A job is %n, %%, %+, %-, %string or %?string. Special builtins
        (. : break continue eval exec exit export readonly return set
        shift times trap unset) are found before functions; an error
-       in one ends a script with status 2.
+       in one ends a script with status 2. test and [ are also the
+       program /bin/test, for find -exec, xargs and env.
 
 LINE EDITOR
        On a terminal: Left/Right, Home/End, Backspace/Delete,
@@ -182,10 +188,8 @@ EXIT STATUS
 BUGS
        No fork means some things differ from other shells: a
        background & list of builtins or compound commands runs in
-       the foreground; the last stage of a pipeline runs in this
-       shell, so `echo x | read v` sets v; two builtin stages of a
-       pipeline run one after the other, so an endless first stage
-       never ends.
+       the foreground; two builtin stages of a pipeline run one
+       after the other, so an endless first stage never ends.
 
 SEE ALSO
        bc(1), unix-club(7)

@@ -1972,6 +1972,24 @@ t 'make-multiline-if' 'y
 ~0' 'if true
 then echo y
 fi'
+t 'fix-status-in-assignment' 'v=1
+~0' 'false
+v=$?
+echo v=$v'
+t 'fix-status-subshell-redirect-function' 'st=127
+~0' 'f() {
+:
+printf '\''x\n'\'' > fsr.f
+}
+( f
+echo abc | nosuch_cmd_q
+) > fsr.out 2> fsr.err
+st=$?
+echo "st=$st"'
+t 'fix-dot-path-only' 'not-found
+~0' 'echo '\''echo in-cwd'\'' > fdp.sh; PATH=/nonexistent_dir; (. fdp.sh) 2>/dev/null || echo not-found'
+t 'fix-dot-path-found' 'via-path
+~0' 'mkdir -p fdpp; echo '\''echo via-path'\'' > fdpp/fdp2.sh; PATH="$PWD/fdpp:$PATH"; . fdp2.sh'
 echo "sh-posix: $((pass + fail)) cases, $pass passed, $fail failed"
 cd /
 [ $fail = 0 ]

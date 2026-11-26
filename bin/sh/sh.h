@@ -95,6 +95,7 @@ int job_control_active(void);
 extern int jc_ok;
 void sub_saw_cd(void);               /* before cd: let an enclosing subshell save the directory */
 void sub_saw_umask(int old);         /* before umask: the same for the mask */
+void set_mask(int m);                /* umask (builtin.c) */
 
 /* options (builtin.c): set -e -u -x -f -n -v -a -C, and set -o names */
 extern int opt_e, opt_u, opt_f, opt_n, opt_v, opt_a, opt_C, opt_m, opt_pipefail, noerrexit;
@@ -115,6 +116,7 @@ void trap_forget_exit(void);
 /* builtin.c */
 typedef int (*builtin_fn)(int argc, char **argv);
 builtin_fn find_builtin(const char *name);
+int sh_test(int argc, char **argv); /* testexpr.c */
 int is_special_builtin(const char *name);
 extern int special_error, assign_error;
 const char *builtin_name(int i);

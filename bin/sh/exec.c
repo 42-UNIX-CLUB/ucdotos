@@ -11,6 +11,11 @@ int exit_pending, exit_code, exec_keep;
 int lineno, cmd_nest; /* cmd_nest: inside "command NAME": special builtins lose their special rules */
 extern int expand_error, subst_ran;
 #define STOP (brk || cont || retflag || exit_pending || intr_pending)
+/* LASTPIPE_IN_SHELL: run the last stage of a multi-stage pipeline in this
+ * shell (as ksh and zsh do: `echo x | read v` sets v) instead of a subshell
+ * (as dash and bash do). Off by the owners' choice (POSIX allows both); kept
+ * for a possible zsh-like mode later. Not a user option. */
+#define LASTPIPE_IN_SHELL 0
 int intr_pending;
 /* Ctrl-C while the shell itself is busy (a loop of builtins, say): the kernel
  * only sets a flag for us. Checking it is also a preemption point. */
@@ -162,7 +167,7 @@ static int sub_end(struct sub *s, int st) {
   restore(&s->sv);
   exec_keep = keep;
   if (s->have_cwd) chdir(s->cwd);
-  if (s->umask >= 0) __syscall1(166, s->umask);
+  if (s->umask >= 0) set_mask(s->umask);
   exit_pending = brk = cont = retflag = 0;
   return st;
 }
@@ -686,9 +691,11 @@ static int run_inproc(struct prep *pr) {
   if (pr->kind == K_FAIL) return exp_failed();
   int subst_before = last_status;
   if (pr->kind == K_EMPTY) {
-    last_status = pr->subst_st >= 0 ? pr->subst_st : 0;
+    /* $? in the assignments is still the previous command's status; the
+     * status of this command is that of its last $(...), or 0 */
+    subst_ran = 0;
     if (do_assigns(n, 1, NULL) < 0) return assign_error ? assign_failed() : 2;
-    st = last_status; /* the status of the last $(...), or 0 */
+    st = subst_ran ? last_status : pr->subst_st >= 0 ? pr->subst_st : 0;
     if (n->redir) { if (apply_redirs(n->redir, &sv) < 0) st = expand_error ? exp_failed() : 1; restore(&sv); }
     return st;
   }
@@ -890,7 +897,7 @@ static int run_pipeline(node **kids, int n, int bang, int bg) {
     struct saved sv = {0};
     if (in[i] >= 0) { remember(&sv, 0); dup2(in[i], 0); }
     if (out[i] >= 0) { remember(&sv, 1); dup2(out[i], 1); }
-    if (i < n - 1) { /* every stage but the last is a subshell, as in other shells */
+    if (i < n - 1 || !LASTPIPE_IN_SHELL) { /* each stage of a pipeline is a subshell */
       struct sub sb;
       sub_begin(&sb);
       st[i] = sub_end(&sb, run_inproc(&pr[i]));
@@ -1049,7 +1056,33 @@ int run(node *n) {
   return last_status = st;
 }
 
+static int run_text1(const char *text, const char *name);
+/* A complete text (-c, a script, eval, $(...)) that ends in a backslash: a lone
+ * one is taken literally, a backslash-newline joins the line to the end. */
 int run_text(const char *text, const char *name) {
+  size_t n = strlen(text), k = 0;
+  while (k < n && text[n - 1 - k] == '\\') k++;
+  int lone = k % 2 == 1;
+  if (!lone && n >= 2 && text[n - 1] == '\n') {
+    k = 0;
+    while (k + 1 < n && text[n - 2 - k] == '\\') k++;
+    if (k % 2 == 1) { /* ends in backslash-newline */
+      char *t = strndup(text, n - 2);
+      int st = run_text1(t, name);
+      free(t); /* the parse tree keeps copies of its words, not pointers into the text */
+      return st;
+    }
+  }
+  if (!lone) return run_text1(text, name);
+  char *t = malloc(n + 2);
+  memcpy(t, text, n);
+  t[n] = '\\';
+  t[n + 1] = 0;
+  int st = run_text1(t, name);
+  free(t);
+  return st;
+}
+static int run_text1(const char *text, const char *name) {
   struct parser p;
   struct arena ar = {0};
   parser_init(&p, text, &ar);

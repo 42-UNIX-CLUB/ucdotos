@@ -610,10 +610,11 @@ static int b_unalias(int argc, char **argv) {
 }
 static int b_source(int argc, char **argv) {
   if (argc < 2) { outf(2, "%s: filename argument required\n", argv[0]); return sperr(2); }
-  /* a name without a slash is searched for in PATH; as a convenience the
-   * current directory is tried last (as bash does outside POSIX mode) */
+  /* POSIX: a name without a slash is searched for in PATH only (it need not be
+   * executable). Not found or not readable: a special builtin error, which
+   * ends a non-interactive shell; an interactive one prints a message. */
   char *path = strchr(argv[1], '/') ? strdup(argv[1]) : find_in_path(argv[1]);
-  if (!path) path = strdup(argv[1]);
+  if (!path) { outf(2, "%s: %s: not found\n", argv[0], argv[1]); return sperr(1); }
   size_t len;
   char *text = read_file(path, &len);
   if (!text) { outf(2, "%s: %s: %s\n", argv[0], argv[1], strerror(errno)); free(path); return sperr(1); }
@@ -700,122 +701,6 @@ static int b_read(int argc, char **argv) {
   return got_eof;
 }
 
-/* ---- test / [ ---- */
-static char **targ;
-static int tn, tpos, terr;
-static int t_or(void);
-static int is_binop(const char *s) {
-  static const char *ops[] = {"=", "==", "!=", "<", ">", "-eq", "-ne", "-lt", "-le", "-gt", "-ge", "-nt", "-ot", 0};
-  for (int i = 0; ops[i]; i++) if (!strcmp(s, ops[i])) return 1;
-  return 0;
-}
-static int is_num(const char *s) {
-  if (*s == '-' || *s == '+') s++;
-  if (!*s) return 0;
-  for (; *s; s++) if (!isdigit((unsigned char)*s)) return 0;
-  return 1;
-}
-static int t_binary(const char *a, const char *op, const char *b) {
-  if (!strcmp(op, "=") || !strcmp(op, "==")) return !strcmp(a, b);
-  if (!strcmp(op, "!=")) return strcmp(a, b) != 0;
-  if (!strcmp(op, "<")) return strcmp(a, b) < 0;
-  if (!strcmp(op, ">")) return strcmp(a, b) > 0;
-  if (op[1] == 'n' && op[2] == 't') { struct stat x, y; return stat(a, &x) == 0 && (stat(b, &y) != 0 || x.st_mtime > y.st_mtime); }
-  if (op[1] == 'o' && op[2] == 't') { struct stat x, y; return stat(b, &y) == 0 && (stat(a, &x) != 0 || x.st_mtime < y.st_mtime); }
-  if (!is_num(a) || !is_num(b)) { outf(2, "test: integer expression expected: %s\n", is_num(a) ? b : a); terr = 1; return 0; }
-  long long x = strtoll(a, NULL, 10), y = strtoll(b, NULL, 10);
-  if (!strcmp(op, "-eq")) return x == y;
-  if (!strcmp(op, "-ne")) return x != y;
-  if (!strcmp(op, "-lt")) return x < y;
-  if (!strcmp(op, "-le")) return x <= y;
-  if (!strcmp(op, "-gt")) return x > y;
-  return x >= y;
-}
-static int t_unary(char op, const char *a) {
-  struct stat st;
-  switch (op) {
-  case 'z': return !*a;
-  case 'n': return *a != 0;
-  case 't': return __syscall3(SYS_ioctl, atoi(a), TCGETS, &(struct termios){0}) == 0;
-  }
-  if (stat(a, &st) < 0) return 0;
-  switch (op) {
-  case 'e': case 'r': case 'w': return 1;
-  case 'f': return S_ISREG(st.st_mode);
-  case 'd': return S_ISDIR(st.st_mode);
-  case 'c': return S_ISCHR(st.st_mode);
-  case 'p': return S_ISFIFO(st.st_mode);
-  case 'S': return (st.st_mode & S_IFMT) == S_IFSOCK;
-  case 's': return st.st_size > 0;
-  case 'x': return S_ISDIR(st.st_mode) || (st.st_mode & 0111) || (S_ISREG(st.st_mode) && !(st.st_mode & 0777));
-  case 'h': case 'L': return 0;
-  }
-  return 0;
-}
-static int t_primary(void) {
-  if (tpos >= tn) { terr = 1; return 0; }
-  char *a = targ[tpos];
-  if (tpos + 2 < tn && is_binop(targ[tpos + 1])) { tpos += 3; return t_binary(a, targ[tpos - 2], targ[tpos - 1]); }
-  if (!strcmp(a, "!")) { tpos++; return !t_primary(); }
-  if (!strcmp(a, "(")) {
-    tpos++;
-    int v = t_or();
-    if (tpos < tn && !strcmp(targ[tpos], ")")) tpos++; else terr = 1;
-    return v;
-  }
-  if (a[0] == '-' && a[1] && !a[2] && strchr("zntefdcpSsxrwhL", a[1]) && tpos + 1 < tn) { tpos += 2; return t_unary(a[1], targ[tpos - 1]); }
-  tpos++;
-  return *a != 0;
-}
-static int t_and(void) {
-  int v = t_primary();
-  while (tpos < tn && !strcmp(targ[tpos], "-a")) { tpos++; int r = t_primary(); v = v && r; }
-  return v;
-}
-static int t_or(void) {
-  int v = t_and();
-  while (tpos < tn && !strcmp(targ[tpos], "-o")) { tpos++; int r = t_and(); v = v || r; }
-  return v;
-}
-static int t_unop(const char *a) { return a[0] == '-' && a[1] && !a[2] && strchr("zntefdcpSsxrwhL", a[1]); }
-/* POSIX's rules for up to four arguments; -1: use the general grammar */
-static int t_posix(char **a, int n) {
-  int r;
-  switch (n) {
-  case 0: return 0;
-  case 1: return a[0][0] != 0;
-  case 2:
-    if (!strcmp(a[0], "!")) return !a[1][0];
-    if (t_unop(a[0])) return t_unary(a[0][1], a[1]);
-    return -1;
-  case 3:
-    if (is_binop(a[1])) return t_binary(a[0], a[1], a[2]);
-    if (!strcmp(a[1], "-a")) return a[0][0] && a[2][0];
-    if (!strcmp(a[1], "-o")) return a[0][0] || a[2][0];
-    if (!strcmp(a[0], "!")) return (r = t_posix(a + 1, 2)) < 0 ? -1 : !r;
-    if (!strcmp(a[0], "(") && !strcmp(a[2], ")")) return a[1][0] != 0;
-    return -1;
-  case 4:
-    if (!strcmp(a[0], "!")) return (r = t_posix(a + 1, 3)) < 0 ? -1 : !r;
-    if (!strcmp(a[0], "(") && !strcmp(a[3], ")")) return t_posix(a + 1, 2);
-    return -1;
-  }
-  return -1;
-}
-static int b_test(int argc, char **argv) {
-  if (!strcmp(argv[0], "[")) {
-    if (strcmp(argv[argc - 1], "]")) { outs(2, "[: missing `]'\n"); return 2; }
-    argc--;
-  }
-  targ = argv + 1; tn = argc - 1; tpos = 0; terr = 0;
-  int v = tn <= 4 ? t_posix(targ, tn) : -1;
-  if (v < 0) {
-    v = t_or();
-    if (!terr && tpos < tn) { outf(2, "test: %s: unexpected argument\n", targ[tpos]); terr = 1; }
-  }
-  return terr ? 2 : !v;
-}
-
 static const char *keywords[] = {"!", "{", "}", "case", "do", "done", "elif", "else", "esac", "fi", "for", "if", "in", "then", "until", "while", 0};
 static int is_keyword(const char *n) { for (int i = 0; keywords[i]; i++) if (!strcmp(keywords[i], n)) return 1; return 0; }
 /* type NAME and command -V NAME (brief = 0); command -v NAME (brief = 1) */
@@ -884,22 +769,33 @@ static int b_jobs(int argc, char **argv) { return job_list(argc, argv); }
 static int b_fg(int argc, char **argv) { return argv[0][0] == 'f' ? job_fg(argc > 1 ? argv[1] : NULL) : job_bg(argc > 1 ? argv[1] : NULL); }
 static int b_disown(int argc, char **argv) { return job_disown(argc, argv); }
 
-/* umask: the kernel call is Linux's umask (166) */
+/* umask. The shell keeps the mask itself and hands it to the kernel (Linux's
+ * umask, 166) when the kernel has the call. Without it (ENOSYS) the shell still
+ * sets, reports and passes on its own value: nothing stores file modes then,
+ * so nothing observable is lost, and umask succeeds as POSIX wants. */
 #ifndef SYS_umask
 #define SYS_umask 166
 #endif
-static int umask_err(long r) {
-  outf(2, "umask: %s\n", r == -ENOSYS ? "the kernel has no umask call yet" : strerror(-r));
-  return 1;
+static int cur_mask = -1; /* -1: not read yet */
+static int get_mask(void) {
+  if (cur_mask < 0) {
+    long r = __syscall1(SYS_umask, 022); /* read the kernel's value by setting one */
+    if (r >= 0) { __syscall1(SYS_umask, r); cur_mask = r & 0777; }
+    else cur_mask = 022;                  /* the usual default */
+  }
+  return cur_mask;
+}
+/* set the mask; also used to put a subshell's change back */
+void set_mask(int m) {
+  cur_mask = m & 0777;
+  __syscall1(SYS_umask, cur_mask);       /* ENOSYS on a kernel without the call: fine */
 }
 static int b_umask(int argc, char **argv) {
   int i = 1, sym = 0;
   if (i < argc && !strcmp(argv[i], "-S")) { sym = 1; i++; }
   if (i < argc && !strcmp(argv[i], "--")) i++;
-  long old = __syscall1(SYS_umask, 022);
-  if (old < 0) return umask_err(old);
+  int old = get_mask();
   if (i >= argc) {
-    __syscall1(SYS_umask, old);
     if (!sym) { outf(1, "%04o\n", (unsigned)old); return 0; }
     int perm = ~old & 0777;
     const char *who = "ugo";
@@ -914,7 +810,7 @@ static int b_umask(int argc, char **argv) {
   if (isdigit((unsigned char)*m)) {
     char *e;
     long v = strtol(m, &e, 8);
-    if (*e || v > 0777) { __syscall1(SYS_umask, old); outf(2, "umask: %s: invalid mode\n", m); return 1; }
+    if (*e || v > 0777) { outf(2, "umask: %s: invalid mode\n", m); return 1; }
     mask = v;
   } else { /* symbolic, as for chmod, applied to the permissions the mask allows */
     int perm = ~old & 0777;
@@ -923,7 +819,7 @@ static int b_umask(int argc, char **argv) {
       int who = 0;
       for (; *c && strchr("ugoa", *c); c++) who |= *c == 'u' ? 0700 : *c == 'g' ? 070 : *c == 'o' ? 07 : 0777;
       if (!who) who = 0777;
-      if (!*c || !strchr("+-=", *c)) goto bad;
+      if (!*c || !strchr("+-=", *c)) { outf(2, "umask: %s: invalid mode\n", m); return 1; }
       while (*c && strchr("+-=", *c)) {
         char op = *c++;
         int bits = 0;
@@ -934,19 +830,13 @@ static int b_umask(int argc, char **argv) {
         else perm &= ~bits;
       }
       if (!*c) break;
-      if (*c++ != ',') goto bad;
+      if (*c++ != ',') { outf(2, "umask: %s: invalid mode\n", m); return 1; }
     }
     mask = ~perm & 0777;
-    goto set;
-  bad:
-    __syscall1(SYS_umask, old);
-    outf(2, "umask: %s: invalid mode\n", m);
-    return 1;
   }
-set:
   sub_saw_umask(old);
-  long r = __syscall1(SYS_umask, mask);
-  return r < 0 ? umask_err(r) : 0;
+  set_mask(mask);
+  return 0;
 }
 
 /* getopts optstring name [arg...] */
@@ -1009,12 +899,12 @@ static int b_help(int argc, char **argv);
 /* special: the POSIX special builtins (found before functions; their errors end
  * a non-interactive shell; assignments in front of them stay) */
 static const struct { const char *name; builtin_fn fn; char special; } builtins[] = {
-  {":", b_true, 1}, {".", b_source, 1}, {"[", b_test, 0}, {"alias", b_alias, 0}, {"bg", b_fg, 0}, {"break", b_break, 1}, {"cd", b_cd, 0},
+  {":", b_true, 1}, {".", b_source, 1}, {"[", sh_test, 0}, {"alias", b_alias, 0}, {"bg", b_fg, 0}, {"break", b_break, 1}, {"cd", b_cd, 0},
   {"command", b_command, 0}, {"continue", b_break, 1}, {"disown", b_disown, 0}, {"echo", b_echo, 0}, {"eval", b_eval, 1}, {"exec", b_exec, 1},
   {"exit", b_exit, 1}, {"export", b_export, 1}, {"false", b_false, 0}, {"fg", b_fg, 0}, {"getopts", b_getopts, 0}, {"help", b_help, 0},
   {"history", b_history, 0}, {"jobs", b_jobs, 0}, {"kill", b_kill, 0}, {"local", b_local, 0}, {"printf", b_printf, 0},
   {"pwd", b_pwd, 0}, {"read", b_read, 0}, {"readonly", b_export, 1}, {"return", b_return, 1}, {"set", b_set, 1},
-  {"shift", b_shift, 1}, {"source", b_source, 0}, {"test", b_test, 0}, {"times", b_times, 1}, {"trap", b_trap, 1},
+  {"shift", b_shift, 1}, {"source", b_source, 0}, {"test", sh_test, 0}, {"times", b_times, 1}, {"trap", b_trap, 1},
   {"true", b_true, 0}, {"type", b_type, 0}, {"umask", b_umask, 0}, {"unalias", b_unalias, 0}, {"unset", b_unset, 1},
   {"wait", b_wait, 0},
 };

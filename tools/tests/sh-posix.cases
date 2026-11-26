@@ -1933,3 +1933,23 @@ mkdir -p sv; touch sv/a.c; cp -r sv sv2 && echo ok
 if true
 then echo y
 fi
+
+# ---------------------------------------------------------------- added after review
+@ fix-status-in-assignment
+false
+v=$?
+echo v=$v
+@ fix-status-subshell-redirect-function
+f() {
+:
+printf 'x\n' > fsr.f
+}
+( f
+echo abc | nosuch_cmd_q
+) > fsr.out 2> fsr.err
+st=$?
+echo "st=$st"
+@ fix-dot-path-only
+echo 'echo in-cwd' > fdp.sh; PATH=/nonexistent_dir; (. fdp.sh) 2>/dev/null || echo not-found
+@ fix-dot-path-found
+mkdir -p fdpp; echo 'echo via-path' > fdpp/fdp2.sh; PATH="$PWD/fdpp:$PATH"; . fdp2.sh
