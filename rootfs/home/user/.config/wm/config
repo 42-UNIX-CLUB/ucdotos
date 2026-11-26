@@ -22,6 +22,7 @@ border_thin 1       # the other windows get a thin grey line this wide
 radius 8            # rounded corners; 0 for sharp ones
 workspace_count 4   # how many workspaces the bar shows (at most 9)
 master_ratio 0.55   # share of the screen width for the master (left) window
+animation_ms 160    # how long a workspace switch slides, in milliseconds; 0 for no slide
 
 # --- key bindings ------------------------------------------------------------
 # bind <keys> <command>. Keys are joined with +: Mod, Shift, Ctrl, Alt, Super,

@@ -61,7 +61,19 @@ export async function stats(t) {
   for (const kv of all[all.length - 1][1].split(' ')) { const [k, v] = kv.split('='); o[k] = Number(v); }
   return o;
 }
+// The config opens a welcome terminal at boot. The tests expect an empty desktop, so close it.
+// Nothing here is a fixed wait for the terminal: either its window shows up, or the manager
+// says it could not start it (an image built without term), whichever comes first.
 export async function boot(t) {
-  await until(t, () => /wm: \d+x\d+/.test(t.log), 5000);
-  await t.sleep(900); // the bar draws
+  await until(t, () => /wm: \d+x\d+/.test(t.log), 10000);
+  await until(t, () => same(t.pixel(400, 14), DECK.bar), 10000); // the bar is up
+  const noTerm = () => /wm: cannot start 'term'/.test(t.log);
+  const windowUp = () => !same(t.pixel(301, 400), DECK.desktop);
+  await until(t, () => windowUp() || noTerm(), 30000);
+  if (windowUp()) {
+    await t.sleep(300); // let it finish drawing before it is asked to close
+    await t.tap('KeyQ', { alt: true, shift: true });
+    await until(t, () => same(t.pixel(301, 400), DECK.desktop), 10000);
+  }
+  await t.sleep(200);
 }

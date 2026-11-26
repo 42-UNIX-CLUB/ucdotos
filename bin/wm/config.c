@@ -90,6 +90,7 @@ void config_load(int first) {
   cfg.mod = UI_ALT;
   cfg.gap = cfg.border = cfg.radius = cfg.border_thin = -1;
   cfg.workspace_count = 4;
+  cfg.animation_ms = 160;
   cfg.master = 0.5f;
   const char *home = getenv("HOME");
   char path[256];
@@ -127,6 +128,7 @@ void config_load(int first) {
       else if (!strcmp(word, "border_thin")) cfg.border_thin = atoi(rest) < 0 ? 0 : atoi(rest);
       else if (!strcmp(word, "radius")) cfg.radius = atoi(rest) < 0 ? 0 : atoi(rest) > 40 ? 40 : atoi(rest);
       else if (!strcmp(word, "workspace_count")) { int k = atoi(rest); cfg.workspace_count = k < 1 ? 1 : k > MAX_WS ? MAX_WS : k; }
+      else if (!strcmp(word, "animation_ms")) cfg.animation_ms = atoi(rest) < 0 ? 0 : atoi(rest) > 5000 ? 5000 : atoi(rest);
       else if (!strcmp(word, "master_ratio")) {
         float f = (float)atof(rest); /* accept 0.55 or 55 (percent) */
         if (f > 1) f /= 100.f;

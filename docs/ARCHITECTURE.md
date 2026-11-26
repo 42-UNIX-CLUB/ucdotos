@@ -362,11 +362,23 @@ accent on the focused window, 1 px grey on the others), fullscreen, floating win
 workspaces, damage-based compositing at most once per 15 ms, zero work when idle.
 Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
 `focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
-`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`.
+`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `animation MS`.
+
+A workspace switch slides: for `animation_ms` milliseconds (160 by default, 0 for none) the
+old and the new workspace pan across the screen, eased out. The slide keeps no pictures of
+either workspace. Every frame, `compose_anim()` in `compose.c` draws the old workspace's
+windows shifted one way and the new one's shifted the other, each clipped to its side of the
+seam, over the wallpaper panned by the same amount, so it needs no extra memory at any
+screen size and windows keep updating while they move. The wallpaper is not copied where a
+window is about to cover it. The bar stays in place, unless one of the two workspaces hides
+it (a fullscreen window): then it travels with the workspace that shows it. Switching back
+to the workspace the slide came from continues from where the picture is. Any other switch
+during a slide cuts the first one short (the picture jumps to its end) and starts a new
+one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms apart).
 
 Configuration: `~/.config/wm/config` (in the image: `rootfs/home/user/.config/wm/config`),
 i3 style: `set mod Alt`, `gaps`, `border`, `border_thin`, `radius`, `workspace_count`,
-`master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default autostart: `exec bar`
+`animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default autostart: `exec bar`
 and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
 
 **Themes** (`libui/theme.h`). The active name is the first word of

@@ -49,6 +49,7 @@ typedef struct {
   int mod;              /* UI_ALT by default */
   int gap, border, radius, border_thin; /* -1 = take it from the theme */
   int workspace_count;
+  int animation_ms;     /* length of the workspace slide; 0 = no slide */
   float master;         /* master area share, 0.1 .. 0.9 */
   int nbinds;
   binding binds[MAX_BINDS];
@@ -103,6 +104,9 @@ void damage_client_border(client *c);
 int damage_pending(void);
 void compose(void);
 void render_wallpaper(void);
+void anim_begin(void);      /* before a workspace switch: note which workspace is on screen */
+void anim_go(int dir);      /* after it: slide to the new one; dir +1 for a higher workspace, -1 for a lower */
+void anim_end(void);
 int fb_setup(int fd);
 void cursor_moved(int ox, int oy);
 double bench_compose(int n);
