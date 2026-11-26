@@ -7,13 +7,13 @@
 #include "render.h"
 
 enum { TE_KEY, TE_KEY_UP, TE_TEXT, TE_WHEEL, TE_RESIZE, TE_FOCUS, TE_BLUR, TE_CLOSE,
-       TE_MOUSE_DOWN, TE_MOUSE_UP, TE_MOUSE_MOVE };
+       TE_MOUSE_DOWN, TE_MOUSE_UP, TE_MOUSE_MOVE, TE_ZOOM };
 typedef struct {
   int type;
   int key, mods;     /* TE_KEY: Linux key code, KM_* modifiers */
   unsigned cp;       /* TE_TEXT: Unicode character */
   int x, y, button;  /* mouse, window pixels; button 0 left, 1 middle, 2 right */
-  int wheel;         /* +1 up, -1 down */
+  int wheel;         /* TE_WHEEL: +1 up, -1 down. TE_ZOOM: +1 bigger, -1 smaller, 0 normal */
 } tevent;
 
 typedef struct backend {

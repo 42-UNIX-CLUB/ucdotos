@@ -19,7 +19,7 @@
  * manager -> client
  *   CONFIGURE struct uip_size: your window is now w x h (also sent after a theme
  *             reload with the unchanged size: re-read the theme and redraw)
- *   EVENT     struct uip_event: input, focus, close
+ *   EVENT     struct uip_event: input, focus, close, zoom
  *   STATE     struct uip_state: pushed to UI_BAR clients whenever it changes
  *   REPLY     s32 status (0 = ok) for the last COMMAND
  */
