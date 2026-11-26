@@ -61,7 +61,14 @@ export async function stats(t) {
   for (const kv of all[all.length - 1][1].split(' ')) { const [k, v] = kv.split('='); o[k] = Number(v); }
   return o;
 }
+// The config opens a welcome terminal at boot. The tests expect an empty desktop, so close it.
+// An image built without term has no welcome window; then this only waits.
 export async function boot(t) {
   await until(t, () => /wm: \d+x\d+/.test(t.log), 5000);
   await t.sleep(900); // the bar draws
+  if (await until(t, () => !same(t.pixel(301, 400), DECK.desktop), 3000)) {
+    await t.tap('KeyQ', { alt: true, shift: true });
+    await until(t, () => same(t.pixel(301, 400), DECK.desktop), 3000);
+    await t.sleep(200);
+  }
 }
