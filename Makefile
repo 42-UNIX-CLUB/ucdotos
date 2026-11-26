@@ -93,8 +93,17 @@ $(B)/cc-sysroot.stamp: $(LIBC_HDR) $(wildcard bin/cc/include/*.h libui/*.h libgf
 	@echo "  SYSROOT /usr/include /usr/lib"
 	@touch $@
 
+# Remote files (kernel/remote.c): $(B)/files/ beside the image, and the manifest
+# /etc/remote-files inside it. Doom's game data comes from $(WADS) when present.
+# The script runs on every build (it is quick when nothing changed) and rewrites the
+# manifest only when its contents change, so a different WADS= is picked up.
+WADS    := bin/doom/wads
+$(B)/root/etc/remote-files: FORCE
+	@sh tools/remote-files.sh $(B) $(WADS)
+FORCE:
+
 # initrd: rootfs/ plus the programs, as a plain ustar archive
-$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT)
+$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT) $(B)/root/etc/remote-files
 	@mkdir -p $(B)/root/bin
 	@cp -r rootfs/. $(B)/root/
 	@cp $(addprefix $(B)/bin/,$(PROGS)) $(B)/root/bin/
@@ -105,7 +114,7 @@ $(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/
 test: all
 	@sh tools/test.sh $(B)
 
-.PHONY: all test
+.PHONY: all test FORCE
 
 # The image compressed for the page (it unpacks it with the browser's DecompressionStream).
 # The Node tools keep reading the plain initrd.tar.
@@ -117,5 +126,6 @@ $(B)/initrd.tar.gz: $(B)/initrd.tar
 dist: all $(B)/initrd.tar.gz
 	@mkdir -p $(B)/dist
 	@cp boot/index.html boot/page.mjs boot/host.mjs boot/audio.mjs boot/audio-worklet.js boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
+	@cp -r $(B)/files $(B)/dist/
 	@echo "  DIST  $(B)/dist"
 .PHONY: dist

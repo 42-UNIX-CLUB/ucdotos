@@ -4,6 +4,8 @@
 long proc_wait(int pid, u32 ustatus, int options);
 int reg_truncate(struct inode *i, u32 size);
 struct file *dev_open(struct inode *i, int flags);
+long remote_open(struct inode *i, int flags); /* remote.c: fetch a remote file on first open */
+u32 remote_blocks(struct inode *i);
 
 static struct inode *at_base(int dirfd, const char *path, long *err) {
   if (!path[0]) { *err = -ENOENT; return NULL; } /* checked before the descriptor, as on Linux */
@@ -35,6 +37,7 @@ static long sys_openat(int dirfd, u32 upath, int flags, int mode) {
     if (!f) return -ENOENT;
   } else if (type == S_IFDIR) f = file_new(&dir_fops, i, flags, NULL);
   else if (type == S_IFREG) {
+    if (i->priv) { long r = remote_open(i, flags); if (r) return r; } /* a remote file not fetched yet */
     if ((flags & O_TRUNC) && (flags & O_ACCMODE) != O_RDONLY) reg_truncate(i, 0);
     f = file_new(&reg_fops, i, flags, NULL);
   } else return -EACCES;
@@ -77,7 +80,7 @@ static void fill_stat(struct stat *st, struct inode *i) {
   if (!i) { st->st_mode = S_IFIFO | 0600; return; }
   st->st_ino = i->ino; st->st_mode = i->mode; st->st_nlink = i->nlink; st->st_size = i->size;
   st->st_uid = st->st_gid = 1000; st->st_rdev = i->dev; st->st_blksize = 4096;
-  st->st_blocks = (i->size + 511) / 512;
+  st->st_blocks = ((i->mode & S_IFMT) == S_IFREG && i->priv) ? remote_blocks(i) : (i->size + 511) / 512;
   st->st_atime = st->st_mtime = st->st_ctime = i->mtime;
 }
 static long sys_fstat(int fd, u32 ust) {

@@ -62,6 +62,7 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `random()` | 32 random bits |
    | `memory()` | bytes of memory the device reports (default 4 GiB) |
    | `fb_dirty()` | the framebuffer was written since the host last took the damage box (`fb_damage`); show it on the next animation frame. Called once per frame, not per write |
+   | `fetch(id, url, url_len, dst, size, gz)` | fetch a remote file (section 7) straight into the kernel buffer at `dst`, chunk by chunk through the kernel exports `remote_data(id, len)` and `remote_end(id, ok)`; never called back from inside the import (`queueMicrotask`). It uses the `remote(url)` option of `boot()` |
    | `audio_rate audio_open audio_write audio_close audio_volume audio_reset` | the host half of `/dev/dsp` (`boot/audio.mjs`): samples go to the mixer on the browser's audio thread, or to a real-time stand-in under Node. See section 15 |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
@@ -72,12 +73,17 @@ Kernel command line: `init=/path/to/program -- arg1 arg2`. Default init is `/bin
 
 Kernel exports the host uses: `kmain boot_alloc syscall_pid proc_attach proc_state
 proc_crashed proc_account proc_resumed block_timeout console_input input_event fb_resize
-fb_addr fb_damage fb_width fb_height audio_played audio_underrun memory __indirect_function_table`. (`set_current` still exists and is
+fb_addr fb_damage fb_width fb_height audio_played audio_underrun remote_data remote_end
+remote_buf remote_scratch import_begin memory __indirect_function_table`. (`set_current` still exists and is
 harmless; the kernel no longer depends on it.)
 
 The object `boot()` returns: `k` (kernel exports), `memory`, `procs`, `frame()`,
 `damage()` (the rectangle written since the last call), `resize(w, h)`,
-`input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`.
+`input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`, `importFile(path, blob)`
+(puts a file from the user's computer into the file system). `boot()` takes a `remote(url)`
+option, a function returning a Promise of a fetch Response: the page passes `fetch` relative
+to its own folder, the Node tools pass `tools/remote-node.mjs`, which reads the build
+directory.
 
 The host import `now` is `performance.now.bind(performance)`, not an arrow function:
 Chromium calls a bound function from wasm about 2.5 times faster (PERFORMANCE.md).
@@ -331,6 +337,20 @@ The host tells the kernel how long a process ran each time it parks
 | `/dev/input/event0` | keyboard and pointer (section 10) |
 | `/tmp`, `/run`, `/proc` | empty directories created at boot; `/proc` has nothing in it |
 
+**Remote files** (`kernel/remote.c`). Large files the image does not carry (Doom's game
+data) are listed in `/etc/remote-files`, one per line: `PATH SIZE SHA256 URL [gz]`, read
+at boot after the initrd. Such a file shows in `ls` and `stat` with its real size and
+`st_blocks` 0 until it arrives. The first `open` asks the host to fetch it (once: other
+processes opening it wait for the same fetch; with `O_NONBLOCK` the open starts the fetch
+and returns `EAGAIN` until it is done, and `st_blocks` shows the bytes received). The
+kernel computes the SHA-256 as the bytes arrive, in its own C code, and refuses a wrong
+size or hash. A failed fetch (offline, HTTP error, wrong size or hash) gives `EIO` once to
+each waiting process; the file stays as it was and the next open tries again. Opening it
+with `O_TRUNC` for writing skips the fetch. Once fetched it is an ordinary file. A file
+nobody opens is never fetched. With `gz` in the line the host tries `URL.gz` first and
+unpacks it with the browser's `DecompressionStream`. Files from the user's computer arrive
+through the same records (`import_begin`, section 10). Up to 32 records at a time.
+
 `sysinfo`: `totalram` = what the device reports, capped at 4 GiB; `freeram` = that minus
 everything the kernel and all processes have claimed; `bufferram` = kernel heap in use.
 
@@ -379,6 +399,12 @@ copies only that rectangle to the canvas; a resize marks the whole new buffer. T
 sizes the framebuffer to the window times the device pixel ratio (capped at 2; `?scale=1`
 forces 1). `lseek` works on `/dev/fb0` (`SEEK_END` counts from 0, because the device node
 has no size).
+
+**Files from the user's computer.** A file dropped on the page, or picked with the
+browser's file picker opened by Ctrl+Alt+O, is copied into `/home/user/Downloads/NAME`
+(the directory is made on first use; a second file with the same name replaces the
+first). At most 256 MiB. Nothing leaves the browser. A short note at the bottom of the
+page says what happened.
 
 **Input.** `/dev/input/event0` delivers Linux evdev records
 `{ s64 sec; s64 usec; u16 type; u16 code; s32 value; }` (24 bytes):
@@ -657,6 +683,7 @@ How it maps onto UC.OS:
 | one `getrandom` call | 33,554,431 bytes (Linux's figure) | `sys_getrandom` |
 | argv + environment | 64 KiB | `sys_spawn` |
 | one `malloc` in a program | 0x7fffffff bytes | `MALLOC_MAX` in `libc/src/malloc.c` |
+| remote files and imports in progress / one imported file | 32 / 256 MiB | `NREMOTE`, `IMPORT_MAX` in `kernel/remote.c` |
 | ptys | 16 | `NPTY` |
 | pipe buffer / socket buffer | 64 KiB / 512 KiB per direction | |
 | sound streams (`/dev/dsp` opens) / buffer per stream | 8 / 512 bytes to 256 KiB (default 16 KiB) | `NSTREAM`, `BUF_MAX` in `audio.c` |
