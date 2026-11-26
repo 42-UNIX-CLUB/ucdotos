@@ -61,4 +61,11 @@ int getpagesize(void);
 int getopt(int, char *const[], const char *);
 extern char *optarg;
 extern int optind, opterr, optopt;
+/* owners, sync, terminal names (libc/src/tools_compat.c; the kernel may answer ENOSYS) */
+int chown(const char *, uid_t, gid_t);
+int lchown(const char *, uid_t, gid_t);
+int fchown(int, uid_t, gid_t);
+int fsync(int);
+void sync(void);
+char *ttyname(int);
 #endif

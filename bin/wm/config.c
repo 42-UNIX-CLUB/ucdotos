@@ -69,6 +69,7 @@ static void default_binds(void) {
     {"Mod+Shift+j", "swap next"}, {"Mod+Shift+k", "swap prev"}, {"Mod+Shift+Down", "swap next"}, {"Mod+Shift+Up", "swap prev"},
     {"Mod+h", "master shrink"}, {"Mod+l", "master grow"}, {"Mod+f", "fullscreen"}, {"Mod+Shift+space", "float"},
     {"Mod+t", "theme next"}, {"Mod+Shift+r", "reload"}, {"Mod+Shift+e", "exit"},
+    {"Ctrl+equal", "zoom in"}, {"Ctrl+Shift+equal", "zoom in"}, {"Ctrl+minus", "zoom out"}, {"Ctrl+0", "zoom reset"},
   };
   for (unsigned i = 0; i < sizeof d / sizeof d[0]; i++) bind(d[i][0], d[i][1]);
   for (int i = 1; i <= 9; i++) {

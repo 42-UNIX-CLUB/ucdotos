@@ -1,0 +1,2 @@
+Makefile:1: *** invalid first argument to 'word' function: 'x'.  Stop.
+status 2

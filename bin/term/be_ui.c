@@ -37,6 +37,7 @@ static int ui_next(backend *b, tevent *t) {
   case UI_EV_FOCUS: b->focused = 1; t->type = TE_FOCUS; break;
   case UI_EV_BLUR: b->focused = 0; t->type = TE_BLUR; break;
   case UI_EV_CLOSE: t->type = TE_CLOSE; break;
+  case UI_EV_ZOOM: t->type = TE_ZOOM; t->wheel = e.wheel; break;
   default: return ui_next(b, t); /* not for us: try the next one */
   }
   return 1;

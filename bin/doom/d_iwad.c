@@ -613,7 +613,13 @@ static void BuildIWADDirList(void)
 
 #endif
 #else
-    // UC.OS: the system data directory first, then the current directory.
+    // UC.OS: files the user dropped onto the page first (~/Downloads), then the
+    // system data directory, then the current directory.
+    {
+        char *home = getenv("HOME");
+
+        AddIWADDir(M_StringJoin(home && *home ? home : "/home/user", "/Downloads", NULL));
+    }
     AddIWADDir ("/usr/share/games/doom");
     AddIWADDir (FILES_DIR);
 

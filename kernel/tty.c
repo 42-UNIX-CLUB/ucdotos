@@ -108,9 +108,10 @@ static long pts_read(struct file *f, u32 ubuf, u32 len) {
   struct pty *t = f->priv;
   int canon = t->tio.c_lflag & ICANON;
   if (!t->in_len) {
-    if (t->eof_pending) { t->eof_pending = 0; return 0; }
-    if (!t->master_open) return 0;
-    if (f->flags & O_NONBLOCK) return -EAGAIN;
+    /* returns that end the call also end a timed read begun on an earlier attempt */
+    if (t->eof_pending) { t->eof_pending = 0; cur->sleep_until = 0; return 0; }
+    if (!t->master_open || !len) { cur->sleep_until = 0; return 0; }
+    if (f->flags & O_NONBLOCK) { cur->sleep_until = 0; return -EAGAIN; }
     if (!canon && t->tio.c_cc[VMIN] == 0) { /* timed read: VTIME tenths of a second */
       double now = host_now();
       if (!t->tio.c_cc[VTIME]) return 0;
@@ -173,7 +174,13 @@ static long tty_ioctl(struct file *f, u32 cmd, u32 arg) {
   case TIOCGWINSZ: return copy_to_user(arg, &t->ws, sizeof t->ws);
   case TIOCSWINSZ: return copy_from_user(&t->ws, arg, sizeof t->ws);
   case TIOCGPGRP: return copy_to_user(arg, &t->fg_pgid, 4);
-  case TIOCSPGRP: return copy_from_user(&t->fg_pgid, arg, 4);
+  case TIOCSPGRP: { /* as on Linux, the group must exist (zombies count) */
+    int g;
+    if (copy_from_user(&g, arg, 4)) return -EFAULT;
+    if (g <= 0) return -EINVAL;
+    for (int i = 1; i < NPROC; i++) if (procs[i].state != P_FREE && procs[i].pgid == g) { t->fg_pgid = g; return 0; }
+    return -ESRCH;
+  }
   case 0x540B: t->in_len = 0; t->line_len = 0; return 0; /* TCFLSH */
   case 0x540A: case 0x5409: return 0;                     /* TCXONC, TCSBRK */
   case TIOCGPTN: return copy_to_user(arg, &t->index, 4);
@@ -199,7 +206,7 @@ static const struct fops pts_fops = {pts_read, pts_write, pts_poll, pts_close, t
 static long ptm_read(struct file *f, u32 ubuf, u32 len) {
   struct pty *t = f->priv;
   if (!t->out_len) {
-    if (t->slave_ever && !t->slave_refs) return 0; /* everyone hung up */
+    if ((t->slave_ever && !t->slave_refs) || !len) return 0; /* everyone hung up */
     if (f->flags & O_NONBLOCK) return -EAGAIN;
     wq_add(&t->out_rq);
     return block(-1);
@@ -218,7 +225,12 @@ static long ptm_write(struct file *f, u32 ubuf, u32 len) {
   for (u32 done = 0; done < len;) {
     u32 n = len - done < sizeof tmp ? len - done : sizeof tmp;
     if (copy_from_user(tmp, ubuf + done, n)) return -EFAULT;
-    for (u32 i = 0; i < n; i++) ldisc_input(t, tmp[i]);
+    for (u32 i = 0; i < n; i++) {
+      ldisc_input(t, tmp[i]);
+      /* Ctrl-C killed the writer itself: its descriptors are closed, and if that was
+       * the last reference to this master the pty is already released. */
+      if (cur->state != P_RUN) return -ERESTARTSYS;
+    }
     done += n;
   }
   if (t->in_len || t->eof_pending) wq_wake(&t->in_wq);
@@ -247,6 +259,8 @@ struct file *pty_open_master(struct inode *ino, int flags) {
     if (t->used) continue;
     memset(t, 0, sizeof *t);
     if (!(t->out = kmalloc(OUT_SZ))) return NULL;
+    struct file *f = file_new(&ptm_fops, ino, flags, t);
+    if (!f) { kfree(t->out); t->out = NULL; return NULL; }
     t->used = 1; t->index = i; t->master_open = 1;
     t->tio.c_iflag = ICRNL;
     t->tio.c_oflag = OPOST | ONLCR;
@@ -258,16 +272,21 @@ struct file *pty_open_master(struct inode *ino, int flags) {
     char path[32];
     snprintf(path, sizeof path, "/dev/pts/%d", i);
     if (!vfs_lookup(vfs_root, path)) vfs_mkdev(path, DEV_PTS0 + i);
-    return file_new(&ptm_fops, ino, flags, t);
+    return f;
   }
   return NULL;
 }
 struct file *pty_open_slave(struct inode *ino, int flags) {
   struct pty *t = &ptys[ino->dev - DEV_PTS0];
   if (!t->used || !t->master_open) return NULL;
+  struct file *f = file_new(&pts_fops, ino, flags, t);
+  if (!f) return NULL;
   t->slave_refs++;
   t->slave_ever = 1;
-  return file_new(&pts_fops, ino, flags, t);
+  return f;
+}
+void tty_pgrp_gone(int pgid) {
+  for (int i = 0; i < NPTY; i++) if (ptys[i].used && ptys[i].fg_pgid == pgid) ptys[i].fg_pgid = 0;
 }
 void pty_init(void) {
   int err;

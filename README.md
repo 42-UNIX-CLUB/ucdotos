@@ -28,6 +28,7 @@ Open http://localhost:8000 in Chrome or Edge 137+, Firefox 153+ or Safari 27+.
 | Alt+j / Alt+k | focus next / previous window |
 | Alt+1..4 | switch workspace |
 | Alt+t | switch theme |
+| Ctrl+= / Ctrl+- / Ctrl+0 | bigger / smaller / normal text in the focused terminal |
 | Alt+Shift+q | close window |
 
 ## Tests
@@ -49,10 +50,11 @@ node tools/shot.mjs --script=tools/tests/desktop.mjs    # boots the desktop head
 | `libc/`, `lib/` | the C library |
 | `libgfx/` | TrueType rasterizer and 2D drawing |
 | `libui/` | window protocol client and themes |
-| `bin/` | programs: `sh`, core tools, `wm`, `bar`, `launcher`, `term`, `vi`, `htop`, `fetch`, `bc`, `doom` |
+| `bin/` | programs: `sh`, core tools, `wm`, `bar`, `launcher`, `term`, `vi`, `htop`, `fetch`, `bc`, `doom`, and `cc` and `ld` (a C compiler and linker that run inside UC.OS) |
 | `rootfs/` | files copied into the system image: dotfiles, themes, fonts, man pages, the club's pages |
 | `tools/` | test runners |
 | `docs/` | how it works, how to develop it, what has been decided, current status |
+| `deploy/` | the website in a container: `docker compose -f deploy/compose.yml up -d --build` (see `docs/DEPLOYMENT.md`) |
 | `CLAUDE.md`, `AGENTS.md` | context for coding agents; start here if you are one |
 | `CONTRIBUTING.md` | how to name branches, write commits and open pull requests |
 

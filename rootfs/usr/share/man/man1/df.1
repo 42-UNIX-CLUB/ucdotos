@@ -1,0 +1,21 @@
+DF(1)                     UC.OS Manual                     DF(1)
+
+NAME
+       df - report free space on file systems
+
+SYNOPSIS
+       df [-hkPT] [file...]
+
+DESCRIPTION
+       Free space on the file systems holding the files
+       (default: /). Numbers come from statfs; the file system
+       name and mount point from /proc/mounts when it exists.
+
+NOTES
+       Needs the kernel's statfs; on a kernel without it, df
+       says so.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                  DF(1)

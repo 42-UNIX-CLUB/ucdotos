@@ -91,11 +91,19 @@ static ttf_cache *pick(render *r, uint32_t c, int bold) {
   return st == 2 ? r->cache[2] : main;
 }
 
-/* cursor marker stored in the shadow cell: 0 none, else 1 + focused * 8 + style */
+/* Marks stored in the shadow cell's pad: the low byte is the cursor (0 none, else
+ * 1 + focused * 8 + style), PAD_SEL a selected cell. */
+#define PAD_SEL 0x100
+static int selected(const render *r, int x, int y) {
+  if (!r->sel_on || y < r->sel_y0 || y > r->sel_y1) return 0;
+  if (y == r->sel_y0 && x < r->sel_x0) return 0;
+  if (y == r->sel_y1 && x > r->sel_x1) return 0;
+  return 1;
+}
 static void draw_cell(render *r, gfx_surface *s, int px, int py, vt_cell c, int cur) {
   unsigned fg = render_color(r, c.fg, r->fg), bg = render_color(r, c.bg, r->bg);
   int w = r->cw, h = r->ch;
-  if (c.attr & VT_INVERSE) { unsigned t = fg; fg = bg; bg = t; }
+  if (!(c.attr & VT_INVERSE) != !(c.pad & PAD_SEL)) { unsigned t = fg; fg = bg; bg = t; }
   if (c.attr & VT_DIM) fg = mix(fg, bg, 150);
   if (c.attr & VT_HIDDEN) fg = bg;
   int style = cur ? (cur - 1) & 7 : 0, focused = cur && ((cur - 1) & 8);
@@ -155,11 +163,11 @@ int render_draw(render *r, vt *t, gfx_surface *s, int focused, render_rect *dmg)
     int py = r->pad_y + y * r->ch;
     for (int x = 0; x < cols; x++) {
       vt_cell c = (src && x < w) ? src[x] : blank;
-      c.pad = (uint16_t)((y == cy && x == cx) ? cmark : 0);
+      c.pad = (uint16_t)(((y == cy && x == cx) ? cmark : 0) | (selected(r, x, y) ? PAD_SEL : 0));
       if (!full && !memcmp(&c, &sh[x], sizeof c)) continue;
       sh[x] = c;
       int px = r->pad_x + x * r->cw;
-      draw_cell(r, s, px, py, c, c.pad);
+      draw_cell(r, s, px, py, c, c.pad & 0xff);
       if (px < dmg->x0) dmg->x0 = px;
       if (py < dmg->y0) dmg->y0 = py;
       if (px + r->cw > dmg->x1) dmg->x1 = px + r->cw;

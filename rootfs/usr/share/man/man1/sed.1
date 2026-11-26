@@ -1,0 +1,34 @@
+SED(1)                    UC.OS Manual                    SED(1)
+
+NAME
+       sed - stream editor
+
+SYNOPSIS
+       sed [-nEsuz] [-i[SUFFIX]] [-l N] [-e script]... [-f
+          file]... [script] [file...]
+
+DESCRIPTION
+       The POSIX stream editor with the GNU extensions that
+       scripts use: -i, -E, -s, -z, addresses 0,/re/
+       first~step addr,+N addr,~N, the I and M flags, commands
+       F Q R T W z v, \n \t \xHH and friends in scripts, and
+       \L \U \l \u \E in replacements. Regular expressions
+       come from the C library (regcomp). Not implemented: the
+       e command and the e flag of s (they run a shell).  -i
+       writes each file to a temporary file in the same
+       directory and renames it over the original. A SUFFIX
+       keeps the original under a new name: without a '*' the
+       suffix is appended; with '*', each '*' is replaced by
+       the file's name, and a result without '/' is placed in
+       the file's directory.
+
+NOTES
+       sed -i writes a temporary file in the file's directory
+       and renames it over the original. A long script yields
+       to the kernel every 65,536 commands so the system stays
+       responsive.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                 SED(1)

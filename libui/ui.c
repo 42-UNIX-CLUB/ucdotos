@@ -78,7 +78,7 @@ static void handle(ui_window *win, const struct uip_hdr *h, const unsigned char 
     memcpy(&e, p, sizeof e);
     ev.type = e.type; ev.key = e.key; ev.mods = e.mods; ev.repeat = e.repeat; ev.codepoint = e.codepoint;
     ev.x = e.x; ev.y = e.y; ev.button = e.button; ev.wheel = e.wheel;
-    if (ev.type > UI_EV_NONE && ev.type <= UI_EV_WM_STATE && ev.type != UI_EV_RESIZE) push(win, &ev);
+    if (ev.type > UI_EV_NONE && ev.type <= UI_EV_MOUSE_REL && ev.type != UI_EV_RESIZE) push(win, &ev);
     break;
   }
   case UIP_STATE: {
@@ -275,3 +275,5 @@ int ui_wm_command(ui_window *win, const char *command) {
   }
   return win->reply_status;
 }
+
+int ui_pointer_lock(ui_window *win, int on) { return ui_wm_command(win, on ? "pointer-lock on" : "pointer-lock off"); }

@@ -12,8 +12,13 @@
 // `async (t) => { ... }` with the same helpers as tools/shot.mjs where they make sense:
 //   t.sleep(ms)  t.shot(name)  t.key(code, down)  t.tap(code, {shift,ctrl,alt,meta})  t.type('text\n')
 //   t.move(x, y)  t.click(x, y, button=0)  t.wheel(dy)  t.resize(w, h)
+//   mods may also carry commands: ['paste'], the editing commands a real key press runs
+//   (the protocol sends bare keys; a real browser maps Ctrl+V to its paste command itself)
 //   t.eval('js expression')      evaluate in the page, returns the value
 //   t.log                        everything the page printed to its console so far
+//   t.requests                   every network request so far: { url, bytes (on the wire, once finished), status }
+//   t.send(method, params)       a raw DevTools protocol call (network throttling, file chooser...)
+//   t.on(method, f)              call f(params) for every DevTools event of that name
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -59,6 +64,7 @@ const ws = new WebSocket(wsUrl);
 await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
 let nextId = 1, sessionId, logText = '';
 const pending = new Map();
+const requests = [], byId = new Map(), listeners = new Map();
 ws.onmessage = (m) => {
   const msg = JSON.parse(m.data);
   if (msg.id && pending.has(msg.id)) {
@@ -67,9 +73,17 @@ ws.onmessage = (m) => {
     msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
   } else if (msg.method === 'Runtime.consoleAPICalled') {
     logText += msg.params.args.map((a) => a.value ?? a.description ?? '').join(' ') + '\n';
+  } else if (msg.method === 'Network.requestWillBeSent') {
+    const r = { url: msg.params.request.url, bytes: 0, status: 0 };
+    requests.push(r); byId.set(msg.params.requestId, r);
+  } else if (msg.method === 'Network.responseReceived') {
+    const r = byId.get(msg.params.requestId); if (r) r.status = msg.params.response.status;
+  } else if (msg.method === 'Network.loadingFinished') {
+    const r = byId.get(msg.params.requestId); if (r) r.bytes = msg.params.encodedDataLength;
   } else if (msg.method === 'Runtime.exceptionThrown') {
     logText += '[page exception] ' + (msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text) + '\n';
   }
+  if (msg.method && listeners.has(msg.method)) for (const f of listeners.get(msg.method)) f(msg.params);
 };
 const send = (method, params = {}) => new Promise((resolve, reject) => {
   const id = nextId++;
@@ -80,6 +94,7 @@ const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
 sessionId = (await send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
 await send('Page.enable');
 await send('Runtime.enable');
+await send('Network.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
 await send('Page.navigate', { url });
 
@@ -88,8 +103,10 @@ const modBits = (m = {}) => (m.alt ? 1 : 0) | (m.ctrl ? 2 : 0) | (m.meta ? 4 : 0
 const named = { Enter: '\r', Tab: '\t', Space: ' ' };
 let mouseX = 0, mouseY = 0;
 const t = {
-  sleep,
+  sleep, send,
   get log() { return logText; },
+  get requests() { return requests; },
+  on(method, f) { if (!listeners.has(method)) listeners.set(method, []); listeners.get(method).push(f); },
   async eval(expression) {
     const r = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
@@ -107,11 +124,12 @@ const t = {
     if (!(code in K.KEY)) throw new Error('unknown key ' + code);
     const key = text || (code.startsWith('Key') ? code.slice(3).toLowerCase() : code.startsWith('Digit') ? code.slice(5) : code);
     const typed = text || (mods.ctrl || mods.alt || mods.meta ? '' : named[code] || '');
-    await send('Input.dispatchKeyEvent', { type: down ? (typed ? 'keyDown' : 'rawKeyDown') : 'keyUp', code, key, modifiers: modBits(mods), ...(down && typed ? { text: typed } : {}) });
+    await send('Input.dispatchKeyEvent', { type: down ? (typed ? 'keyDown' : 'rawKeyDown') : 'keyUp', code, key, modifiers: modBits(mods),
+      ...(down && typed ? { text: typed } : {}), ...(down && mods.commands ? { commands: mods.commands } : {}) });
   },
   async tap(code, mods = {}, text = '') {
     const held = [mods.ctrl && 'ControlLeft', mods.alt && 'AltLeft', mods.shift && 'ShiftLeft', mods.meta && 'MetaLeft'].filter(Boolean);
-    for (const m of held) await t.key(m, true, mods);
+    for (const m of held) await t.key(m, true, { ...mods, commands: undefined });
     await t.key(code, true, mods, mods.ctrl || mods.alt || mods.meta ? '' : text);
     await sleep(8);
     await t.key(code, false, mods);

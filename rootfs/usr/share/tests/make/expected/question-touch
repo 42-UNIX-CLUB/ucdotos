@@ -1,0 +1,3 @@
+status 1
+touch out
+status 0

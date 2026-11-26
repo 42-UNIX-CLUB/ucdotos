@@ -38,6 +38,8 @@ animation_ms 160    # how long a workspace switch slides, in milliseconds; 0 for
 #   workspace N  move N   switch workspace / send the window to workspace N
 #   theme next|NAME       switch theme (writes ~/.config/ucos/theme)
 #   reload  exit          re-read this file / leave the desktop
+#   zoom in|out|reset     make the focused window's text bigger, smaller, normal
+#                         (the terminal does this; other programs ignore it)
 
 bind Mod+Return exec term
 bind Mod+d exec launcher
@@ -64,6 +66,13 @@ bind Mod+Shift+space float
 bind Mod+t theme next
 bind Mod+Shift+r reload
 bind Mod+Shift+e exit
+
+# zoom, like a browser: Ctrl and + or -, Ctrl+0 for the normal size.
+# These keys no longer reach the programs themselves.
+bind Ctrl+equal zoom in
+bind Ctrl+Shift+equal zoom in
+bind Ctrl+minus zoom out
+bind Ctrl+0 zoom reset
 
 # workspaces: Mod+N goes there, Mod+Shift+N sends the focused window there
 bind Mod+1 workspace 1

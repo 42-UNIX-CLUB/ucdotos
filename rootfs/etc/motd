@@ -9,5 +9,6 @@
     man sh                how this shell works
     cat ~/.shrc           your dotfile, with every line explained
 
-    source                github.com/42-UNIX-CLUB/ucdotos (GPL-2.0-or-later)
+    source                github.com/42-UNIX-CLUB/ucdotos
+    licence               GPL-2.0-or-later
 

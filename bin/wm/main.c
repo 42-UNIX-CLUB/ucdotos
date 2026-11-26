@@ -34,6 +34,7 @@ static int ev_fd = -1, listen_fd = -1;
 static int mods, swallow[256], swallow_text;
 static int buttons;
 static client *grab;  /* the window that got the mouse button press receives motion until release */
+static client *locked; /* the window the mouse is captured for: no cursor, movement as UI_EV_MOUSE_REL */
 static int quit;
 static int state_dirty;
 static int children[64], nchildren;
@@ -204,6 +205,21 @@ static void print_stats(void) {
           stats_frames, stats_writes, stats_bytes, stats_compose_ms, nclients, si.totalram, si.bufferram, si.procs,
           (int)__builtin_wasm_memory_size(0));
 }
+/* Capture the mouse while the focused window asked for it and is fullscreen; release it
+ * as soon as that stops being true (another window, a workspace switch, fullscreen off,
+ * the window gone). Called after everything that can change those. Costs a few
+ * comparisons when nothing changes. */
+static void lock_update(void) {
+  client *f = focused();
+  client *want = f && f->wants_lock && f->fullscreen && f->ws == cur_ws ? f : NULL;
+  if (want == locked) return;
+  locked = want;
+  int on = locked != NULL;
+  __syscall3(SYS_ioctl, ev_fd, EVIOCGRAB, &on);
+  if (on) { if (ptr_shown) damage(ptr_x, ptr_y, 12, 19); ptr_shown = 0; } /* hide the cursor */
+  else cursor_moved(ptr_x, ptr_y);                                        /* and bring it back */
+}
+
 int run_command(client *src, const char *cmd) {
   char verb[32] = "", arg[160] = "";
   while (*cmd == ' ') cmd++;
@@ -222,6 +238,19 @@ int run_command(client *src, const char *cmd) {
       if (f->pid > 1 && is_child(f->pid)) __syscall2(SYS_kill, f->pid, SIGKILL);
       drop_client(f);
     }
+    return 0;
+  }
+  if (!strcmp(verb, "zoom")) { /* the focused window redraws its own content bigger or smaller */
+    int d = !strcmp(arg, "in") ? 1 : !strcmp(arg, "out") ? -1 : !strcmp(arg, "reset") ? 0 : 2;
+    client *f = focused();
+    if (d == 2 || !f) return -1;
+    send_event(f, UI_EV_ZOOM, 0, 0, 0, 0, 0, 0, 0, d);
+    return 0;
+  }
+  if (!strcmp(verb, "pointer-lock")) { /* from a window: capture the mouse while I am fullscreen */
+    if (!src) return -1;
+    src->wants_lock = !strcmp(arg, "on");
+    lock_update();
     return 0;
   }
   if (!strcmp(verb, "theme")) return theme_set(*arg ? arg : "next");
@@ -262,6 +291,7 @@ void drop_client(client *c) {
   memmove(order + i, order + i + 1, (nclients - i - 1) * sizeof order[0]);
   nclients--;
   if (grab == c) grab = NULL;
+  if (locked == c) { locked = NULL; int off = 0; __syscall3(SYS_ioctl, ev_fd, EVIOCGRAB, &off); cursor_moved(ptr_x, ptr_y); }
   close(c->fd);
   if (c->hello) relayout(); /* repaints the screen and tells the bar */
   free(c->buf); free(c->out);
@@ -471,7 +501,7 @@ static void handle_button(int code, int value) {
 }
 static void input_readable(void) {
   static struct input_event evs[64];
-  static int nx = -1, ny = -1, resized;
+  static int nx = -1, ny = -1, rdx, rdy, resized;
   for (;;) {
     long n = __syscall3(SYS_read, ev_fd, evs, sizeof evs);
     if (n <= 0) break;
@@ -483,7 +513,9 @@ static void input_readable(void) {
         else if (e->code < 256) handle_key(e->code, e->value);
         break;
       case 2: /* EV_REL */
-        if (e->code == 8) {
+        if (e->code == 0) rdx += e->value;         /* movement while the mouse is captured */
+        else if (e->code == 1) rdy += e->value;
+        else if (e->code == 8) {
           client *c = client_at(ptr_x, ptr_y);
           if (c) { int x, y; to_window(c, &x, &y); send_event(c, UI_EV_WHEEL, 0, mods, 0, 0, x, y, 0, e->value > 0 ? 1 : -1); }
         }
@@ -498,6 +530,11 @@ static void input_readable(void) {
         break;
       case 0: /* EV_SYN: the end of one batch */
         swallow_text = 0;
+        if (rdx || rdy) {
+          if (locked) send_event(locked, UI_EV_MOUSE_REL, 0, mods, 0, 0, rdx, rdy, 0, 0);
+          rdx = rdy = 0;
+        }
+        if (locked) nx = ny = -1;                  /* captured: the cursor stays hidden and still */
         if (nx >= 0 || ny >= 0) {
           int ox = ptr_x, oy = ptr_y;
           if (nx >= 0) ptr_x = nx;
@@ -598,6 +635,7 @@ int main(int argc, char **argv) {
         if (pf[i].revents & (POLLIN | POLLHUP | POLLERR | 0x20)) client_readable(c);
       }
     }
+    lock_update();
     if (state_dirty) { state_dirty = 0; broadcast_state(); }
     if (damage_pending() && now_ms() >= next_frame) {
       compose();

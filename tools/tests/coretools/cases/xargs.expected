@@ -1,0 +1,47 @@
+{"cmd":"xargs < words","out":"a b c d e f\n","status":0,"err":false}
+{"cmd":"xargs echo < words","out":"a b c d e f\n","status":0,"err":false}
+{"cmd":"xargs -n 2 < words","out":"a b\nc d\ne f\n","status":0,"err":false}
+{"cmd":"xargs -n 1 < words","out":"a\nb\nc\nd\ne\nf\n","status":0,"err":false}
+{"cmd":"xargs -n 4 echo X < words","out":"X a b c d\nX e f\n","status":0,"err":false}
+{"cmd":"xargs -L 1 < words","out":"a b c\nd e\nf\n","status":0,"err":false}
+{"cmd":"xargs -L 2 < words","out":"a b c d e\nf\n","status":0,"err":false}
+{"cmd":"xargs -I {} echo '[{}]' < lines","out":"[one]\n[two]\n[three]\n","status":0,"err":false}
+{"cmd":"xargs -I @ echo @ and @ < lines","out":"one and one\ntwo and two\nthree and three\n","status":0,"err":false}
+{"cmd":"xargs -I {} echo {} < blanks","out":"lead\ntwo words\n","status":0,"err":false}
+{"cmd":"xargs -i echo '<{}>' < lines","out":"<one>\n<two>\n<three>\n","status":0,"err":false}
+{"cmd":"xargs -0 < nul","out":"x y z w\n","status":0,"err":false}
+{"cmd":"xargs -0 -n 1 < nul","out":"x\ny z\nw\n","status":0,"err":false}
+{"cmd":"xargs -d , < /dev/null; printf 'a,b,c' | xargs -d , -n 1","out":"\na\nb\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb c\\n' | xargs -d '\\n' -n 1 echo","out":"a\nb c\n","status":0,"err":false}
+{"cmd":"xargs < quoted","out":"a b c d e f g\n","status":0,"err":false}
+{"cmd":"xargs -n 1 < quoted","out":"a\nb c\nd e\nf g\n","status":0,"err":false}
+{"cmd":"printf \"unterminated 'quote\\n\" | xargs; echo \"st=$?\"","out":"unterminated\nst=1\n","status":0,"err":true}
+{"cmd":"xargs < /dev/null; echo \"st=$?\"","out":"\nst=0\n","status":0,"err":false}
+{"cmd":"xargs -r echo X < /dev/null; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"xargs --no-run-if-empty echo X < /dev/null; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"xargs -t echo < lines","out":"one two three\n","status":0,"err":true}
+{"cmd":"xargs -E two < lines","out":"one\n","status":0,"err":false}
+{"cmd":"xargs -E one < lines","out":"\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n' | xargs sh -c 'echo $#: \"$@\"' sh","out":"3: 1 2 3\n","status":0,"err":false}
+{"cmd":"printf '1\\n2\\n3\\n' | xargs -n 2 sh -c 'echo $#: \"$@\"' sh","out":"2: 1 2\n1: 3\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | xargs false; echo \"st=$?\"","out":"st=123\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | xargs sh -c 'exit 3'; echo \"st=$?\"","out":"st=123\n","status":0,"err":false}
+{"cmd":"printf 'a\\n' | xargs sh -c 'exit 255'; echo \"st=$?\"","out":"st=124\n","status":0,"err":true}
+{"cmd":"printf 'a\\n' | xargs nonexistent-command-xyz; echo \"st=$?\"","out":"st=127\n","status":0,"err":true}
+{"cmd":"printf 'a\\n' | xargs -n 0; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"printf 'a\\n' | xargs -L x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"printf 'a\\n' | xargs -Q; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"seq 1 1000 | xargs | wc -c","out":"3893\n","status":0,"err":false}
+{"cmd":"seq 1 1000 | xargs -n 100 | wc -l","out":"10\n","status":0,"err":false}
+{"cmd":"seq 1 20 | xargs -s 30","out":"1 2 3 4 5 6 7 8 9 10 11\n12 13 14 15 16 17 18 19\n20\n","status":0,"err":false}
+{"cmd":"seq 1 5 | xargs -s 4; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"printf 'a b \\nc\\nd\\n' | xargs -L 1","out":"a b c\nd\n","status":0,"err":false}
+{"cmd":"printf '\\n\\n  \\n' | xargs echo X","out":"X\n","status":0,"err":false}
+{"cmd":"cd sub && printf 'f1\\nf2\\n' | xargs ls","out":"f1\nf2\n","status":0,"err":false}
+{"cmd":"printf 'a\\\\nb\\n' | xargs","out":"anb\n","status":0,"err":false}
+{"cmd":"printf 'x y\\n' | xargs -I{} sh -c 'echo \"{}\"'","out":"x y\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | xargs -P 1 -n 1 echo","out":"a\nb\n","status":0,"err":false}
+{"cmd":"printf 'a b\\n' | xargs --max-args=1 echo","out":"a\nb\n","status":0,"err":false}
+{"cmd":"printf 'a b\\nc\\n' | xargs --max-lines=1 echo","out":"a b\nc\n","status":0,"err":false}
+{"cmd":"printf 'a\\nb\\n' | xargs --replace=X echo X X","out":"a a\nb b\n","status":0,"err":false}
+{"cmd":"printf 'a\\000b\\000' | xargs --null echo","out":"a b\n","status":0,"err":false}

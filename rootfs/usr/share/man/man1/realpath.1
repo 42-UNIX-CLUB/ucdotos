@@ -1,0 +1,19 @@
+REALPATH(1)               UC.OS Manual               REALPATH(1)
+
+NAME
+       realpath - print a resolved absolute name
+
+SYNOPSIS
+       realpath [-e | -m] [-s] [-q] [-z] [--relative-to=DIR]
+          [--relative-base=DIR] FILE...
+
+DESCRIPTION
+       Makes each name absolute, removes . and .. and repeated
+       slashes, and follows symbolic links (unless -s). By
+       default every component but the last must exist; -e
+       requires all of them, -m none.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026            REALPATH(1)

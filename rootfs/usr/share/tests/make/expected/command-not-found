@@ -1,0 +1,4 @@
+no-such-cmd-here
+make: no-such-cmd-here: No such file or directory
+make: *** [Makefile:1: all] Error 127
+status 2

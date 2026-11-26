@@ -1,0 +1,356 @@
+##### subst
+=== make
+--- status 0
+--- stdout
+fEEt on the strEEt
+[bnn]
+[abcx]
+[]
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo \"$(subst ee,EE,feet on the street)\"\n\t@echo \"[$(subst a,,banana)]\"\n\t@echo \"[$(subst ,x,abc)]\"\n\t@echo \"[$(subst a,b,)]\"\n"
+##### patsubst
+=== make
+--- status 0
+--- stdout
+x.c.o bar.o baz.h
+ya yb ab
+bar food bar
+[a] [b] [c]
+obj b.h
+Px Py
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo $(patsubst %.c,%.o,x.c.c bar.c baz.h)\n\t@echo $(patsubst x%,y%,xa xb ab)\n\t@echo $(patsubst foo,bar,foo food foo)\n\t@echo $(patsubst %,[%],a b  c)\n\t@echo $(patsubst %.c,obj,a.c b.h)\n\t@echo $(patsubst \\%%,P%,%x %y)\n"
+##### strip
+=== make
+--- status 0
+--- stdout
+[a b c] []
+--- stderr
+
+=== files
+Makefile: "X =    a    b   c\nall: ; @echo \"[$(strip $(X)  )]\" \"[$(strip )]\"\n"
+##### findstring
+=== make
+--- status 0
+--- stdout
+[a] [] []
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$(findstring a,a b c)] [$(findstring a,b c)] [$(findstring ,abc)]\"\n"
+##### filter
+=== make
+--- status 0
+--- stdout
+foo.c bar.c baz.s
+baz.s ugh.h
+foo.c ugh.h
+[]
+baz.s ugh.h
+--- stderr
+
+=== files
+Makefile: "SRC = foo.c bar.c baz.s ugh.h\nall:\n\t@echo $(filter %.c %.s,$(SRC))\n\t@echo $(filter-out %.c,$(SRC))\n\t@echo $(filter foo.c ugh.h,$(SRC))\n\t@echo \"[$(filter %.x,$(SRC))]\"\n\t@echo $(filter-out foo.c bar.c,$(SRC))\n"
+##### sort
+=== make
+--- status 0
+--- stdout
+10 9 Aa a bar foo lose zz
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(sort foo bar lose foo  bar zz Aa a 10 9)\n"
+##### word-functions
+=== make
+--- status 0
+--- stdout
+b []
+b c d [] c d e
+5 0 a e []
+--- stderr
+
+=== files
+Makefile: "L = a b c d e\nall:\n\t@echo $(word 2,$(L)) \"[$(word 9,$(L))]\"\n\t@echo $(wordlist 2,4,$(L)) \"[$(wordlist 4,2,$(L))]\" $(wordlist 3,99,$(L))\n\t@echo $(words $(L)) $(words ) $(firstword $(L)) $(lastword $(L)) \"[$(firstword )]\"\n"
+##### word-errors
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** invalid first argument to 'word' function: 'x'.  Stop.
+
+=== make z; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:2: *** first argument to 'word' function must be greater than 0.  Stop.
+
+=== files
+Makefile: "all: ; @echo $(word x,a b)\nz: ; @echo $(word 0,a b)\n"
+##### dir-notdir
+=== make
+--- status 0
+--- stdout
+src/ ./ /abs/ dir/
+foo.c hacks x
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo $(dir src/foo.c hacks /abs/x dir/)\n\t@echo $(notdir src/foo.c hacks /abs/x dir/)\n"
+##### suffix-basename
+=== make
+--- status 0
+--- stdout
+.c .c .c .rc
+src/foo src-1.0/bar hacks a.b d.x/y
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo $(suffix src/foo.c src-1.0/bar.c hacks a.b.c .rc d.x/y)\n\t@echo $(basename src/foo.c src-1.0/bar hacks a.b.c .rc d.x/y)\n"
+##### add-join
+=== make
+--- status 0
+--- stdout
+foo.c bar.c src/foo src/bar
+a.c b.o a1 b c a1 2 3
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo $(addsuffix .c,foo bar) $(addprefix src/,foo bar)\n\t@echo $(join a b,.c .o) $(join a b c,1) $(join a,1 2 3)\n"
+##### wildcard
+=== make
+--- status 0
+--- stdout
+a.c b.c cc.c
+sub/x.h sub/y.h
+sub/x.h sub/y.h
+[]
+a.c b.c a.c b.c sub
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo $(wildcard *.c)\n\t@echo $(wildcard sub/*.h nope*.x)\n\t@echo $(wildcard sub/*)\n\t@echo \"[$(wildcard *.none)]\"\n\t@echo $(wildcard [ab].c) $(wildcard ?.c) $(wildcard sub)\n"
+a.c: "\n"
+b.c: "\n"
+cc.c: "\n"
+sub/
+sub/x.h: "\n"
+sub/y.h: "\n"
+##### realpath-abspath
+=== make
+--- status 0
+--- stdout
+b c /d x
+Makefile Makefile
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo $(patsubst $(CURDIR)/%,%,$(abspath a/../b ./c //d/./e/.. x/))\n\t@echo $(patsubst $(CURDIR)/%,%,$(realpath Makefile nope sub/../Makefile))\n"
+sub/
+sub/f: "\n"
+##### if
+=== make
+--- status 0
+--- stdout
+then-branch
+yes no [] b,c
+ok
+--- stderr
+
+=== files
+Makefile: "E =\nF = x\nall:\n\t@echo $(if $(F),yes,no) $(if $(E),yes,no) \"[$(if $(E),yes)]\" $(if  ,a,b,c)\n\t@echo $(if x,$(info then-branch)ok,$(info else-branch))\n"
+##### or-and
+=== make
+--- status 0
+--- stdout
+o1
+[b] [] [c] []
+[x]
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo \"[$(or ,,b,c)] [$(or ,)] [$(and a,b,c)] [$(and a,,c)]\"\n\t@echo \"[$(or $(info o1),x,$(info never))]\"\n"
+##### intcmp
+=== make
+--- status 0
+--- stdout
+[lt] [eq] [gt]
+[eq] [] [5] []
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo \"[$(intcmp 1,2,lt,eq,gt)] [$(intcmp 2,2,lt,eq,gt)] [$(intcmp 3,2,lt,eq,gt)]\"\n\t@echo \"[$(intcmp 3,2,lt,eq)] [$(intcmp 3,2,lt)] [$(intcmp 5,5)] [$(intcmp 5,6)]\"\n"
+##### foreach
+=== make
+--- status 0
+--- stdout
+a/file b/file c/file
+[] 1 2 outer
+1a 1b 2a 2b
+[  ]
+--- stderr
+
+=== files
+Makefile: "dirs := a b c\nX = outer\nall:\n\t@echo $(foreach d,$(dirs),$(d)/file)\n\t@echo \"[$(foreach d,,x)]\" $(foreach X,1 2,$(X)) $(X)\n\t@echo $(foreach i,1 2,$(foreach j,a b,$(i)$(j)))\n\t@echo \"[$(foreach x,a b c,)]\"\n"
+##### let
+=== make
+--- status 0
+--- stdout
+[1] [2] [3 4 5]
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(let a b c,1 2 3 4 5,[$(a)] [$(b)] [$(c)])\n"
+##### call
+=== make
+--- status 0
+--- stdout
+from call
+b a
+x y
+in:x: [A] [B]
+[] [ ]
+
+b a
+--- stderr
+
+=== files
+Makefile: "reverse = $(2) $(1)\npathsearch = $(firstword $(wildcard $(addsuffix /$(1),$(subst :, ,$(PATH)))))\nmap = $(foreach a,$(2),$(call $(1),$(a)))\nquote = '$(1)'\nnested = $(call inner,x) [$(1)] [$(2)]\ninner = in:$(1):$(2)\nall:\n\t@echo $(call reverse,a,b)\n\t@echo $(call map,quote,x y)\n\t@echo $(call nested,A,B)\n\t@echo \"[$(call undefined,x)]\" \"[$(call reverse)]\"\n\t@echo $(call info,from call)\n\t@echo $(call 0name) $(call reverse,a,b,c)\n"
+##### call-zero
+=== make
+--- status 0
+--- stdout
+f:arg
+--- stderr
+
+=== files
+Makefile: "f = $(0):$(1)\nall: ; @echo $(call f,arg)\n"
+##### eval
+=== make all
+--- status 0
+--- stdout
+building foo with foo
+building bar with bar
+value-foo value-bar
+--- stderr
+
+=== files
+Makefile: "PROGS = foo bar\ndefine RULE\n$(1): ; @echo building $(1) with $$@\n$(1)_VAR = value-$(1)\nendef\n$(foreach p,$(PROGS),$(eval $(call RULE,$(p))))\nall: $(PROGS) ; @echo $(foo_VAR) $(bar_VAR)\n"
+##### eval-in-recipe
+=== make
+--- status 0
+--- stdout
+set-in-recipe
+--- stderr
+
+=== files
+Makefile: "all:\n\t$(eval X := set-in-recipe)\n\t@echo $(X)\n"
+##### shell
+=== make
+--- status 0
+--- stdout
+[hello there] [] [3] [a  b]
+--- stderr
+
+=== files
+Makefile: "X := $(shell echo hello; echo there)\nY := $(shell exit 3)\nS := $(.SHELLSTATUS)\nZ := $(shell printf 'a\\n\\nb\\n\\n')\nall: ; @echo \"[$(X)] [$(Y)] [$(S)] [$(Z)]\"\n"
+##### shell-export
+=== make
+--- status 0
+--- stdout
+[exported]
+--- stderr
+
+=== files
+Makefile: "export EXPV = exported\nX := $(shell echo \"[$$EXPV]\")\nall: ; @echo $(X)\n"
+##### info-warning-error
+=== make; echo "status $?"
+--- status 0
+--- stdout
+info line
+status 2
+--- stderr
+Makefile:2: warning line
+Makefile:6: *** stop here.  Stop.
+
+=== files
+Makefile: "$(info info line)\n$(warning warning line)\nall:\n\t@echo recipe\n\t$(warning in recipe)\n$(error stop here)\n"
+##### error-in-recipe
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:3: *** recipe error.  Stop.
+
+=== files
+Makefile: "all:\n\t@echo first\n\t@echo $(error recipe error)\n"
+##### file-function
+=== make
+--- status 2
+--- stdout
+--- stderr
+/bin/sh: -c: line 1: unexpected EOF while looking for matching `"'
+make: *** [Makefile:5: all] Error 2
+
+=== files
+Makefile: "$(file >out.txt,line one)\n$(file >>out.txt,line two)\n$(file >empty.txt)\nX := $(file <out.txt)\nall: ; @echo \"[$(X)]\" \"[$(file <nope)]\"\n"
+empty.txt: ""
+out.txt: "line one\nline two\n"
+##### function-commas
+=== make
+--- status 2
+--- stdout
+a,b,c
+a
+--- stderr
+/bin/sh: line 1: b: command not found
+/bin/sh: line 1: c: command not found
+make: *** [Makefile:4: all] Error 127
+
+=== files
+Makefile: "comma := ,\nspace := $(subst ,, )\nall:\n\t@echo $(subst $(comma),;,a,b,c)\n\t@echo \"$(subst $(space),_,a b c)\"\n\t@echo $(info a,b,c)\n\t@echo $(patsubst (%),[%],(x) (y))\n\t@echo $(if x,a,b,c)\n"
+##### function-nesting
+=== make
+--- status 0
+--- stdout
+byz
+2
+--- stderr
+
+=== files
+Makefile: "all:\n\t@echo ${subst a,b,$(subst x,a,xyz)}\n\t@echo $(words ${wildcard nothing*} a b)\n"
+##### missing-args
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** insufficient number of arguments (1) to function 'subst'.  Stop.
+
+=== files
+Makefile: "all: ; @echo $(subst a)\n"
+##### unterminated
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** unterminated variable reference.  Stop.
+
+=== files
+Makefile: "X = $(foo\nall: ; @echo $(X)\n"
+##### hash-in-function
+=== make
+--- status 0
+--- stdout
+a#b
+--- stderr
+
+=== files
+Makefile: "X := $(subst :,#,a:b)\nall: ; @echo '$(X)'\n"

@@ -1,0 +1,20 @@
+DU(1)                     UC.OS Manual                     DU(1)
+
+NAME
+       du - estimate file space usage
+
+SYNOPSIS
+       du [-abchkmsxLPH0] [-d N] [--apparent-size] [file...]
+
+DESCRIPTION
+       Disk usage. Sizes come from stat: st_blocks (512-byte
+       units) by default, st_size with --apparent-size or -b
+       (a directory itself then counts 0, as in GNU du). Shown
+       in 1024-byte units unless -b, -m or -h. Hard links are
+       counted once. Directories are listed after their
+       contents.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                  DU(1)

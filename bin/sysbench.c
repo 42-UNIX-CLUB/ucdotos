@@ -4,7 +4,8 @@
  * them). A batch lasts at least 1 ms and at least 200 times the clock's resolution, which
  * browsers coarsen (0.1 ms in Chrome, 1 ms in Firefox); the best batch is shown, and the cold
  * first batch next to it. The table fits the terminal width by dropping columns.
- * Usage: sysbench [--json] [--color|--no-color]   (hidden: --clock-res US simulates a coarse clock)
+ * Usage: sysbench [--json] [--color|--no-color]   (hidden: --clock-res US simulates a coarse clock;
+ *        --only NAME,NAME runs only those rows, for A/B comparisons)
  * Builds for the OS and natively on Linux (cc -O2 bin/sysbench.c). */
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,9 +24,8 @@ static void os_name(char *buf, int cap) {
   if (__syscall1(SYS_uname, (long)&u) == 0) snprintf(buf, cap, "%s %s %s", u.sysname, u.release, u.machine);
   else snprintf(buf, cap, "unknown");
 }
-static int run_true(void) {
-  static char *argv[] = {"true", 0};
-  int st, pid = spawn("/bin/true", argv, 0, 0);
+static int run_wait(const char *path, char **argv) {
+  int st, pid = spawn(path, argv, 0, 0);
   return pid > 0 && waitpid(pid, &st, 0) == pid ? 0 : -1;
 }
 #else
@@ -41,10 +41,9 @@ static void os_name(char *buf, int cap) {
   if (uname(&u) == 0) snprintf(buf, cap, "%s %s %s", u.sysname, u.release, u.machine);
   else snprintf(buf, cap, "unknown");
 }
-static int run_true(void) {
-  static char *argv[] = {"true", 0};
+static int run_wait(const char *path, char **argv) {
   int st; pid_t pid;
-  if (posix_spawn(&pid, "/bin/true", 0, 0, argv, environ) != 0) return -1;
+  if (posix_spawn(&pid, path, 0, 0, argv, environ) != 0) return -1;
   return waitpid(pid, &st, 0) == pid ? 0 : -1;
 }
 #endif
@@ -98,7 +97,16 @@ BATCH static int b_open(long n) {
 }
 BATCH static int b_stat(long n) { struct stat st; for (long i = 0; i < n; i++) if (stat(tmpfile_path, &st)) return -1; return 0; }
 BATCH static int b_clock(long n) { struct timespec ts; for (long i = 0; i < n; i++) clock_gettime(CLOCK_MONOTONIC, &ts); sink += ts.tv_nsec; return 0; }
-BATCH static int b_spawn(long n) { for (long i = 0; i < n; i++) if (run_true()) return -1; return 0; }
+BATCH static int b_spawn(long n) {
+  static char *argv[] = {"true", 0};
+  for (long i = 0; i < n; i++) if (run_wait("/bin/true", argv)) return -1;
+  return 0;
+}
+BATCH static int b_spawn_sh(long n) { /* a larger program: the shell (about 100 KB) starts, runs ":" and exits */
+  static char *argv[] = {"sh", "-c", ":", 0};
+  for (long i = 0; i < n; i++) if (run_wait("/bin/sh", argv)) return -1;
+  return 0;
+}
 
 struct bench {
   const char *name, *label, *unit; /* unit "ns" or "us" */
@@ -116,8 +124,10 @@ static struct bench benches[] = {
   {"stat", "stat", "ns", b_stat, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {"clock_gettime", "clock_gettime", "ns", b_clock, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {"spawn_wait", "spawn + wait /bin/true", "us", b_spawn, 73, 1178, 57, "fork+exit+wait", 0, 0, 0, 0, 0, 0},
+  {"spawn_sh", "spawn + wait sh -c :", "us", b_spawn_sh, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 };
 #define NB (int)(sizeof benches / sizeof benches[0])
+static int nb = NB; /* rows to run and print (--only) */
 
 static void run_bench(struct bench *b) {
   double scale = !strcmp(b->unit, "us") ? 1000.0 : 1.0;
@@ -238,7 +248,7 @@ static void print_table(const char *os, int width) {
     if (show_q) printf("%11s", "qemu");
   }
   reset(); putchar('\n');
-  for (int i = 0; i < NB; i++) {
+  for (int i = 0; i < nb; i++) {
     struct bench *b = &benches[i];
     printf("  "); fgc(th->fg); printf("%-24s", b->label); reset();
     if (b->failed) { fgc(th->warn); printf("%12s", "failed"); if (show_first) printf("%12s", ""); reset(); }
@@ -278,7 +288,7 @@ static void print_table(const char *os, int width) {
 
 static void print_json(const char *os) {
   printf("{\n  \"system\": \"%s\",\n  \"clock_resolution_ns\": %.1f,\n  \"method\": \"value: best batch (each at least 1 ms and 200 clock steps, ~600 ms per row); first_batch: the cold first 200 calls (null when shorter than 20 clock steps); average: all batches; process CPU clock (wall clock for spawn_wait)\",\n  \"results\": [\n", os, res_ns);
-  for (int i = 0; i < NB; i++) {
+  for (int i = 0; i < nb; i++) {
     struct bench *b = &benches[i];
     printf("    {\"name\": \"%s\", \"unit\": \"%s\", \"value\": ", b->name, b->unit);
     if (b->failed) printf("null");
@@ -287,7 +297,7 @@ static void print_json(const char *os) {
       if (b->first < 0) printf("null"); else printf("%.3f", b->first);
       printf(", \"average\": %.3f", b->avg);
     }
-    printf(", \"batch\": %ld, \"batches\": %d}%s\n", b->batch, b->batches, i + 1 < NB ? "," : "");
+    printf(", \"batch\": %ld, \"batches\": %d}%s\n", b->batch, b->batches, i + 1 < nb ? "," : "");
   }
   printf("  ],\n  \"reference_published_not_measured\": {\n");
   printf("    \"linux\": {\"getppid_ns\": 110, \"read_ns\": 161, \"pipe_ns\": 417, \"fork_exit_wait_us\": 73},\n");
@@ -297,11 +307,13 @@ static void print_json(const char *os) {
 
 int main(int argc, char **argv) {
   int json = 0, force = -1;
+  const char *only = NULL;
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--json")) json = 1;
     else if (!strcmp(argv[i], "--color")) force = 1;
     else if (!strcmp(argv[i], "--no-color")) force = 0;
     else if (!strcmp(argv[i], "--clock-res") && i + 1 < argc) sim_res_ns = atof(argv[++i]) * 1000.0;
+    else if (!strcmp(argv[i], "--only") && i + 1 < argc) only = argv[++i];
     else { fprintf(stderr, "usage: sysbench [--json] [--color|--no-color]\n"); return 2; }
   }
   color = !json && (force >= 0 ? force : is_tty(1));
@@ -319,7 +331,16 @@ int main(int argc, char **argv) {
 
   res_ns = clock_resolution();
   if (!json) { fgc(th->dim); printf("  sysbench: measuring"); reset(); fflush(stdout); }
-  for (int i = 0; i < NB; i++) {
+  if (only) { /* keep only the named rows, in table order */
+    int n = 0;
+    for (int i = 0; i < NB; i++) {
+      const char *p = strstr(only, benches[i].name);
+      size_t l = strlen(benches[i].name);
+      if (p && (p == only || p[-1] == ',') && (p[l] == 0 || p[l] == ',')) benches[n++] = benches[i];
+    }
+    nb = n;
+  }
+  for (int i = 0; i < nb; i++) {
     run_bench(&benches[i]);
     if (!json) { fgc(th->dim); putchar('.'); reset(); fflush(stdout); }
   }
