@@ -1,0 +1,5 @@
+# fetch configuration: key = value
+# logo: mark (the club's >42| prompt mark), cube, torus, or text (/usr/share/fetch/logo.txt)
+logo = mark
+# shown on the Font line; the FONT environment variable overrides it
+font = Fira Code

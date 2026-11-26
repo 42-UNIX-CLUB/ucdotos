@@ -1,0 +1,1 @@
+-Wl,--whole-archive $(B)/libui.a -Wl,--no-whole-archive

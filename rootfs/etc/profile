@@ -1,0 +1,17 @@
+# /etc/profile: read by every interactive sh when it starts, before ~/.shrc.
+# System-wide settings live here; your own tweaks belong in ~/.shrc.
+
+export PATH=/bin
+export HOME=${HOME:-/home/user}
+export USER=${USER:-user}
+export SHELL=/bin/sh
+export TERM=${TERM:-xterm-256color}
+
+# The default prompt, in gruvbox colours (24-bit SGR):
+#   user@host  #b8bb26 bold    :  #ebdbb2    path  #83a598 bold    $  #ebdbb2
+# \u user, \h host, \w working directory (~ for home), \$ is $ (# for root).
+# \[ and \] wrap the colour codes so the line editor knows they take no room.
+PS1='\[\e[1;38;2;184;187;38m\]\u@\h\[\e[0;38;2;235;219;178m\]:\[\e[1;38;2;131;165;152m\]\w\[\e[0;38;2;235;219;178m\]\$ \[\e[0m\]'
+PS2='> '
+
+[ -f /etc/motd ] && cat /etc/motd

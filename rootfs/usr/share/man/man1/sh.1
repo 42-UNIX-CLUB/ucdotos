@@ -1,0 +1,136 @@
+SH(1)                     UC.OS Manual                     SH(1)
+
+NAME
+       sh - the UC.OS command shell
+
+SYNOPSIS
+       sh [-ix] [-c command [name [arg...]] | file [arg...]]
+
+DESCRIPTION
+       sh is a POSIX-style shell written for a system that has no
+       fork and no exec. External programs are started with spawn();
+       builtins, functions and compound commands run inside the shell
+       itself, with redirections applied to the shell's own file
+       descriptors and undone afterwards.
+
+       With -c, sh runs command. With a file, it runs the script.
+       Otherwise it reads standard input. If standard input is a
+       terminal the shell is interactive: it reads /etc/profile and
+       then ~/.shrc, and edits lines with the built-in line editor.
+       When standard input is not a terminal, commands are read line
+       by line with no prompt.
+
+OPTIONS
+       -c command   run command; the next arguments become $0, $1...
+       -i           interactive even if stdin is not a terminal
+       -x           print each command before running it
+
+WORDS AND QUOTING
+       'single'     everything literal
+       "double"     $ ` and \ keep their meaning, nothing else
+       \c           the character c, literally
+       # comment    to the end of the line
+
+EXPANSIONS
+       In order: tilde, parameters, command substitution, arithmetic,
+       field splitting (on $IFS, default space tab newline), pathname
+       expansion, quote removal.
+
+       ~ ~/dir ~user        home directories
+       $name ${name}        a variable
+       $? $$ $! $# $0..$9   status, shell pid, last background pid,
+                            number of arguments, arguments
+       "$@" "$*"            all arguments, separately or joined
+       ${#name}             length
+       ${name:-word}        word if name is unset or empty
+       ${name:=word}        same, and assign it
+       ${name:+word}        word if name is set and not empty
+       ${name:?word}        error if unset or empty
+       ${name#pat} ${name##pat}   remove shortest / longest prefix
+       ${name%pat} ${name%%pat}   remove shortest / longest suffix
+       $(command) `command`       output of command
+       $((expression))            integer arithmetic, C operators
+       * ? [abc] [a-z] [!x]       file names (dotfiles need a dot)
+
+COMMANDS
+       a | b | c            pipeline; the status is the last one's
+       ! pipeline           negate the status
+       a ; b                one after the other
+       a && b   a || b      b only if a succeeded / failed
+       a &                  in the background: prints the pid
+       { list; }            group, in this shell
+       ( list )             subshell: changes to variables, the
+                            directory and descriptors are undone
+       if list; then list; [elif list; then list;] [else list;] fi
+       while list; do list; done
+       until list; do list; done
+       for name [in word...]; do list; done
+       case word in pattern [| pattern]) list ;; ... esac
+       name() { list; }     function; arguments are $1...
+
+REDIRECTIONS
+       <file  >file  >>file  <>file   input, output, append, both
+       2>file  2>&1  n>&m  n>&-       other descriptors
+       &>file  &>>file                stdout and stderr together
+       <<WORD  <<-WORD  <<'WORD'      here-documents
+
+BUILTINS
+       cd [dir|-]  pwd  echo [-neE]  printf format [args]
+       exit [n]  return [n]  break [n]  continue [n]  shift [n]
+       export [name[=value]]  unset [-f] name  local name[=value]
+       set [-x|+x] [-- args]   (no arguments: list variables)
+       alias [name=value]  unalias name|-a
+       source file [args]  . file [args]  eval args
+       read [-r] [-p prompt] [name...]
+       test expr  [ expr ]   (-e -f -d -s -x -z -n = != -eq -lt...)
+       true  false  :  type name  history [n|-c]
+       wait [pid]  jobs  umask  help
+       exec >file           make redirections permanent
+       exec command         not possible here (no exec): an error
+
+LINE EDITOR
+       On a terminal: Left/Right, Home/End, Backspace/Delete,
+       Ctrl-A/E start/end, Ctrl-B/F left/right, Ctrl-K/U kill to
+       end/start, Ctrl-W kill a word, Ctrl-Y yank, Alt-B/F word
+       left/right, Up/Down or Ctrl-P/N history, Tab completes
+       commands (from $PATH) and file names, Ctrl-L clears the
+       screen, Ctrl-C drops the line, Ctrl-D on an empty line exits.
+       History is kept in ~/.sh_history.
+
+PROMPT
+       PS1 is the prompt, PS2 the continuation prompt. Escapes:
+       \u user, \h host, \w directory (~ for home), \W its last
+       part, \$ $ or #, \n newline, \e escape, \[ \] around colour
+       codes. Example, an orange chevron:
+
+              PS1='\[\e[1;38;2;254;128;25m\]› \[\e[0m\]'
+
+JOB CONTROL
+       An interactive shell starts a new session. Each foreground
+       pipeline gets its own process group and the terminal's
+       foreground group, so Ctrl-C ends the pipeline and not the
+       shell. There are no signals: kill(1) ends a process, and the
+       shell reports it as killed. A background job is only reaped
+       and reported as Done.
+
+FILES
+       /etc/profile   read first by an interactive shell
+       ~/.shrc        then this; your dotfile
+       ~/.sh_history  command history
+
+EXIT STATUS
+       The status of the last command; 127 for a command not found,
+       126 if it could not be started, 128+n if killed by signal n,
+       2 for a syntax error.
+
+BUGS
+       No fork means some things differ from other shells: a
+       background & list of builtins or compound commands runs in
+       the foreground; the last stage of a pipeline runs in this
+       shell when it is a builtin or a loop, so its variables stay
+       set; Ctrl-C cannot interrupt a loop made only of builtins.
+
+SEE ALSO
+       bc(1), unix-club(7)
+
+UC.OS                          November 2026                       SH(1)

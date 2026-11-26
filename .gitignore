@@ -1,0 +1,6 @@
+# build output (make B=build-NAME writes here)
+/build/
+/build-*/
+
+# Doom game data: not committed until its licence question is decided
+/bin/doom/wads/

@@ -1,0 +1,45 @@
+# brand: the 42 UNIX Club's final brand colours, JetBrains Mono.
+#
+# Dark green background, cream text, sage, orange, red, yellow and green-yellow
+# are the club's colours. The brand has no blue, purple or aqua, but a terminal
+# needs all 16 colours, so those few are derived to sit well next to the green.
+# They are marked PLACEHOLDER below: the club has not approved them.
+
+# --- desktop ---------------------------------------------------------------
+bg            = 0E362E   # dark green
+fg            = EDE6C5   # cream
+accent        = FE7700   # orange
+border_focus  = FE7700
+border_normal = 3F6658   # a muted green-grey, derived from bg and sage
+border_float  = FFC72E   # yellow
+bar_bg        = 174A3E   # a lighter green panel, derived from bg
+bar_fg        = EDE6C5
+panel         = 174A3E
+dim           = ADC787   # sage
+desktop       = 0A2A23   # a deeper green for the wallpaper, derived from bg
+
+# --- the 16 terminal colours ------------------------------------------------
+color0  = 0A2A23   # black (derived from bg)
+color1  = FC413A   # red
+color2  = A9B200   # green-yellow
+color3  = FFC72E   # yellow
+color4  = 5E9CA8   # blue    PLACEHOLDER, not approved by the club
+color5  = C28BA6   # purple  PLACEHOLDER, not approved by the club
+color6  = 6FB59A   # aqua    PLACEHOLDER, not approved by the club
+color7  = CFC8A8   # white (cream, dimmed)
+color8  = 5B7A6E   # bright black (derived from bg and sage)
+color9  = FF6A5C   # bright red (derived from red)
+color10 = ADC787   # sage
+color11 = FFD666   # bright yellow (derived from yellow)
+color12 = 86BFCB   # bright blue    PLACEHOLDER, not approved by the club
+color13 = DCAAC3   # bright purple  PLACEHOLDER, not approved by the club
+color14 = 97D4B9   # bright aqua    PLACEHOLDER, not approved by the club
+color15 = EDE6C5   # cream
+
+# --- type and geometry --------------------------------------------------------
+font      = /usr/share/fonts/JetBrainsMonoNerdFontMono-Regular.ttf
+font_bold = /usr/share/fonts/JetBrainsMonoNerdFontMono-Bold.ttf
+font_size = 15
+gap       = 12
+border    = 2
+radius    = 8

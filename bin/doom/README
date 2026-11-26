@@ -1,0 +1,79 @@
+Doom for UC.OS
+==============
+
+Origin
+  doomgeneric, https://github.com/ozkl/doomgeneric
+  commit e257a09527062bfb986b6e5e0780839b6cbd5b71
+  Licence: GNU General Public License version 2 (see COPYING, the upstream
+  LICENSE file). doomgeneric is based on Chocolate Doom and the id Software
+  Doom source release.
+
+What was taken
+  The game files of upstream's doomgeneric/ directory, copied flat: every .h
+  file, and the .c files that upstream's own Makefile builds, except the
+  platform back end. Not taken: the platform back ends (doomgeneric_allegro.c,
+  _emscripten.c, _linuxvt.c, _sdl.c, _soso.c, _sosox.c, _win.c, _xlib.c), the
+  sound and music back ends (i_allegromusic.c, i_allegrosound.c, i_sdlmusic.c,
+  i_sdlsound.c, gusconf.c, mus2mid.c), icon.c, and all build files (Makefile*,
+  *.vcxproj*, *.sln).
+
+Our files
+  doomgeneric_ucos.c  the platform layer (window via libui, or /dev/fb0 and
+                      /dev/input/event0; timing; keyboard table; $HOME/.doom)
+  CFLAGS              -w, the build defines (UCOS, CMAP256, 320x200 output,
+                      no FEATURE_SOUND), and -Wl,-u,ui_* so libui is linked
+                      when it exists (doomgeneric_ucos.c refers to the ui_*
+                      functions weakly and falls back to the framebuffer)
+  USE_GFX             links libui
+  tests/              headless tests for tools/shot.mjs, and mkimage.sh, which
+                      builds a test image holding one IWAD (outside rootfs/)
+  wads/               the candidate IWADs; not part of the image
+
+Changes to upstream files (each is marked "UC.OS" in the source)
+  d_iwad.c    BuildIWADDirList: search /usr/share/games/doom before the
+              current directory.
+  m_config.c  GetDefaultConfigDir: returns DG_ConfigDir() from the platform
+              layer, which is $HOME/.doom/ (HOME defaults to /home/user)
+              instead of the current directory. Saves go to its .savegame/.
+  i_input.c   I_GetEvent: the typed character of a key press (event.data2)
+              comes from DG_KeyChar, set by the platform layer, so W/A/S/D
+              can act as arrow keys and still type letters in cheats and save
+              names. vanilla_keyboard_mapping now defaults to 0 so save names
+              use that typed character.
+  i_system.c  DEFAULT_RAM 6 -> 16 MiB zone (large Freedoom levels). The zenity
+              error box, which runs a program through system(), is compiled
+              out under UCOS; I_Error only prints to stderr and exits.
+  d_loop.c    TryRunTics: when the awaited tic has arrived, run it at once
+              instead of returning to draw an unchanged frame first (upstream
+              rendered every frame twice per tic).
+  d_main.c    I_AtExit was passed (atexit_func_t) G_CheckDemoStatus, a
+              function returning boolean called as void(void): a signature
+              mismatch that traps in WebAssembly (seen after -timedemo). It is
+              now registered through a void(void) wrapper.
+
+Running
+  doom                   window if a window manager runs, else the framebuffer
+  doom --fb              always the framebuffer
+  doom -iwad PATH        choose the IWAD (default: search
+                         /usr/share/games/doom, then the current directory)
+  doom -stats            timing, system call and memory counters on stderr
+  doom -selftest         report save files on stderr as they are written
+  doom -timedemo demo1   benchmark
+  Words in /usr/share/games/doom/doom.args, if that file exists, are added
+  before the command-line arguments (the headless tests use this, because
+  tools/shot.mjs starts doom with no arguments).
+
+Keys
+  arrows or W/S (move), A/D (turn), Ctrl or left button (fire), Space or right
+  button (use), Shift (run), Alt (strafe), 1-7 weapons, Tab map, Esc menu,
+  Enter, Y/N, F1-F11, letters for cheats and save names.
+
+Sound
+  None: UC.OS has no sound device yet. The engine is built without
+  FEATURE_SOUND, so the sound calls are empty and nothing waits on audio.
+
+Tests (from the top of the tree)
+  bin/doom/tests/mkimage.sh doom1.wad -stats -selftest
+  node tools/shot.mjs --build=build-doom --init=/bin/doom --script=bin/doom/tests/play.mjs
+  Others: title.mjs, demos.mjs, timedemo.mjs (image with -timedemo demo1),
+  window.mjs (WM=1 mkimage.sh ..., then --init=/bin/wm).

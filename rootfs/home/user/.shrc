@@ -1,0 +1,28 @@
+# ~/.shrc: your personal shell setup. sh reads it at start-up, right after
+# /etc/profile, every time you open an interactive shell. This is a dotfile:
+# its name starts with "." so a plain ls hides it (try ls -a). Change it,
+# break it, fix it: that is how ricing starts. Reload it with: . ~/.shrc
+
+# ---- aliases: short names for commands you type all the time ----
+alias ll='ls -l'          # long listing: permissions, size, date
+alias la='ls -a'          # show dotfiles too
+alias l='ls -1'           # one name per line
+alias ..='cd ..'          # up one directory
+alias h='history'         # what did I type?
+alias c='clear'           # clean screen
+alias club='cd ~/unix_club && ls'   # jump into the club's intro session
+
+# ---- prompt ----
+# The default comes from /etc/profile: user@host:path$ in gruvbox colours.
+# A minimal alternative: a single orange chevron (#fe8019). Uncomment to use:
+# PS1='\[\e[1;38;2;254;128;25m\]› \[\e[0m\]'
+#
+# Or the chevron after the current directory's name (\W):
+# PS1='\[\e[38;2;131;165;152m\]\W \[\e[1;38;2;254;128;25m\]› \[\e[0m\]'
+
+# ---- functions: like aliases, but they take arguments ----
+# mkcd DIR: make a directory and step into it
+mkcd() { mkdir -p "$1" && cd "$1"; }
+
+# ---- environment ----
+export EDITOR=vi          # the editor other programs open for you

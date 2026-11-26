@@ -1,0 +1,13 @@
+
+  [1;38;2;254;128;25m❯ UC.OS[0m  [38;2;235;219;178mUNIX CLUB dot OS, by the 42 UNIX Club at 42 Lisboa[0m
+
+  A kernel and its programs, all WebAssembly, running in your browser.
+  Small tools, plain text, pipes: the UNIX way.
+
+    ls ~/unix_club        the club's intro session, as files
+    man unix-club         the club in one manual page
+    man sh                how this shell works
+    cat ~/.shrc           your dotfile, with every line explained
+
+    source                github.com/42-UNIX-CLUB/ucdotos (GPL-2.0-or-later)
+

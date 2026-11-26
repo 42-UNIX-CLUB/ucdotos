@@ -1,0 +1,102 @@
+BC(1)                     UC.OS Manual                     BC(1)
+
+NAME
+       bc - arbitrary precision calculator language
+
+SYNOPSIS
+       bc [-lq] [file...]
+
+DESCRIPTION
+       bc reads statements from the files, then from standard input,
+       and prints the value of every expression statement that is not
+       an assignment. Numbers are decimal and may have any number of
+       digits. Interactive and piped use behave the same:
+
+              $ echo '2^100' | bc
+              1267650600228229401496703205376
+              $ echo 'scale=50; 1/7' | bc
+              .14285714285714285714285714285714285714285714285714
+
+OPTIONS
+       -l     Load the math library and set scale to 20.
+       -q     Do not print the welcome line on a terminal.
+
+NUMBERS AND SCALE
+       scale is the number of digits kept after the decimal point by
+       division, square root and powers with negative exponents. It
+       starts at 0, so 10/3 is 3. Addition, subtraction and
+       multiplication keep the digits their operands need.
+
+       ibase and obase set the input and output bases (2 to 16 for
+       ibase, 2 to 999 for obase). Input digits above 9 are the
+       capital letters A to F. Results longer than 70 characters are
+       split over several lines ending in a backslash.
+
+EXPRESSIONS
+       From lowest to highest precedence:
+
+       ||              logical or
+       &&              logical and
+       !               logical not
+       == != < <= > >= comparison, 1 or 0
+       = += -= *= /= %= ^=   assignment (right to left)
+       + -             addition, subtraction
+       * / %           multiplication, division, remainder
+       ^               power (integer exponent, right to left)
+       -               negation
+       ++ --           increment, decrement (prefix or postfix)
+
+       Variables and function names are lower case letters, digits
+       and _. Arrays are written name[index]. The special variables
+       are scale, ibase, obase and last (also written .), which holds
+       the last printed value.
+
+       Builtin functions: sqrt(x), length(x) (significant digits),
+       scale(x) (digits after the point), read() (a number from
+       standard input).
+
+STATEMENTS
+       expression        printed unless it is an assignment
+       "string"          printed as is
+       print list        prints expressions and strings, \n escapes
+       { statements }
+       if (cond) statement [else statement]
+       while (cond) statement
+       for (init; cond; step) statement
+       break, continue
+       define name(params) { auto locals; statements }
+       return, return (expression)
+       quit              leave as soon as it is read
+       halt              leave when it is executed
+       limits            print the implementation limits
+
+       Statements end with a newline or ;. Comments are /* ... */ and
+       # to the end of the line.
+
+MATH LIBRARY
+       With -l: e(x) exponential, l(x) natural logarithm, s(x) sine,
+       c(x) cosine, a(x) arctangent (radians).
+
+              $ echo '4*a(1)' | bc -l
+              3.14159265358979323844
+
+EXAMPLES
+       Factorial with a function:
+
+              define f(n) {
+                if (n <= 1) return (1)
+                return (n * f(n - 1))
+              }
+              f(30)
+
+       Hexadecimal:   echo 'obase=16; 255' | bc      prints FF
+
+SEE ALSO
+       sh(1)
+
+NOTES
+       The arithmetic is written from scratch for UC.OS: one decimal
+       digit per byte and schoolbook algorithms, so very large
+       divisions are slow.
+
+UC.OS                          November 2026                       BC(1)

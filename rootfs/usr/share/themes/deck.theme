@@ -1,0 +1,45 @@
+# deck: the look of the 42 UNIX Club slides. Gruvbox colours, Fira Code.
+#
+# A theme is just `key = value` lines. Every graphical program (the window
+# manager, the bar, the launcher, the terminal) reads the active theme with
+# ui_theme_load(). The active theme is named in ~/.config/ucos/theme.
+# Copy this file to make your own rice, then press Mod+t to cycle to it.
+
+# --- desktop ---------------------------------------------------------------
+bg            = 282828   # window background (the terminal paints this)
+fg            = ebdbb2   # text
+accent        = fe8019   # the orange: current workspace, highlights
+border_focus  = fe8019   # 2 px border of the focused window
+border_normal = 665c54   # thin grey border of the other windows
+border_float  = fabd2f   # border of floating windows: the launcher
+bar_bg        = 3c3836   # the bar
+bar_fg        = ebdbb2
+panel         = 3c3836   # raised surfaces: launcher background
+dim           = 928374   # secondary text: labels, comments
+desktop       = 1d2021   # the wallpaper colour behind everything
+
+# --- the 16 terminal colours (gruvbox dark) -----------------------------------
+color0  = 282828   # black
+color1  = cc241d   # red
+color2  = 98971a   # green
+color3  = d79921   # yellow
+color4  = 458588   # blue
+color5  = b16286   # purple
+color6  = 689d6a   # aqua
+color7  = a89984   # white
+color8  = 928374   # bright black (grey)
+color9  = fb4934   # bright red
+color10 = b8bb26   # bright green
+color11 = fabd2f   # bright yellow
+color12 = 83a598   # bright blue
+color13 = d3869b   # bright purple
+color14 = 8ec07c   # bright aqua
+color15 = ebdbb2   # bright white
+
+# --- type and geometry --------------------------------------------------------
+font      = /usr/share/fonts/FiraCode-Regular.ttf
+font_bold = /usr/share/fonts/FiraCode-Bold.ttf
+font_size = 15     # pixels
+gap       = 12     # space between windows (the wm config can override it)
+border    = 2      # window border width
+radius    = 8      # corner radius
