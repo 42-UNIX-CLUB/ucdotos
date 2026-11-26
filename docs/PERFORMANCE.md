@@ -65,7 +65,7 @@ authors.
 
 | What | Figure |
 |---|---|
-| window manager, full-screen composite | 1.0 to 1.3 ms |
+| window manager, full-screen composite | 1.0 to 2.0 ms (2026-11-26, painted in bands: 0.95, 1.08, 1.99 ms in three runs of `perf.mjs`; 1.58 ms twice with the old full-screen buffer) |
 | a 600x400 window's `ui_present` until its pixels are in the framebuffer | about 1.1 ms (median) |
 | window manager when idle | 0 framebuffer writes per second with the bar hidden; 1 frame per second for the clock |
 | terminal, full repaint of 160x45 cells (native build) | 2.9 ms |
@@ -77,7 +77,31 @@ authors.
 | Doom, engine time per frame | 1.1 to 1.5 ms in game; timedemo 680 to 850 fps |
 | Doom memory after loading a level | 22 MiB (25 MiB in a window) |
 
-## 4. How to measure properly
+## 4. Memory
+
+Headless under Node at 1280x720, 2026-11-26: the default desktop, then two more terminals
+opened with Mod+Return, then `ps` in the last one. Each figure is the process's whole wasm
+memory (`ps` MEM); two runs each. The kernel's own memory was 16.3 MiB both times.
+
+| Process | Before | After | Why |
+|---|---|---|---|
+| wm | 14.9 MiB | 6.4 MiB | no full-screen back buffer or wallpaper; window buffers freed before the new size is allocated |
+| bar | 1.9 MiB | 1.9 MiB | |
+| welcome terminal | 10.1 MiB | 8.3 to 8.4 MiB | window buffer freed before the new size is allocated |
+| second terminal | 6.9 MiB | 6.1 MiB | same |
+| third terminal | 5.4 MiB | 2.9 MiB | same, and the Nerd fallback font is not read until a glyph needs it |
+| init, sh, ps, each | 1.4 MiB | 1.1 MiB | the heap grows one page at a time; the argument buffer is 4 KiB, not 64 |
+| all processes | 47.5 MiB | 32.4 to 32.6 MiB | |
+
+After `perf.mjs` opens and closes 20 windows three times, the wm holds 91 pages (5.7 MiB)
+instead of 215 (13.4 MiB).
+
+What is left: every program reserves a 1 MiB stack (the deepest use measured in the test
+suites is 54 KiB, in `sh`); every font a program uses is read whole into its memory; the
+kernel keeps the initrd (7.6 MiB, 5.5 of it fonts), the framebuffer (3.6 MiB) and two 512 KiB
+buffers for each window's socket.
+
+## 5. How to measure properly
 
 1. Put the timed loop in a `noinline` function and call it many times. V8 does not
    replace a running wasm loop with optimised code, so a loop entered once measures
