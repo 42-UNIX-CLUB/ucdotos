@@ -1,0 +1,50 @@
+10	d/ten
+3	d/sub/three
+10	d/ten
+10	d/ten
+5013	d
+0	d/empty
+0	d/empty/zero
+5003	d/sub
+5000	d/sub/deep
+5000	d/sub/deep/big
+3	d/sub/three
+10	d/ten
+5000	d/sub/deep
+d
+d/empty
+d/sub
+d/ten
+d
+d
+d
+d/empty
+d/sub
+d/sub/deep
+d
+d/empty
+d/empty/zero
+d/sub
+d/sub/deep
+d/sub/deep/big
+d/sub/three
+d/ten
+10	d/ten
+3	d/sub/three
+13	total
+13	total
+d
+d/empty
+d/sub
+d/sub/deep
+5000	d/sub/deep/big
+4.9K	d/sub/deep/big
+st=1
+st=1
+st=1
+st=1
+0000000   1   0  \t   d   /   t   e   n  \0
+0000011
+10	ten
+.
+./deep

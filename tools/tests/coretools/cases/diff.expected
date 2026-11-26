@@ -1,0 +1,209 @@
+{"cmd":"diff same same2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff f1 f2; echo \"st=$?\"","out":"3c3\n< three\n---\n> THREE\n10a11\n> eleven\nst=1\n","status":0,"err":false}
+{"cmd":"diff -u f1 f2 | tail -n +3; echo \"st=$?\"","out":"@@ -1,6 +1,6 @@\n one\n two\n-three\n+THREE\n four\n five\n six\n@@ -8,3 +8,4 @@\n eight\n nine\n ten\n+eleven\nst=0\n","status":0,"err":false}
+{"cmd":"diff -u --label old --label new f1 f2","out":"--- old\n+++ new\n@@ -1,6 +1,6 @@\n one\n two\n-three\n+THREE\n four\n five\n six\n@@ -8,3 +8,4 @@\n eight\n nine\n ten\n+eleven\n","status":1,"err":false}
+{"cmd":"diff -c --label old --label new f1 f2","out":"*** old\n--- new\n***************\n*** 1,6 ****\n  one\n  two\n! three\n  four\n  five\n  six\n--- 1,6 ----\n  one\n  two\n! THREE\n  four\n  five\n  six\n***************\n*** 8,10 ****\n--- 8,11 ----\n  eight\n  nine\n  ten\n+ eleven\n","status":1,"err":false}
+{"cmd":"diff -U 1 --label old --label new f1 f2","out":"--- old\n+++ new\n@@ -2,3 +2,3 @@\n two\n-three\n+THREE\n four\n@@ -10 +10,2 @@\n ten\n+eleven\n","status":1,"err":false}
+{"cmd":"diff -U0 --label old --label new f1 f2","out":"--- old\n+++ new\n@@ -3 +3 @@\n-three\n+THREE\n@@ -10,0 +11 @@\n+eleven\n","status":1,"err":false}
+{"cmd":"diff -C 1 --label old --label new f1 f2","out":"*** old\n--- new\n***************\n*** 2,4 ****\n  two\n! three\n  four\n--- 2,4 ----\n  two\n! THREE\n  four\n***************\n*** 10 ****\n--- 10,11 ----\n  ten\n+ eleven\n","status":1,"err":false}
+{"cmd":"diff -e f1 f2","out":"10a\neleven\n.\n3c\nTHREE\n.\n","status":1,"err":false}
+{"cmd":"diff --normal f1 f2","out":"3c3\n< three\n---\n> THREE\n10a11\n> eleven\n","status":1,"err":false}
+{"cmd":"diff -q f1 f2; echo \"st=$?\"","out":"Files f1 and f2 differ\nst=1\n","status":0,"err":false}
+{"cmd":"diff -q same same2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff -s same same2; echo \"st=$?\"","out":"Files same and same2 are identical\nst=0\n","status":0,"err":false}
+{"cmd":"diff -s f1 f2 > /dev/null; echo \"st=$?\"","out":"st=1\n","status":0,"err":false}
+{"cmd":"diff --brief f1 f2","out":"Files f1 and f2 differ\n","status":1,"err":false}
+{"cmd":"diff empty f1","out":"0a1,10\n> one\n> two\n> three\n> four\n> five\n> six\n> seven\n> eight\n> nine\n> ten\n","status":1,"err":false}
+{"cmd":"diff f1 empty","out":"1,10d0\n< one\n< two\n< three\n< four\n< five\n< six\n< seven\n< eight\n< nine\n< ten\n","status":1,"err":false}
+{"cmd":"diff -u --label a --label b empty f1","out":"--- a\n+++ b\n@@ -0,0 +1,10 @@\n+one\n+two\n+three\n+four\n+five\n+six\n+seven\n+eight\n+nine\n+ten\n","status":1,"err":false}
+{"cmd":"diff -u --label a --label b f1 empty","out":"--- a\n+++ b\n@@ -1,10 +0,0 @@\n-one\n-two\n-three\n-four\n-five\n-six\n-seven\n-eight\n-nine\n-ten\n","status":1,"err":false}
+{"cmd":"diff -c --label a --label b empty f1","out":"*** a\n--- b\n***************\n*** 0 ****\n--- 1,10 ----\n+ one\n+ two\n+ three\n+ four\n+ five\n+ six\n+ seven\n+ eight\n+ nine\n+ ten\n","status":1,"err":false}
+{"cmd":"diff empty empty; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff nonl1 nonl2","out":"2c2\n< b\n\\ No newline at end of file\n---\n> c\n\\ No newline at end of file\n","status":1,"err":false}
+{"cmd":"diff -u --label a --label b nonl1 nonl2","out":"--- a\n+++ b\n@@ -1,2 +1,2 @@\n a\n-b\n\\ No newline at end of file\n+c\n\\ No newline at end of file\n","status":1,"err":false}
+{"cmd":"diff -u --label a --label b nonl1 f1","out":"--- a\n+++ b\n@@ -1,2 +1,10 @@\n-a\n-b\n\\ No newline at end of file\n+one\n+two\n+three\n+four\n+five\n+six\n+seven\n+eight\n+nine\n+ten\n","status":1,"err":false}
+{"cmd":"diff nonl1 nonl1; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff withnl nonlx","out":"2c2\n< b\n---\n> b\n\\ No newline at end of file\n","status":1,"err":false}
+{"cmd":"diff -u --label a --label b withnl nonlx","out":"--- a\n+++ b\n@@ -1,2 +1,2 @@\n a\n-b\n+b\n\\ No newline at end of file\n","status":1,"err":false}
+{"cmd":"diff -c --label a --label b withnl nonlx","out":"*** a\n--- b\n***************\n*** 1,2 ****\n  a\n! b\n--- 1,2 ----\n  a\n! b\n\\ No newline at end of file\n","status":1,"err":false}
+{"cmd":"diff case1 case2; echo \"st=$?\"","out":"1,2c1,2\n< Hello\n< World\n---\n> hello\n> WORLD\nst=1\n","status":0,"err":false}
+{"cmd":"diff -i case1 case2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff sp1 sp2; echo \"st=$?\"","out":"1,2c1,2\n< a  b\n< c\td\n---\n> a b\n> c d \nst=1\n","status":0,"err":false}
+{"cmd":"diff -b sp1 sp2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff -w sp1 sp2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff -Z sp1 sp3; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff -B bl1 bl2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff bl1 bl2; echo \"st=$?\"","out":"3a4\n> \nst=1\n","status":0,"err":false}
+{"cmd":"diff crlf1 crlf2; echo \"st=$?\"","out":"1,2c1,2\n< a\r\n< b\r\n---\n> a\n> b\nst=1\n","status":0,"err":false}
+{"cmd":"diff --strip-trailing-cr crlf1 crlf2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff bin1 bin2; echo \"st=$?\"","out":"Binary files bin1 and bin2 differ\nst=1\n","status":0,"err":false}
+{"cmd":"diff -q bin1 bin2; echo \"st=$?\"","out":"Files bin1 and bin2 differ\nst=1\n","status":0,"err":false}
+{"cmd":"diff -a bin1 bin2 | od -c | head -3","out":"0000000   1   c   1  \\n   <       a  \\0   b  \\n   -   -   -  \\n   >    \n0000020   a  \\0   c  \\n\n0000024\n","status":0,"err":false}
+{"cmd":"diff f1 missing; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"diff missing f1; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"diff -N --label a --label b -u f1 missing; echo \"st=$?\"","out":"--- a\n+++ b\n@@ -1,10 +0,0 @@\n-one\n-two\n-three\n-four\n-five\n-six\n-seven\n-eight\n-nine\n-ten\nst=1\n","status":0,"err":false}
+{"cmd":"diff -N missing f1; echo \"st=$?\"","out":"0a1,10\n> one\n> two\n> three\n> four\n> five\n> six\n> seven\n> eight\n> nine\n> ten\nst=1\n","status":0,"err":false}
+{"cmd":"diff f1; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"diff f1 f2 f3; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"diff -Q f1 f2; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"diff -U x f1 f2; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"diff - f2 < f1","out":"3c3\n< three\n---\n> THREE\n10a11\n> eleven\n","status":1,"err":false}
+{"cmd":"diff f1 - < f2","out":"3c3\n< three\n---\n> THREE\n10a11\n> eleven\n","status":1,"err":false}
+{"cmd":"diff d1 d2; echo \"st=$?\"","out":"diff d1/common d2/common\n1c1\n< x\n---\n> y\nOnly in d2: f1x\nOnly in d1: only1\nOnly in d2: only2\nOnly in d1: onlydir\nCommon subdirectories: d1/sub and d2/sub\nst=1\n","status":0,"err":false}
+{"cmd":"diff -r d1 d2; echo \"st=$?\"","out":"diff -r d1/common d2/common\n1c1\n< x\n---\n> y\nOnly in d2: f1x\nOnly in d1: only1\nOnly in d2: only2\nOnly in d1: onlydir\ndiff -r d1/sub/t d2/sub/t\n1c1\n< old\n---\n> new\nst=1\n","status":0,"err":false}
+{"cmd":"diff -ru d1 d2 | grep -v '^[-+][-+][-+] '; echo \"st=$?\"","out":"diff -ru d1/common d2/common\n@@ -1 +1 @@\n-x\n+y\nOnly in d2: f1x\nOnly in d1: only1\nOnly in d2: only2\nOnly in d1: onlydir\ndiff -ru d1/sub/t d2/sub/t\n@@ -1 +1 @@\n-old\n+new\nst=0\n","status":0,"err":false}
+{"cmd":"diff -rq d1 d2; echo \"st=$?\"","out":"Files d1/common and d2/common differ\nOnly in d2: f1x\nOnly in d1: only1\nOnly in d2: only2\nOnly in d1: onlydir\nFiles d1/sub/t and d2/sub/t differ\nst=1\n","status":0,"err":false}
+{"cmd":"diff -rN d1 d2 | grep -v '^[-+][-+][-+] '; echo \"st=$?\"","out":"diff -rN d1/common d2/common\n1c1\n< x\n---\n> y\ndiff -rN d1/only1 d2/only1\n1d0\n< o\ndiff -rN d1/only2 d2/only2\n0a1\n> p\ndiff -rN d1/onlydir/inner d2/onlydir/inner\n1d0\n< q\ndiff -rN d1/sub/t d2/sub/t\n1c1\n< old\n---\n> new\nst=0\n","status":0,"err":false}
+{"cmd":"diff -r -x 'only*' d1 d2; echo \"st=$?\"","out":"diff -r -x 'only*' d1/common d2/common\n1c1\n< x\n---\n> y\nOnly in d2: f1x\ndiff -r -x 'only*' d1/sub/t d2/sub/t\n1c1\n< old\n---\n> new\nst=1\n","status":0,"err":false}
+{"cmd":"diff d1 f1; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"diff d1/common d2; echo \"st=$?\"","out":"1c1\n< x\n---\n> y\nst=1\n","status":0,"err":false}
+{"cmd":"diff d1 d1; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"seq 1 1000 > big1; seq 1 1000 | sed '500d;700s/$/x/' > big2; diff big1 big2; echo \"st=$?\"","out":"500d499\n< 500\n700c699\n< 700\n---\n> 700x\nst=1\n","status":0,"err":false}
+{"cmd":"seq 1 1000 > big1; seq 1 1000 | sed '500d;700s/$/x/' > big2; diff -u --label a --label b big1 big2; echo \"st=$?\"","out":"--- a\n+++ b\n@@ -497,7 +497,6 @@\n 497\n 498\n 499\n-500\n 501\n 502\n 503\n@@ -697,7 +696,7 @@\n 697\n 698\n 699\n-700\n+700x\n 701\n 702\n 703\nst=1\n","status":0,"err":false}
+{"cmd":"seq 1 2000 > big1; seq 1 2000 | sed -n '1~3p' > big2; diff big1 big2 | wc -l","out":"2000\n","status":0,"err":false}
+{"cmd":"seq 1 300 > s1; seq 1 300 | sed 's/^/x/' > s2; diff s1 s2 | head -3; diff s1 s2 | wc -l","out":"1,300c1,300\n< 1\n< 2\n602\n","status":0,"err":false}
+{"cmd":"diff -u --label a --label b ab1 ab2","out":"--- a\n+++ b\n@@ -1,6 +1,3 @@\n a\n b\n c\n-a\n-b\n-c\n","status":1,"err":false}
+{"cmd":"diff -T f1 f2","out":"3c3\n<\tthree\n---\n>\tTHREE\n10a11\n>\televen\n","status":1,"err":false}
+{"cmd":"diff --unified=1 --label a --label b f1 f2","out":"--- a\n+++ b\n@@ -2,3 +2,3 @@\n two\n-three\n+THREE\n four\n@@ -10 +10,2 @@\n ten\n+eleven\n","status":1,"err":false}
+{"cmd":"diff --context=0 --label a --label b f1 f2","out":"*** a\n--- b\n***************\n*** 3 ****\n! three\n--- 3 ----\n! THREE\n***************\n*** 10 ****\n--- 11 ----\n+ eleven\n","status":1,"err":false}
+{"cmd":"diff --ignore-case case1 case2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"diff r0a r0b > /dev/null; echo st=$?; diff r0a r0b | grep -c '^<'; diff r0a r0b | grep -c '^>'","out":"st=1\n2\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r0a r0b | grep -c '^-'; diff -U0 r0a r0b | grep -c '^+'","out":"3\n2\n","status":0,"err":false}
+{"cmd":"diff r1a r1b > /dev/null; echo st=$?; diff r1a r1b | grep -c '^<'; diff r1a r1b | grep -c '^>'","out":"st=1\n1\n3\n","status":0,"err":false}
+{"cmd":"diff -U0 r1a r1b | grep -c '^-'; diff -U0 r1a r1b | grep -c '^+'","out":"2\n4\n","status":0,"err":false}
+{"cmd":"diff r2a r2b > /dev/null; echo st=$?; diff r2a r2b | grep -c '^<'; diff r2a r2b | grep -c '^>'","out":"st=1\n1\n4\n","status":0,"err":false}
+{"cmd":"diff -U0 r2a r2b | grep -c '^-'; diff -U0 r2a r2b | grep -c '^+'","out":"2\n5\n","status":0,"err":false}
+{"cmd":"diff r3a r3b > /dev/null; echo st=$?; diff r3a r3b | grep -c '^<'; diff r3a r3b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r3a r3b | grep -c '^-'; diff -U0 r3a r3b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r4a r4b > /dev/null; echo st=$?; diff r4a r4b | grep -c '^<'; diff r4a r4b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r4a r4b | grep -c '^-'; diff -U0 r4a r4b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r5a r5b > /dev/null; echo st=$?; diff r5a r5b | grep -c '^<'; diff r5a r5b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r5a r5b | grep -c '^-'; diff -U0 r5a r5b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r6a r6b > /dev/null; echo st=$?; diff r6a r6b | grep -c '^<'; diff r6a r6b | grep -c '^>'","out":"st=1\n2\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r6a r6b | grep -c '^-'; diff -U0 r6a r6b | grep -c '^+'","out":"3\n3\n","status":0,"err":false}
+{"cmd":"diff r7a r7b > /dev/null; echo st=$?; diff r7a r7b | grep -c '^<'; diff r7a r7b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r7a r7b | grep -c '^-'; diff -U0 r7a r7b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r8a r8b > /dev/null; echo st=$?; diff r8a r8b | grep -c '^<'; diff r8a r8b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r8a r8b | grep -c '^-'; diff -U0 r8a r8b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r9a r9b > /dev/null; echo st=$?; diff r9a r9b | grep -c '^<'; diff r9a r9b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r9a r9b | grep -c '^-'; diff -U0 r9a r9b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r10a r10b > /dev/null; echo st=$?; diff r10a r10b | grep -c '^<'; diff r10a r10b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r10a r10b | grep -c '^-'; diff -U0 r10a r10b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r11a r11b > /dev/null; echo st=$?; diff r11a r11b | grep -c '^<'; diff r11a r11b | grep -c '^>'","out":"st=1\n1\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r11a r11b | grep -c '^-'; diff -U0 r11a r11b | grep -c '^+'","out":"2\n1\n","status":0,"err":false}
+{"cmd":"diff r12a r12b > /dev/null; echo st=$?; diff r12a r12b | grep -c '^<'; diff r12a r12b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r12a r12b | grep -c '^-'; diff -U0 r12a r12b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r13a r13b > /dev/null; echo st=$?; diff r13a r13b | grep -c '^<'; diff r13a r13b | grep -c '^>'","out":"st=1\n2\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r13a r13b | grep -c '^-'; diff -U0 r13a r13b | grep -c '^+'","out":"3\n1\n","status":0,"err":false}
+{"cmd":"diff r14a r14b > /dev/null; echo st=$?; diff r14a r14b | grep -c '^<'; diff r14a r14b | grep -c '^>'","out":"st=1\n2\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r14a r14b | grep -c '^-'; diff -U0 r14a r14b | grep -c '^+'","out":"3\n3\n","status":0,"err":false}
+{"cmd":"diff r15a r15b > /dev/null; echo st=$?; diff r15a r15b | grep -c '^<'; diff r15a r15b | grep -c '^>'","out":"st=1\n3\n3\n","status":0,"err":false}
+{"cmd":"diff -U0 r15a r15b | grep -c '^-'; diff -U0 r15a r15b | grep -c '^+'","out":"4\n4\n","status":0,"err":false}
+{"cmd":"diff r16a r16b > /dev/null; echo st=$?; diff r16a r16b | grep -c '^<'; diff r16a r16b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r16a r16b | grep -c '^-'; diff -U0 r16a r16b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r17a r17b > /dev/null; echo st=$?; diff r17a r17b | grep -c '^<'; diff r17a r17b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r17a r17b | grep -c '^-'; diff -U0 r17a r17b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r18a r18b > /dev/null; echo st=$?; diff r18a r18b | grep -c '^<'; diff r18a r18b | grep -c '^>'","out":"st=1\n4\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r18a r18b | grep -c '^-'; diff -U0 r18a r18b | grep -c '^+'","out":"5\n2\n","status":0,"err":false}
+{"cmd":"diff r19a r19b > /dev/null; echo st=$?; diff r19a r19b | grep -c '^<'; diff r19a r19b | grep -c '^>'","out":"st=1\n3\n3\n","status":0,"err":false}
+{"cmd":"diff -U0 r19a r19b | grep -c '^-'; diff -U0 r19a r19b | grep -c '^+'","out":"4\n4\n","status":0,"err":false}
+{"cmd":"diff r20a r20b > /dev/null; echo st=$?; diff r20a r20b | grep -c '^<'; diff r20a r20b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r20a r20b | grep -c '^-'; diff -U0 r20a r20b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r21a r21b > /dev/null; echo st=$?; diff r21a r21b | grep -c '^<'; diff r21a r21b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r21a r21b | grep -c '^-'; diff -U0 r21a r21b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r22a r22b > /dev/null; echo st=$?; diff r22a r22b | grep -c '^<'; diff r22a r22b | grep -c '^>'","out":"st=1\n3\n3\n","status":0,"err":false}
+{"cmd":"diff -U0 r22a r22b | grep -c '^-'; diff -U0 r22a r22b | grep -c '^+'","out":"4\n4\n","status":0,"err":false}
+{"cmd":"diff r23a r23b > /dev/null; echo st=$?; diff r23a r23b | grep -c '^<'; diff r23a r23b | grep -c '^>'","out":"st=1\n1\n3\n","status":0,"err":false}
+{"cmd":"diff -U0 r23a r23b | grep -c '^-'; diff -U0 r23a r23b | grep -c '^+'","out":"2\n4\n","status":0,"err":false}
+{"cmd":"diff r24a r24b > /dev/null; echo st=$?; diff r24a r24b | grep -c '^<'; diff r24a r24b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r24a r24b | grep -c '^-'; diff -U0 r24a r24b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r25a r25b > /dev/null; echo st=$?; diff r25a r25b | grep -c '^<'; diff r25a r25b | grep -c '^>'","out":"st=1\n3\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r25a r25b | grep -c '^-'; diff -U0 r25a r25b | grep -c '^+'","out":"4\n2\n","status":0,"err":false}
+{"cmd":"diff r26a r26b > /dev/null; echo st=$?; diff r26a r26b | grep -c '^<'; diff r26a r26b | grep -c '^>'","out":"st=1\n2\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r26a r26b | grep -c '^-'; diff -U0 r26a r26b | grep -c '^+'","out":"3\n2\n","status":0,"err":false}
+{"cmd":"diff r27a r27b > /dev/null; echo st=$?; diff r27a r27b | grep -c '^<'; diff r27a r27b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r27a r27b | grep -c '^-'; diff -U0 r27a r27b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r28a r28b > /dev/null; echo st=$?; diff r28a r28b | grep -c '^<'; diff r28a r28b | grep -c '^>'","out":"st=1\n1\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r28a r28b | grep -c '^-'; diff -U0 r28a r28b | grep -c '^+'","out":"2\n1\n","status":0,"err":false}
+{"cmd":"diff r29a r29b > /dev/null; echo st=$?; diff r29a r29b | grep -c '^<'; diff r29a r29b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r29a r29b | grep -c '^-'; diff -U0 r29a r29b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r30a r30b > /dev/null; echo st=$?; diff r30a r30b | grep -c '^<'; diff r30a r30b | grep -c '^>'","out":"st=1\n1\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r30a r30b | grep -c '^-'; diff -U0 r30a r30b | grep -c '^+'","out":"2\n1\n","status":0,"err":false}
+{"cmd":"diff r31a r31b > /dev/null; echo st=$?; diff r31a r31b | grep -c '^<'; diff r31a r31b | grep -c '^>'","out":"st=1\n3\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r31a r31b | grep -c '^-'; diff -U0 r31a r31b | grep -c '^+'","out":"4\n3\n","status":0,"err":false}
+{"cmd":"diff r32a r32b > /dev/null; echo st=$?; diff r32a r32b | grep -c '^<'; diff r32a r32b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r32a r32b | grep -c '^-'; diff -U0 r32a r32b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r33a r33b > /dev/null; echo st=$?; diff r33a r33b | grep -c '^<'; diff r33a r33b | grep -c '^>'","out":"st=1\n0\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r33a r33b | grep -c '^-'; diff -U0 r33a r33b | grep -c '^+'","out":"1\n3\n","status":0,"err":false}
+{"cmd":"diff r34a r34b > /dev/null; echo st=$?; diff r34a r34b | grep -c '^<'; diff r34a r34b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r34a r34b | grep -c '^-'; diff -U0 r34a r34b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r35a r35b > /dev/null; echo st=$?; diff r35a r35b | grep -c '^<'; diff r35a r35b | grep -c '^>'","out":"st=1\n3\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r35a r35b | grep -c '^-'; diff -U0 r35a r35b | grep -c '^+'","out":"4\n3\n","status":0,"err":false}
+{"cmd":"diff r36a r36b > /dev/null; echo st=$?; diff r36a r36b | grep -c '^<'; diff r36a r36b | grep -c '^>'","out":"st=1\n0\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r36a r36b | grep -c '^-'; diff -U0 r36a r36b | grep -c '^+'","out":"1\n3\n","status":0,"err":false}
+{"cmd":"diff r37a r37b > /dev/null; echo st=$?; diff r37a r37b | grep -c '^<'; diff r37a r37b | grep -c '^>'","out":"st=1\n3\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r37a r37b | grep -c '^-'; diff -U0 r37a r37b | grep -c '^+'","out":"4\n3\n","status":0,"err":false}
+{"cmd":"diff r38a r38b > /dev/null; echo st=$?; diff r38a r38b | grep -c '^<'; diff r38a r38b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r38a r38b | grep -c '^-'; diff -U0 r38a r38b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r39a r39b > /dev/null; echo st=$?; diff r39a r39b | grep -c '^<'; diff r39a r39b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r39a r39b | grep -c '^-'; diff -U0 r39a r39b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r40a r40b > /dev/null; echo st=$?; diff r40a r40b | grep -c '^<'; diff r40a r40b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r40a r40b | grep -c '^-'; diff -U0 r40a r40b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r41a r41b > /dev/null; echo st=$?; diff r41a r41b | grep -c '^<'; diff r41a r41b | grep -c '^>'","out":"st=1\n2\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r41a r41b | grep -c '^-'; diff -U0 r41a r41b | grep -c '^+'","out":"3\n2\n","status":0,"err":false}
+{"cmd":"diff r42a r42b > /dev/null; echo st=$?; diff r42a r42b | grep -c '^<'; diff r42a r42b | grep -c '^>'","out":"st=1\n2\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r42a r42b | grep -c '^-'; diff -U0 r42a r42b | grep -c '^+'","out":"3\n2\n","status":0,"err":false}
+{"cmd":"diff r43a r43b > /dev/null; echo st=$?; diff r43a r43b | grep -c '^<'; diff r43a r43b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r43a r43b | grep -c '^-'; diff -U0 r43a r43b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r44a r44b > /dev/null; echo st=$?; diff r44a r44b | grep -c '^<'; diff r44a r44b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r44a r44b | grep -c '^-'; diff -U0 r44a r44b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r45a r45b > /dev/null; echo st=$?; diff r45a r45b | grep -c '^<'; diff r45a r45b | grep -c '^>'","out":"st=1\n3\n3\n","status":0,"err":false}
+{"cmd":"diff -U0 r45a r45b | grep -c '^-'; diff -U0 r45a r45b | grep -c '^+'","out":"4\n4\n","status":0,"err":false}
+{"cmd":"diff r46a r46b > /dev/null; echo st=$?; diff r46a r46b | grep -c '^<'; diff r46a r46b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r46a r46b | grep -c '^-'; diff -U0 r46a r46b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r47a r47b > /dev/null; echo st=$?; diff r47a r47b | grep -c '^<'; diff r47a r47b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r47a r47b | grep -c '^-'; diff -U0 r47a r47b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r48a r48b > /dev/null; echo st=$?; diff r48a r48b | grep -c '^<'; diff r48a r48b | grep -c '^>'","out":"st=1\n1\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r48a r48b | grep -c '^-'; diff -U0 r48a r48b | grep -c '^+'","out":"2\n1\n","status":0,"err":false}
+{"cmd":"diff r49a r49b > /dev/null; echo st=$?; diff r49a r49b | grep -c '^<'; diff r49a r49b | grep -c '^>'","out":"st=1\n0\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r49a r49b | grep -c '^-'; diff -U0 r49a r49b | grep -c '^+'","out":"1\n3\n","status":0,"err":false}
+{"cmd":"diff r50a r50b > /dev/null; echo st=$?; diff r50a r50b | grep -c '^<'; diff r50a r50b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r50a r50b | grep -c '^-'; diff -U0 r50a r50b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r51a r51b > /dev/null; echo st=$?; diff r51a r51b | grep -c '^<'; diff r51a r51b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r51a r51b | grep -c '^-'; diff -U0 r51a r51b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r52a r52b > /dev/null; echo st=$?; diff r52a r52b | grep -c '^<'; diff r52a r52b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r52a r52b | grep -c '^-'; diff -U0 r52a r52b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r53a r53b > /dev/null; echo st=$?; diff r53a r53b | grep -c '^<'; diff r53a r53b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r53a r53b | grep -c '^-'; diff -U0 r53a r53b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r54a r54b > /dev/null; echo st=$?; diff r54a r54b | grep -c '^<'; diff r54a r54b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r54a r54b | grep -c '^-'; diff -U0 r54a r54b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r55a r55b > /dev/null; echo st=$?; diff r55a r55b | grep -c '^<'; diff r55a r55b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r55a r55b | grep -c '^-'; diff -U0 r55a r55b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r56a r56b > /dev/null; echo st=$?; diff r56a r56b | grep -c '^<'; diff r56a r56b | grep -c '^>'","out":"st=1\n0\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r56a r56b | grep -c '^-'; diff -U0 r56a r56b | grep -c '^+'","out":"1\n3\n","status":0,"err":false}
+{"cmd":"diff r57a r57b > /dev/null; echo st=$?; diff r57a r57b | grep -c '^<'; diff r57a r57b | grep -c '^>'","out":"st=1\n2\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r57a r57b | grep -c '^-'; diff -U0 r57a r57b | grep -c '^+'","out":"3\n1\n","status":0,"err":false}
+{"cmd":"diff r58a r58b > /dev/null; echo st=$?; diff r58a r58b | grep -c '^<'; diff r58a r58b | grep -c '^>'","out":"st=1\n0\n4\n","status":0,"err":false}
+{"cmd":"diff -U0 r58a r58b | grep -c '^-'; diff -U0 r58a r58b | grep -c '^+'","out":"1\n5\n","status":0,"err":false}
+{"cmd":"diff r59a r59b > /dev/null; echo st=$?; diff r59a r59b | grep -c '^<'; diff r59a r59b | grep -c '^>'","out":"st=0\n0\n0\n","status":1,"err":false}
+{"cmd":"diff -U0 r59a r59b | grep -c '^-'; diff -U0 r59a r59b | grep -c '^+'","out":"0\n0\n","status":1,"err":false}
+{"cmd":"diff r60a r60b > /dev/null; echo st=$?; diff r60a r60b | grep -c '^<'; diff r60a r60b | grep -c '^>'","out":"st=1\n0\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r60a r60b | grep -c '^-'; diff -U0 r60a r60b | grep -c '^+'","out":"1\n2\n","status":0,"err":false}
+{"cmd":"diff r61a r61b > /dev/null; echo st=$?; diff r61a r61b | grep -c '^<'; diff r61a r61b | grep -c '^>'","out":"st=1\n4\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r61a r61b | grep -c '^-'; diff -U0 r61a r61b | grep -c '^+'","out":"5\n2\n","status":0,"err":false}
+{"cmd":"diff r62a r62b > /dev/null; echo st=$?; diff r62a r62b | grep -c '^<'; diff r62a r62b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r62a r62b | grep -c '^-'; diff -U0 r62a r62b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r63a r63b > /dev/null; echo st=$?; diff r63a r63b | grep -c '^<'; diff r63a r63b | grep -c '^>'","out":"st=1\n4\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r63a r63b | grep -c '^-'; diff -U0 r63a r63b | grep -c '^+'","out":"5\n2\n","status":0,"err":false}
+{"cmd":"diff r64a r64b > /dev/null; echo st=$?; diff r64a r64b | grep -c '^<'; diff r64a r64b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r64a r64b | grep -c '^-'; diff -U0 r64a r64b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r65a r65b > /dev/null; echo st=$?; diff r65a r65b | grep -c '^<'; diff r65a r65b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r65a r65b | grep -c '^-'; diff -U0 r65a r65b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r66a r66b > /dev/null; echo st=$?; diff r66a r66b | grep -c '^<'; diff r66a r66b | grep -c '^>'","out":"st=1\n1\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r66a r66b | grep -c '^-'; diff -U0 r66a r66b | grep -c '^+'","out":"2\n3\n","status":0,"err":false}
+{"cmd":"diff r67a r67b > /dev/null; echo st=$?; diff r67a r67b | grep -c '^<'; diff r67a r67b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r67a r67b | grep -c '^-'; diff -U0 r67a r67b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r68a r68b > /dev/null; echo st=$?; diff r68a r68b | grep -c '^<'; diff r68a r68b | grep -c '^>'","out":"st=1\n1\n1\n","status":0,"err":false}
+{"cmd":"diff -U0 r68a r68b | grep -c '^-'; diff -U0 r68a r68b | grep -c '^+'","out":"2\n2\n","status":0,"err":false}
+{"cmd":"diff r69a r69b > /dev/null; echo st=$?; diff r69a r69b | grep -c '^<'; diff r69a r69b | grep -c '^>'","out":"st=1\n2\n2\n","status":0,"err":false}
+{"cmd":"diff -U0 r69a r69b | grep -c '^-'; diff -U0 r69a r69b | grep -c '^+'","out":"3\n3\n","status":0,"err":false}

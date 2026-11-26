@@ -1,0 +1,33 @@
+{"cmd":"cmp a a2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"cmp a b; echo \"st=$?\"","out":"a b differ: char 6, line 2\nst=1\n","status":0,"err":false}
+{"cmd":"cmp a short; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"cmp short a; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"cmp a empty; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"cmp empty a; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"cmp empty empty; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"cmp -s a b; echo \"st=$?\"","out":"st=1\n","status":0,"err":false}
+{"cmd":"cmp -s a a2; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"cmp -s a short; echo \"st=$?\"","out":"st=1\n","status":0,"err":false}
+{"cmd":"cmp -l a b; echo \"st=$?\"","out":"6 145 170\nst=1\n","status":0,"err":false}
+{"cmd":"cmp -l a c; echo \"st=$?\"","out":"1 141 170\nst=1\n","status":0,"err":true}
+{"cmd":"cmp -l a short; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"cmp -l bin1 bin2; echo \"st=$?\"","out":"2   1   2\n3 377 376\nst=1\n","status":0,"err":false}
+{"cmd":"cmp bin1 bin2; echo \"st=$?\"","out":"bin1 bin2 differ: char 2, line 1\nst=1\n","status":0,"err":false}
+{"cmd":"cmp -b a b; echo \"st=$?\"","out":"a b differ: byte 6, line 2 is 145 e 170 x\nst=1\n","status":0,"err":false}
+{"cmd":"cmp -n 5 a b; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"cmp -n 6 a b; echo \"st=$?\"","out":"a b differ: char 6, line 2\nst=1\n","status":0,"err":false}
+{"cmd":"cmp -i 4 a b; echo \"st=$?\"","out":"a b differ: char 2, line 1\nst=1\n","status":0,"err":false}
+{"cmd":"cmp -i 1:1 a c; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"cmp a b 4 4; echo \"st=$?\"","out":"a b differ: char 2, line 1\nst=1\n","status":0,"err":false}
+{"cmd":"cmp a c 1 1; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"cmp - a < a; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"cmp a - < b; echo \"st=$?\"","out":"a - differ: char 6, line 2\nst=1\n","status":0,"err":false}
+{"cmd":"cmp a < b; echo \"st=$?\"","out":"a - differ: char 6, line 2\nst=1\n","status":0,"err":false}
+{"cmd":"cmp a missing; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"cmp missing a; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"cmp; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"cmp -l -s a b; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"cmp a b c d e; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"cmp -x a b; echo \"st=$?\"","out":"st=2\n","status":0,"err":true}
+{"cmd":"seq 1 10000 > big1; seq 1 10000 | sed 's/^9999$/X/' > big2; cmp big1 big2; echo \"st=$?\"","out":"big1 big2 differ: char 48884, line 9999\nst=1\n","status":0,"err":false}
+{"cmd":"seq 1 10000 > big1; cmp big1 big1; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}

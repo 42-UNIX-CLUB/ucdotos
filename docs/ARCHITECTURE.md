@@ -509,6 +509,13 @@ fcntl inttypes libgen limits locale math poll signal stdio stdlib string strings
 time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait}.h`.
 `stddef.h`, `stdint.h`, `stdarg.h`, `stdbool.h` come from clang.
 
+- POSIX regular expressions (`libc/src/regex.c`, `regex.h`: `regcomp`, `regexec`,
+  `regerror`, `regfree`, basic and extended syntax, leftmost-longest, the GNU escapes
+  `\w \s \b \< \>` and `\| \+ \?` in basic syntax, `REG_STARTEND`). A pattern compiles to a
+  small program. Without back-references a Pike VM runs it in time proportional to
+  program size times text length; with back-references a backtracking search runs with a
+  budget of 20 million steps, then returns `REG_ESPACE`. It yields to the kernel every
+  262,144 steps. `fnmatch()` is in `libc/src/fnmatch.c`. grep still has its own matcher.
 - `lib/` is shared with the kernel: `string.c`, `fmt.c` (`vsnprintf` with exact `%e`/`%g`).
   `memcpy`/`memmove`/`memset`: the kernel uses `mem.s` (single bulk-memory instructions);
   the libc uses `umem.s` (the same above 16 bytes, plain loads and stores up to 16, because

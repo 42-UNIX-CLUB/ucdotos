@@ -1,0 +1,22 @@
+OD(1)                     UC.OS Manual                     OD(1)
+
+NAME
+       od - dump bytes in octal, hex and other formats
+
+SYNOPSIS
+       od [-A d|o|x|n] [-t TYPE]... [-abcdilosvx] [-j SKIP]
+          [-N COUNT] [-w[N]] [file...]
+
+DESCRIPTION
+       Dump bytes. TYPE: a (named characters), c (characters
+       and escapes), d, o, u, x followed by a size 1 2 4 8 or
+       C S I L. Several types print one line each, aligned as
+       GNU od aligns them. A z after a type adds the printable
+       characters. f4 and f8 print floating point numbers with
+       the fewest digits that read back exactly. Repeated
+       lines become "*" unless -v.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                  OD(1)

@@ -1,0 +1,78 @@
+apple
+		banana
+		cherry
+date
+	fig
+	banana
+	cherry
+fig
+apple
+	banana
+	cherry
+date
+apple
+date
+	fig
+banana
+cherry
+fig
+apple
+date
+apple
+banana
+cherry
+date
+	banana
+	cherry
+	fig
+apple
+::banana
+::cherry
+date
+:fig
+apple
+		banana
+		cherry
+date
+	fig
+2	1	2	total
+banana
+cherry
+2	1	2	total
+		apple
+		banana
+		cherry
+		date
+apple
+		banana
+		cherry
+date
+	fig
+apple
+banana
+cherry
+date
+	x
+	y
+	apple
+b
+a
+	banana
+	cherry
+	date
+st=1
+	apple
+b
+a
+	banana
+	cherry
+	date
+st=0
+st=1
+st=1
+st=1
+st=1
+0000000   a   p   p   l   e  \n   b   a   n   a   n   a  \n   c   h   e
+0000020   r   r   y  \n   d   a   t   e  \n  \0  \t   b   a   n   a   n
+0000040   a  \n   c   h   e   r   r   y  \n   f   i   g  \n  \0
+51
