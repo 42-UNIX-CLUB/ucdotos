@@ -275,8 +275,9 @@ The host tells the kernel how long a process ran each time it parks
 - Each process has its own linear memory, exported as `memory`. Its `malloc`
   (`libc/src/malloc.c`) is the same allocator and grows its own memory with no system
   call. A request above 0x7fffffff bytes (PTRDIFF_MAX, glibc's limit too), a `calloc` whose
-  product does not fit, or memory that cannot grow, returns NULL with `errno` ENOMEM. The program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack
-  overflow traps instead of corrupting data.
+  product does not fit, or memory that cannot grow, returns NULL with `errno` ENOMEM. The
+  program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack overflow
+  traps instead of corrupting data.
 - **User memory access.** The kernel cannot address another instance's memory directly.
   Per process, the host instantiates `SHIM`, a module that imports two memories (kernel
   `k`, process `p`) and exports `i(kdst, usrc, len)`, `o(udst, ksrc, len)` and `s()`
