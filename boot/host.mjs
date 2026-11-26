@@ -94,7 +94,9 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   }
   const host = {
     log(p, n) { log(dec.decode(mem().slice(p, p + n), { stream: true })); },
-    now: () => performance.now(),
+    // Passed bound, not wrapped in an arrow function: Chromium then calls it from wasm about
+    // 2.5 times faster (120 ns instead of 330 ns), which is most of the cost of clock_gettime.
+    now: performance.now.bind(performance),
     epoch: () => Date.now(),
     random() { crypto.getRandomValues(rnd); return rnd[0]; },
     memory: () => deviceMemory,
@@ -191,6 +193,11 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     memory: k.memory,
     // Screen: the kernel owns the pixels; the host only shows them.
     frame() { return { addr: k.fb_addr(), width: k.fb_width(), height: k.fb_height() }; },
+    // The rectangle written since the last call, { x, y, w, h } (w = 0: nothing), and a new one starts.
+    damage() {
+      const d = new Uint32Array(k.memory.buffer, k.fb_damage(), 4);
+      return d[0] > d[2] ? { x: 0, y: 0, w: 0, h: 0 } : { x: d[0], y: d[1], w: d[2] - d[0] + 1, h: d[3] - d[1] + 1 };
+    },
     resize(width, height) { k.fb_resize(width, height); },
     // Input: Linux evdev triples (type, code, value); a batch ends with (0, 0, 0).
     input(type, code, value) { k.input_event(type, code, value); },

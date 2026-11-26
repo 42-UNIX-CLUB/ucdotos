@@ -30,7 +30,22 @@ async function main() {
     return b;
   };
   const base = params.get('base') || '.';
-  const [kernel, initrd] = await Promise.all([get(`${base}/kernel.wasm`), get(`${base}/initrd.tar`)]);
+  // Boot phases in milliseconds since navigation, for the developer console and tools/bench/boot.mjs.
+  const marks = window.ucosBoot = { script: performance.now() };
+  // The image: initrd.tar.gz (about half the bytes; unpacked with the browser's own gzip
+  // decoder) when the folder has one, else the plain initrd.tar. A server that already sends
+  // the .gz with Content-Encoding: gzip hands over the tar itself, so look at the bytes.
+  const image = async () => {
+    const r = await fetch(`${base}/initrd.tar.gz`);
+    if (!r.ok) return get(`${base}/initrd.tar`);
+    let b = new Uint8Array(await r.arrayBuffer());
+    const packed = b.length;
+    if (b[0] === 0x1f && b[1] === 0x8b) b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+    say(`  loaded ${base}/initrd.tar.gz (${(packed / 1024).toFixed(0)} KiB, ${(b.length / 1024).toFixed(0)} KiB unpacked)\n`);
+    return b;
+  };
+  const [kernel, initrd] = await Promise.all([get(`${base}/kernel.wasm`), image()]);
+  marks.fetched = performance.now();
 
   let dirty = false, frames = 0;
   const s = size();
@@ -45,16 +60,25 @@ async function main() {
     debug: params.has('debug'),
   });
   window.ucos = sys; // for the developer console
+  marks.kernelUp = performance.now();
 
   // ---- screen ----
+  // Only the rectangle the kernel saw written since the last frame is copied to the canvas.
+  // The ImageData is a view of kernel memory, rebuilt when the buffer moves or grows.
+  let img = null;
+  const stats = params.has('stats') ? (window.ucosStats = { frames: 0, ms: 0, maxMs: 0, pixels: 0 }) : null;
   function present() {
     if (dirty) {
-      dirty = false;
       const f = sys.frame();
       if (f.addr && f.width === canvas.width && f.height === canvas.height) {
-        const px = new Uint8ClampedArray(sys.memory.buffer, f.addr, f.width * f.height * 4);
-        ctx.putImageData(new ImageData(px, f.width, f.height), 0, 0);
-        if (++frames === 1) logEl.classList.add('hidden'); // first frame: the desktop takes over from the boot log
+        dirty = false;
+        const t0 = stats && performance.now();
+        const d = sys.damage();
+        if (!img || img.data.buffer !== sys.memory.buffer || img.data.byteOffset !== f.addr || img.width !== f.width || img.height !== f.height)
+          img = new ImageData(new Uint8ClampedArray(sys.memory.buffer, f.addr, f.width * f.height * 4), f.width, f.height);
+        if (d.w) ctx.putImageData(img, 0, 0, d.x, d.y, d.w, d.h);
+        if (stats) { const ms = performance.now() - t0; stats.frames++; stats.ms += ms; if (ms > stats.maxMs) stats.maxMs = ms; stats.pixels += d.w * d.h; }
+        if (++frames === 1) { logEl.classList.add('hidden'); marks.firstFrame = performance.now(); } // the desktop takes over from the boot log
       }
     }
     requestAnimationFrame(present);

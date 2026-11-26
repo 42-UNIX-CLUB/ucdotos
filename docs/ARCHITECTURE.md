@@ -17,13 +17,14 @@ program a separate WebAssembly module.
 ```
 +--------------------------------------------------------------------------------+
 | page: boot/index.html + boot/page.mjs                                          |
-|   a <canvas>, key/mouse listeners, a boot log; fetches kernel.wasm, initrd.tar |
+|   a <canvas>, key/mouse listeners, a boot log; fetches kernel.wasm and the     |
+|   image (initrd.tar.gz, unpacked with DecompressionStream, else initrd.tar)    |
 +--------------------------------------------------------------------------------+
 | host: boot/host.mjs  ("firmware")                                              |
 |   instantiates the kernel; instantiates programs when the kernel asks;         |
 |   parks and resumes program stacks (JSPI); clock, random, console log          |
 +--------------------------------------------------------------------------------+
-| kernel.wasm (kernel/*.c, about 37 KB)            one instance, its own memory   |
+| kernel.wasm (kernel/*.c, about 42 KB)            one instance, its own memory   |
 |   processes, fds, ramfs, pipes, ptys, unix sockets, /dev/fb0, /dev/input/event0 |
 +----------------+----------------+----------------+----------------+------------+
 | init (pid 1)   | wm             | bar, launcher  | term           | sh, tools  |
@@ -60,7 +61,7 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `epoch()` | milliseconds since 1970 |
    | `random()` | 32 random bits |
    | `memory()` | bytes of memory the device reports (default 4 GiB) |
-   | `fb_dirty()` | the framebuffer changed; show it on the next animation frame |
+   | `fb_dirty()` | the framebuffer was written since the host last took the damage box (`fb_damage`); show it on the next animation frame. Called once per frame, not per write |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
    kernel export `boot_alloc`, calls `fb_resize(w, h)` if there is a screen, then
@@ -69,12 +70,16 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
 Kernel command line: `init=/path/to/program -- arg1 arg2`. Default init is `/bin/init`.
 
 Kernel exports the host uses: `kmain boot_alloc syscall_pid proc_attach proc_state
-proc_crashed proc_account block_timeout console_input input_event fb_resize fb_addr
-fb_width fb_height memory __indirect_function_table`. (`set_current` still exists and is
+proc_crashed proc_account proc_resumed block_timeout console_input input_event fb_resize
+fb_addr fb_damage fb_width fb_height memory __indirect_function_table`. (`set_current` still exists and is
 harmless; the kernel no longer depends on it.)
 
 The object `boot()` returns: `k` (kernel exports), `memory`, `procs`, `frame()`,
-`resize(w, h)`, `input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`.
+`damage()` (the rectangle written since the last call), `resize(w, h)`,
+`input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`.
+
+The host import `now` is `performance.now.bind(performance)`, not an arrow function:
+Chromium calls a bound function from wasm about 2.5 times faster (PERFORMANCE.md).
 
 `checkSupport()` reports what the browser lacks: JSPI (`WebAssembly.Suspending`) and
 multi-memory. Browser floor: Chrome/Edge 137+, Firefox 153+, Safari 27+ (Safari is
@@ -108,9 +113,13 @@ trampoline:   k.sys(pid, nr, a, b, c, d, e, f)        pid is an immutable global
 kernel:       syscall_pid(pid, nr, ...)               kernel/syscall.c: sets `cur`, dispatches
 ```
 
-- No JavaScript runs on this path. Measured cost of the cheapest call (`getppid`): about
-  11 to 13 ns warm under Node and 14 to 18 ns in Chromium, 100 to 400 ns for the first cold
-  calls. See PERFORMANCE.md.
+- No JavaScript runs on this path. Measured cost of the cheapest call (`getppid`): see
+  PERFORMANCE.md section 1 (about 11 to 12 ns warm under Node, 14 to 16 ns in Chromium at
+  moderate machine load, 100 to 400 ns for the first cold calls). About a third is the call, a third the
+  trampoline hop, a third kernel work.
+- `syscall_pid` dispatches the four hottest calls (`getppid`, `getpid`, `read`, `write`)
+  itself and has no stack frame; every other call goes to `syscall_slow`. Keep large
+  locals out of `syscall_pid`: one big buffer in any inlined case gives every call a frame.
 - The pid comes from the trampoline, not from the program, so a program cannot
   impersonate another process, and the kernel never depends on the order in which the
   host resumes stacks. (An earlier design set `cur` from JavaScript on resume; two
@@ -198,7 +207,8 @@ marks it and calls `host.wake`, and the resumed `block()` throws.
 ### Time slicing
 
 Nothing can interrupt running WebAssembly, so the kernel takes the CPU back at system
-call boundaries. Every 256th call it reads the clock (reading it costs about 400 ns in Chrome, so not more often); if the process has run longer than
+call boundaries. Every 256th call (counted by the process's system call counter, `nsys`)
+it reads the clock (about 120 ns in Chrome, 60 ns under Node); if the process has run longer than
 `SLICE_MS` (8 ms, `kernel/kernel.h`) since it last blocked, the call returns `block(0)`
 before doing anything. The host resumes the process after one turn of the event loop,
 using a `MessageChannel` task (not `setTimeout(0)`, which browsers clamp to 4 ms). On
@@ -359,11 +369,14 @@ socket keeps its inode alive: unlinking the path while the socket is open is saf
 
 **Framebuffer.** `/dev/fb0` is `width * height * 4` bytes in kernel memory, bytes in
 order R, G, B, A (what a canvas `ImageData` wants). `ioctl(fd, 0x4600, ...)` is Linux's
-`FBIOGET_VSCREENINFO`. Write with `lseek` + `write` or `pwrite64`; every write calls
-`host.fb_dirty()`, and the page copies the whole buffer to the canvas on the next
-animation frame. The page sizes the framebuffer to the window times the device pixel
-ratio (capped at 2; `?scale=1` forces 1). `lseek` works on `/dev/fb0` (`SEEK_END` counts
-from 0, because the device node has no size).
+`FBIOGET_VSCREENINFO`. Write with `lseek` + `write` or `pwrite64`. The kernel keeps the
+bounding box of every write since the last frame (rows from the offset, columns too when a
+write stays within one row) and calls `host.fb_dirty()` on the first write after the host
+took the box. On the next animation frame the page takes the box with `fb_damage()` and
+copies only that rectangle to the canvas; a resize marks the whole new buffer. The page
+sizes the framebuffer to the window times the device pixel ratio (capped at 2; `?scale=1`
+forces 1). `lseek` works on `/dev/fb0` (`SEEK_END` counts from 0, because the device node
+has no size).
 
 **Input.** `/dev/input/event0` delivers Linux evdev records
 `{ s64 sec; s64 usec; u16 type; u16 code; s32 value; }` (24 bytes):
@@ -480,8 +493,11 @@ fcntl inttypes libgen limits locale math poll signal stdio stdlib string strings
 time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait}.h`.
 `stddef.h`, `stdint.h`, `stdarg.h`, `stdbool.h` come from clang.
 
-- `lib/` is shared with the kernel: `string.c`, `fmt.c` (`vsnprintf` with exact `%e`/`%g`),
-  `mem.s` (`memcpy`/`memmove`/`memset` as single bulk-memory instructions).
+- `lib/` is shared with the kernel: `string.c`, `fmt.c` (`vsnprintf` with exact `%e`/`%g`).
+  `memcpy`/`memmove`/`memset`: the kernel uses `mem.s` (single bulk-memory instructions);
+  the libc uses `umem.s` (the same above 16 bytes, plain loads and stores up to 16, because
+  V8 turns a variable-length `memory.copy` into a call out of the generated code; the
+  kernel's copies are larger, and there the bigger functions measured slower).
 - stdio with buffering, the `scanf` family, `getline`, `popen`/`system` (they spawn
   `/bin/sh -c`), a full `math.h` written here (within 1 to 3 ulp of glibc), `qsort`,
   `strtod`, `getopt`, termios wrappers, `select` on top of `ppoll`.

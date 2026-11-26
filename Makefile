@@ -37,7 +37,9 @@ $(B)/kernel.wasm: $(KSRC) kernel/kernel.h abi/abi.h
 $(B)/obj/%.o: %.c $(LIBC_HDR)
 	@mkdir -p $(dir $@)
 	@$(CC) $(UCFLAGS) -c -o $@ $<
-$(B)/obj/lib/mem.o: lib/mem.s
+# The libc's memcpy/memmove/memset come from lib/umem.s (the kernel links lib/mem.s). The
+# object keeps the name mem.o so that it replaces the old member in an existing libc.a.
+$(B)/obj/lib/mem.o: lib/umem.s
 	@mkdir -p $(dir $@)
 	@$(CC) -c -o $@ $<
 $(B)/obj/crt0_2.o: libc/crt/crt0.c $(LIBC_HDR)
@@ -105,9 +107,15 @@ test: all
 
 .PHONY: all test
 
+# The image compressed for the page (it unpacks it with the browser's DecompressionStream).
+# The Node tools keep reading the plain initrd.tar.
+$(B)/initrd.tar.gz: $(B)/initrd.tar
+	@echo "  GZIP  initrd.tar.gz"
+	@gzip -9 -n -c $< > $@
+
 # A directory ready to be served by any static web server.
-dist: all
+dist: all $(B)/initrd.tar.gz
 	@mkdir -p $(B)/dist
-	@cp boot/index.html boot/page.mjs boot/host.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/dist/
+	@cp boot/index.html boot/page.mjs boot/host.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
 	@echo "  DIST  $(B)/dist"
 .PHONY: dist

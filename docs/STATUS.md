@@ -5,7 +5,8 @@ update it whenever you finish, break or start something.
 
 ## 1. What works today
 
-One image (`make B=... dist`, 48 programs, about 7.3 MB of which 5.5 MB is fonts) boots
+One image (`make B=... dist`, 50 programs, 7.8 MB of which 5.8 MB is fonts; 3.8 MB as the
+`initrd.tar.gz` the page loads when it is there) boots
 in Chromium to a tiling desktop.
 
 | Area | State | Evidence |
@@ -36,11 +37,12 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 | ktest's preemption check is sensitive to load | "a spinning process is preempted" failed after 5 fuzz runs out of about 120 (the parent slept 150 to 257 ms instead of about 40), always while several fuzz runs shared the machine; the same seeds passed when rerun. Cause not proven. |
 | A pure CPU loop freezes the tab | Time slicing only works at system calls. Shell loops are covered (the shell calls `intr()` in every loop iteration, and Ctrl-C stops them). A C program that computes without calling the kernel still freezes everything. |
 | Ctrl-C in a non-interactive script is untested | The code path exists (exit status 130); the test runners cannot send Ctrl-C to it. Also untested: Ctrl-C while the `read` builtin waits. |
-| Speed figures in a browser are noisier and higher than under Node | Reading the clock costs about 400 ns in Chrome and it ticks every 0.1 ms. sysbench reports the resolution, shows `n/a` for the cold column there, and times rows on the process CPU clock. Run-to-run spread in Chromium is about 20%. See PERFORMANCE.md. |
+| Speed figures in a browser are noisier and higher than under Node | Reading the clock costs about 120 ns in Chrome (330 ns before the performance pass) and it ticks every 0.1 ms. sysbench reports the resolution, shows `n/a` for the cold column there, and times rows on the process CPU clock. Run-to-run spread in Chromium is about 20%. See PERFORMANCE.md. |
 | Doom has no game data in the image | The launcher entry starts it and it exits with "No IWAD file was found". Waits for an owner decision. |
 | Doom has no sound | No audio device in the kernel. |
-| Process start is slow | About 71 to 85 microseconds warm under Node (120 to 220 in Chromium), over 1 ms cold: every start instantiates a module through the browser. |
-| `clock_gettime` costs 100 to 160 ns under Node and 350 to 450 ns in Chromium | The time comes from JavaScript. |
+| Process start is slow | About 72 to 80 microseconds warm under Node (125 to 190 in Chromium), over 1 ms cold: every start instantiates a module and allocates its memory through the browser (PERFORMANCE.md section 4; the ideas tried there did not help in Chromium). |
+| `clock_gettime` costs about 90 to 100 ns under Node and 190 to 220 ns in Chromium | The time comes from JavaScript (it was 100 to 160 and 350 to 450 ns before the performance pass). |
+| `malloc`/`free` are slow under churn | About 55 times slower than glibc in `ubench` (first-fit list, every `free` walks it). See PERFORMANCE.md section 3. |
 | The login message wraps in a 60-column terminal | `rootfs/etc/motd` lines are up to 68 columns. |
 | Nothing persists | A reload starts from the image. |
 | Times are UTC | No time zone data. |
@@ -66,7 +68,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 - `/proc` contents, users and permissions, time zones, a clipboard.
 - The minishell port (waiting for the repo from an owner).
 - Running Linux programs: no libc port for recompiling them, no binary emulation.
-- A compressed image for hosting (the 7.3 MB initrd gzips to roughly half; not wired in).
+- Unpacking the compressed image while it downloads (the page unpacks `initrd.tar.gz` after the download; whether to ship the `.gz` at all is open, see PERFORMANCE.md section 6).
 
 ## 4. Waiting for an owner
 
