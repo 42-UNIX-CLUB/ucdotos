@@ -144,6 +144,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `docs/PERFORMANCE.md` | you measure or quote speed |
 | `docs/WORKER-PROCESSES.md` | you work on running processes off the main thread (study and prototypes; no design chosen) |
 | `docs/BRAND.md` | you write any user-visible text or touch the look: palettes, fonts, voice, logo rules |
+| `docs/CC.md` | you work on the C compiler and linker inside UC.OS (`bin/cc/`, `bin/ld/`) |
 | `CONTRIBUTING.md` | you are asked to commit, name a branch or open a pull request |
 
 Keep these files true. If you change how something works, change the matching file in

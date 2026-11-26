@@ -120,6 +120,9 @@ Component suites:
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs a WAD (not in git) | play, demo, window tests pass |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
+| C compiler and linker | `bin/cc/tests/` | `sh bin/cc/tests/build.sh B` once, then `sh bin/cc/tests/run.sh B` | 36: 18 programs compared with clang, 3 mixed links, 15 diagnostics (2026-11-26) |
+| cc random expressions | `bin/cc/tests/fuzz.py`, `fuzz.sh` | `sh bin/cc/tests/fuzz.sh B SEED COUNT` (keep runs under a minute) | 6,750 expressions, 0 differences |
+| programs built by cc, in the OS | `bin/cc/tests/os.sh`, `buildall.sh` | `sh bin/cc/tests/os.sh B "prog ..."` | see STATUS.md |
 
 Gap to know about: the vi/htop/fetch test scripts are not in the repository.
 
@@ -129,6 +132,18 @@ Gap to know about: the vi/htop/fetch test scripts are not in the repository.
 (`ktest child-NAME`). Add a child mode at the top if you need a second process, add
 `CHECK("what", condition)` lines, keep each check independent of timing where you can.
 It must pass when started directly as pid 1.
+
+### Working on the C compiler (`bin/cc/`, `bin/ld/`)
+
+`sh bin/cc/tests/build.sh build-NAME` builds `cc` and `ld` with the host compiler (with
+AddressSanitizer and UBSan; set `ASAN_OPTIONS=detect_leaks=0`, the compiler never frees
+memory on purpose) into `build-NAME/native/`, plus `build-NAME/sysroot/`, a copy of what
+the image ships under `/usr`. Then `run.sh` builds every program in `bin/cc/tests/c/`
+with clang and with cc against the same libc, runs both under `bin/cc/tests/run.mjs` (a
+small stand-in for the kernel: write, read, files, exit, clock) and compares output and
+exit status; `mix/` links half clang, half cc objects; `err/` checks diagnostics. Pass
+`wasm-ld` as the second argument to link cc's objects with wasm-ld instead of our ld.
+`cc -S` writes a readable listing of the generated code.
 
 ## 5. Common tasks
 

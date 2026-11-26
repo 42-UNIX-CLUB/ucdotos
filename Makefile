@@ -75,8 +75,24 @@ endef
 $(foreach p,$(PROG_SINGLE),$(eval $(call SINGLE_RULE,$(p))))
 $(foreach p,$(PROG_DIRS),$(eval $(call DIR_RULE,$(p))))
 
+# What the C compiler needs inside the image, when cc is one of the programs: the libc
+# headers in /usr/include (sys/syscall.h finds abi.h as <ucos/abi.h> there), libui and
+# libgfx headers next to them, cc's own freestanding headers in /usr/lib/cc/include,
+# and the start files and libraries in /usr/lib.
+CC_SYSROOT := $(if $(filter cc,$(PROGS)),$(B)/cc-sysroot.stamp)
+$(B)/cc-sysroot.stamp: $(LIBC_HDR) $(wildcard bin/cc/include/*.h libui/*.h libgfx/*.h) $(B)/libc.a $(B)/libui.a $(B)/libgfx.a $(CRT)
+	@mkdir -p $(B)/root/usr/include/sys $(B)/root/usr/include/ucos $(B)/root/usr/lib/cc/include
+	@cp libc/include/*.h libui/*.h libgfx/*.h $(B)/root/usr/include/
+	@cp libc/include/sys/*.h $(B)/root/usr/include/sys/
+	@sed 's|"../../../abi/abi.h"|<ucos/abi.h>|' libc/include/sys/syscall.h > $(B)/root/usr/include/sys/syscall.h
+	@cp abi/abi.h $(B)/root/usr/include/ucos/abi.h
+	@cp bin/cc/include/*.h $(B)/root/usr/lib/cc/include/
+	@cp $(B)/libc.a $(B)/libui.a $(B)/libgfx.a $(CRT) $(B)/root/usr/lib/
+	@echo "  SYSROOT /usr/include /usr/lib"
+	@touch $@
+
 # initrd: rootfs/ plus the programs, as a plain ustar archive
-$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null)
+$(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT)
 	@mkdir -p $(B)/root/bin
 	@cp -r rootfs/. $(B)/root/
 	@cp $(addprefix $(B)/bin/,$(PROGS)) $(B)/root/bin/
