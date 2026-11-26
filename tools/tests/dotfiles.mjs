@@ -71,7 +71,11 @@ export default async (t) => {
   await run(t, `printf '[clock]\\nformat = CLOCK %%Y\\n[stats]\\nshow = procs\\n' > ${H}/bar/bar.uconf`);
   // a theme of our own: the wallpaper colour, through a theme change
   await run(t, `printf '[colors]\\ndesktop = #ff00ff\\n' > /usr/share/themes/mine.uconf`);
-  await t.tap('KeyT', { alt: true }); // deck -> mine (themes cycle in name order: brand, deck, mine)
+  for (let i = 0; i < 64 && !/wm: theme mine/.test(t.log); i++) { // $mod t cycles every theme in name order
+    const n = (t.log.match(/wm: theme \S+/g) || []).length;
+    await t.tap('KeyT', { alt: true });
+    await until(t, () => (t.log.match(/wm: theme \S+/g) || []).length > n, 2000);
+  }
   await t.sleep(1200);
   t.shot('dot3-theme-mine-bar');
   check('a new theme file: its desktop colour shows', same(t.pixel(20, 300), MAGENTA), hex(t.pixel(20, 300)));

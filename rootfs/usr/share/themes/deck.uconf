@@ -8,6 +8,9 @@
 # The format is .uconf, like every dotfile here: [sections], blocks in { },
 # key = value, and "# " starts a comment. Colours are #rrggbb.
 
+[theme]
+description = gruvbox   # what fetch shows on its Theme line
+
 [colors]
 bg      = #282828   # window background (the terminal paints this)
 fg      = #ebdbb2   # text
@@ -15,6 +18,7 @@ accent  = #fe8019   # the orange: current workspace, highlights
 dim     = #928374   # secondary text: labels, comments
 desktop = #1d2021   # the wallpaper colour behind everything
 panel   = #3c3836   # raised surfaces: launcher background
+surface = #504945   # a second raised shade (fetch, htop and vi use it)
 bar {
     bg = #3c3836
     fg = #ebdbb2
@@ -46,6 +50,7 @@ bright {
 }
 
 [font]
+name    = Fira Code     # what fetch shows on its Font line
 regular = FiraCode-Regular.ttf   # a file in /usr/share/fonts, or a full path
 bold    = FiraCode-Bold.ttf
 size    = 15                     # pixels

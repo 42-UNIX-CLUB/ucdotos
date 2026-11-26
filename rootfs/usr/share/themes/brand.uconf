@@ -7,6 +7,9 @@
 #
 # The format is .uconf: see deck.uconf next to this file.
 
+[theme]
+description = 42 brand
+
 [colors]
 bg      = #0E362E   # dark green
 fg      = #EDE6C5   # cream
@@ -14,6 +17,7 @@ accent  = #FE7700   # orange
 dim     = #ADC787   # sage
 desktop = #0A2A23   # a deeper green for the wallpaper, derived from bg
 panel   = #174A3E
+surface = #23604F
 bar {
     bg = #174A3E   # a lighter green panel, derived from bg
     fg = #EDE6C5
@@ -45,6 +49,7 @@ bright {
 }
 
 [font]
+name    = JetBrains Mono
 regular = JetBrainsMonoNerdFontMono-Regular.ttf
 bold    = JetBrainsMonoNerdFontMono-Bold.ttf
 size    = 15
