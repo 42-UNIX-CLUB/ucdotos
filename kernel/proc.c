@@ -39,7 +39,12 @@ void wq_wake(waitq *q) {
   *q = 0;
   for (int pid = 0; m; pid++, m >>= 1) if (m & 1) host_wake(pid);
 }
-long block(double timeout_ms) { cur->block_ms = timeout_ms; return -ERESTARTSYS; }
+long block(double timeout_ms) {
+  cur->block_ms = timeout_ms;
+  cur->sleeping = 1;
+  cur->slice_start = 0;
+  return -ERESTARTSYS;
+}
 
 /* ---- files ---- */
 struct file *file_new(const struct fops *ops, struct inode *ino, int flags, void *priv) {
@@ -141,6 +146,7 @@ EXPORT(proc_attach) void proc_attach(int pid, copy_fn in, copy_fn out, size_fn p
 }
 /* the host reports how long the process ran since it was last resumed */
 EXPORT(proc_account) void proc_account(int pid, double ms) { procs[pid].cpu_ms += ms; }
+EXPORT(proc_resumed) void proc_resumed(int pid, double now) { procs[pid].resumed_at = now; }
 EXPORT(block_timeout) double block_timeout(int pid) {
   double t = procs[pid].block_ms;
   procs[pid].block_ms = -1;

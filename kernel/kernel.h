@@ -6,7 +6,7 @@
 #define OS_NAME "UC.OS" /* UNIX CLUB dot OS */
 #define OS_RELEASE "0.1.0"
 #define NPROC 64 /* wait queues are a 64-bit mask of pids, so keep <= 64 */
-#define NFD 32
+#define NFD 64
 #define PATH_MAX 256
 #define NULL ((void *)0)
 
@@ -20,6 +20,8 @@ HOST(reap) void host_reap(int pid);                      /* drop a dead process'
 HOST(now) double host_now(void);                         /* monotonic milliseconds */
 HOST(epoch) double host_epoch(void);                     /* milliseconds since 1970 */
 HOST(random) u32 host_random(void);
+HOST(memory) double host_memory(void);                   /* bytes of memory the device reports */
+#define SLICE_MS 8.0 /* longest a process runs before the kernel makes it yield at a system call */
 HOST(fb_dirty) void host_fb_dirty(void);                 /* framebuffer changed, present it */
 
 /* klib */
@@ -111,6 +113,10 @@ struct proc {
   double sleep_until; /* nanosleep / poll deadline; 0 = none */
   u64 nsys;
   double cpu_ms;
+  double slice_start; /* when the current run began (0 = not yet sampled); for time slicing */
+  double resumed_at;  /* host clock when this process last started or resumed running */
+  u32 slice_calls;
+  u8 sleeping, intr;  /* blocked in a system call; Ctrl-C pending */
   waitq child_wq;
   char name[32];
 };

@@ -23,6 +23,7 @@ typedef long ssize;
 #define SYS_ioctl 29
 #define SYS_mkdirat 34
 #define SYS_unlinkat 35
+#define SYS_utimensat 88
 #define SYS_ftruncate 46
 #define SYS_chdir 49
 #define SYS_openat 56
@@ -59,6 +60,7 @@ typedef long ssize;
 #define SYS_spawn 500    /* (path, argv, envp, fdmap[3] or 0) -> pid */
 #define SYS_getargs 501  /* (buf, cap) -> bytes: argc, envc, then NUL-terminated strings */
 #define SYS_procinfo 502 /* (index, struct procinfo*) -> 0, or -ESRCH past the end */
+#define SYS_intr 503     /* () -> 1 if Ctrl-C was pressed for this process since the last call (and clears it), else 0 */
 
 /* kernel -> user: "sleep until woken, then retry the call" (Linux's ERESTARTSYS) */
 #define ERESTARTSYS 512
@@ -157,7 +159,7 @@ struct pollfd {
 #define POLLERR 8
 #define POLLHUP 16
 struct procinfo {
-  int pid, ppid, state;
+  int pid, ppid, state; /* state: 1 running, 2 zombie, 3 sleeping (blocked in a system call) */
   u32 mem_pages; /* 64 KiB wasm pages */
   u64 syscalls;
   char name[32];
@@ -219,6 +221,7 @@ struct sysinfo {
 
 #define CLOCK_REALTIME 0
 #define CLOCK_MONOTONIC 1
+#define CLOCK_PROCESS_CPUTIME_ID 2 /* time this process has spent running */
 #define WNOHANG 1
 
 #endif

@@ -283,6 +283,7 @@ static void repl(int tty) {
       free(buf); free(line);
       buf = nb;
     } else buf = line;
+    __syscall0(SYS_intr); /* forget a Ctrl-C from before this line */
     struct arena ar = {0};
     struct parser p;
     parser_init(&p, buf, &ar);
@@ -297,6 +298,13 @@ static void repl(int tty) {
       run(n);
       if (exit_pending) { if (interactive) history_add(buf); sh_exit(exit_code); }
       brk = cont = retflag = 0;
+      if (intr_pending) { /* Ctrl-C: drop the rest of this command line */
+        if (!interactive) sh_exit(130);
+        outs(2, "\n");
+        intr_pending = 0;
+        last_status = 130;
+        break;
+      }
     }
     if (!more && interactive) history_add(buf);
     if (!p.keep) afree(&ar);
@@ -314,7 +322,7 @@ static void source_if_exists(const char *path) {
   char *text = read_file(path, &len);
   if (!text) return;
   run_text(text, path);
-  retflag = brk = cont = 0;
+  retflag = brk = cont = intr_pending = 0;
   free(text);
   if (exit_pending) sh_exit(exit_code);
 }
@@ -358,7 +366,7 @@ opts_done:
     top_frame.argc = argc - i;
     top_frame.argv = argv + i;
     run_text(cmd, NULL);
-    sh_exit(exit_pending ? exit_code : last_status);
+    sh_exit(exit_pending ? exit_code : intr_pending ? 130 : last_status);
   }
   if (i < argc) {
     size_t len;
@@ -368,7 +376,7 @@ opts_done:
     top_frame.argc = argc - i - 1;
     top_frame.argv = argv + i + 1;
     run_text(text, argv[i]);
-    sh_exit(exit_pending ? exit_code : last_status);
+    sh_exit(exit_pending ? exit_code : intr_pending ? 130 : last_status);
   }
   int tty = tty_init();
   interactive = tty || force_i;

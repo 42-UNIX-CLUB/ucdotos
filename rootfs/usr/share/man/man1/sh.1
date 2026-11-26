@@ -109,9 +109,12 @@ JOB CONTROL
        An interactive shell starts a new session. Each foreground
        pipeline gets its own process group and the terminal's
        foreground group, so Ctrl-C ends the pipeline and not the
-       shell. There are no signals: kill(1) ends a process, and the
-       shell reports it as killed. A background job is only reaped
-       and reported as Done.
+       shell. When the shell itself is busy (a loop of builtins, a
+       function), Ctrl-C stops the whole command line: $? becomes
+       130 and the prompt returns; a script exits with status 130.
+       There are no signals: kill(1) ends a process, and the shell
+       reports it as killed. A background job is only reaped and
+       reported as Done.
 
 FILES
        /etc/profile   read first by an interactive shell
@@ -128,7 +131,7 @@ BUGS
        background & list of builtins or compound commands runs in
        the foreground; the last stage of a pipeline runs in this
        shell when it is a builtin or a loop, so its variables stay
-       set; Ctrl-C cannot interrupt a loop made only of builtins.
+       set.
 
 SEE ALSO
        bc(1), unix-club(7)

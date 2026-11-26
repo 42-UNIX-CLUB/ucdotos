@@ -98,7 +98,7 @@ static void snapshot(void) {
   qsort(rows_, nrows, sizeof rows_[0], cmp_rows);
   char a[32], b[32];
   fmt_mem(a, sizeof a, st.used); fmt_mem(b, sizeof b, st.total);
-  printf("Tasks: %d   Uptime: %02ld:%02ld:%02ld   Mem: %s/%s   ", nrows, st.uptime / 3600, st.uptime / 60 % 60, st.uptime % 60, a, b);
+  printf("Tasks: %d   Uptime: %02ld:%02ld:%02ld   Mem: %s of %s   ", nrows, st.uptime / 3600, st.uptime / 60 % 60, st.uptime % 60, a, b);
   fmt_mem(a, sizeof a, st.kheap); fmt_rate(b, sizeof b, total_rate);
   printf("Kernel heap: %s   Syscalls/s: %s   CPU: %.1f%%\n", a, b, total_cpu);
   printf("%6s %6s %s %6s %7s %8s %10s  %s\n", "PID", "PPID", "S", "CPU%", "MEM", "SYSC/s", "TIME+", "Command");
@@ -114,9 +114,13 @@ static void snapshot(void) {
 /* ---------- screen, redrawn line by line: only changed lines are written ---------- */
 static int R = 24, C = 80;
 static char **prev_line;
-static int lw; /* visible width emitted on the current line */
-static unsigned cur_bg;
-static void txt(const char *s, int w, int right) { ob_padded(s, w, right); lw += w; }
+static int lw; /* visible width emitted on the current line; nothing goes past column C */
+static void txt(const char *s, int w, int right) {
+  if (lw >= C || w <= 0) return;
+  if (lw + w > C) { ob_padded(s, C - lw, 0); lw = C; return; }
+  ob_padded(s, w, right);
+  lw += w;
+}
 static void txtf(int w, int right, const char *fmt, ...) {
   char buf[256];
   va_list ap;
@@ -125,8 +129,8 @@ static void txtf(int w, int right, const char *fmt, ...) {
   va_end(ap);
   txt(buf, w, right);
 }
-static void raw(const char *s) { ob_puts(s); lw += u8_width(s); }
-static void bg(unsigned c) { cur_bg = c; ob_bg(c); }
+static void raw(const char *s) { txt(s, u8_width(s), 0); }
+static void bg(unsigned c) { ob_bg(c); }
 static size_t line_start;
 static void line_begin(int r) { line_start = ob_len; ob_goto(r, 0); lw = 0; bg(th->bg); ob_fg(th->fg); }
 static void line_end(int r) {
@@ -141,22 +145,26 @@ static void line_end(int r) {
   prev_line[r][n] = 0;
 }
 
-/* an htop meter: Label[|||||||      text] with up to three coloured segments */
+/* an htop meter, w columns: Label[|||||||      text] with up to three coloured segments */
 static void meter(const char *label, int w, const double *part, const unsigned *col, int nparts, const char *text) {
   ob_puts("\033[1m"); ob_fg(th->blue); txt(label, 5, 0);
   ob_fg(th->fg); raw("[");
   ob_puts("\033[22m");
   int inner = w - 7;
   if (inner < 4) inner = 4;
+  if (inner > 500) inner = 500;
   int tl = u8_width(text), filled = 0;
+  if (tl > inner) tl = 0; /* no room for the text */
   char cells[512];
   int cellcol[512];
   for (int i = 0; i < inner; i++) { cells[i] = ' '; cellcol[i] = -1; }
   for (int k = 0; k < nparts; k++) {
-    int n = (int)(part[k] * inner + 0.5);
+    double f = part[k] < 0 ? 0 : part[k] > 1 ? 1 : part[k];
+    int n = (int)(f * inner + 0.5);
+    if (f > 0 && n == 0) n = 1; /* something in use never looks empty */
     for (int i = 0; i < n && filled < inner; i++, filled++) { cells[filled] = '|'; cellcol[filled] = k; }
   }
-  for (int i = 0; i < tl && i < inner; i++) { cells[inner - tl + i] = text[i]; cellcol[inner - tl + i] = cellcol[inner - tl + i] >= 0 && text[i] == ' ' ? cellcol[inner - tl + i] : -2; }
+  for (int i = 0; i < tl; i++) { cells[inner - tl + i] = text[i]; cellcol[inner - tl + i] = cellcol[inner - tl + i] >= 0 && text[i] == ' ' ? cellcol[inner - tl + i] : -2; }
   int last = -3;
   for (int i = 0; i < inner; i++) {
     int c = cellcol[i];
@@ -176,82 +184,123 @@ static int confirm_kill;       /* 1 while asking "kill?" */
 static int help;
 static char msg[128];
 static double msg_time;
+static int list_top = 6;
 
 static unsigned level_color(double f) {
   return f < 0.25 ? th->green : f < 0.5 ? th->yellow : f < 0.75 ? th->orange : th->red;
 }
+/* memory bars span the next power of two above what is in use (at least 16 MiB), so they are
+ * readable whatever the device total is; the text gives the real figures */
+static double mem_scale(double used) {
+  double s = 16.0 * 1048576;
+  while (s < used * 1.25) s *= 2;
+  return s;
+}
+
+/* process columns: shown in this order, dropped by priority as the width shrinks */
+enum { C_PID, C_PPID, C_S, C_CPU, C_MEM, C_RATE, C_TIME, C_BAR, C_NAME, C_N };
+static const int col_w[C_N] = {7, 8, 2, 7, 8, 9, 11, 14, 8};
+static const int col_sort[C_N] = {S_PID, S_PPID, S_STATE, S_CPU, S_MEM, S_RATE, S_TIME, -1, S_NAME};
+static int col_on[C_N];
+static void choose_columns(void) {
+  static const int prio[] = {C_PID, C_CPU, C_S, C_MEM, C_RATE, C_BAR, C_TIME, C_PPID};
+  int used = col_w[C_NAME] + 1;
+  memset(col_on, 0, sizeof col_on);
+  col_on[C_NAME] = 1;
+  for (unsigned k = 0; k < sizeof prio / sizeof prio[0]; k++)
+    if (used + col_w[prio[k]] <= C) { col_on[prio[k]] = 1; used += col_w[prio[k]]; }
+}
 
 static void draw(void) {
-  int half = C / 2;
-  char a[32], b[32], t[64];
-  /* meters */
+  char a[32], b[32], t[96];
+  int wide = C >= 70;
+  int mw = wide ? C / 2 - 2 : C - 2; /* meter width */
   double cpuf = total_cpu / 100.0;
   if (cpuf > 1) cpuf = 1;
   double user_mem = 0;
   for (int i = 0; i < nrows; i++) user_mem += rows_[i].p.mem;
-  double tot = st.total > 0 ? st.total : 1;
   if (user_mem > st.used) user_mem = st.used;
   double kmem = st.used - user_mem;
   if (kmem < 0) kmem = 0;
+  double scale = mem_scale(st.used);
   if (total_rate > peak_rate) peak_rate = total_rate;
+  int running = 0, sleeping = 0, zombies = 0;
+  for (int i = 0; i < nrows; i++) {
+    if (rows_[i].p.state == 'R') running++;
+    else if (rows_[i].p.state == 'Z') zombies++;
+    else sleeping++;
+  }
 
-  line_begin(0);
-  raw(" ");
-  { double p[1] = {cpuf}; unsigned c[1] = {level_color(cpuf)}; snprintf(t, sizeof t, "%.1f%%", total_cpu); meter("CPU", half - 2, p, c, 1, t); }
-  raw("   ");
-  int running = 0, zombies = 0;
-  for (int i = 0; i < nrows; i++) { if (rows_[i].p.state == 'R') running++; if (rows_[i].p.state == 'Z') zombies++; }
-  ob_fg(th->blue); raw("Tasks: "); ob_puts("\033[1m"); ob_fg(th->fg); snprintf(t, sizeof t, "%d", nrows); raw(t);
-  ob_puts("\033[22m"); ob_fg(th->blue); raw(", "); ob_puts("\033[1m"); ob_fg(th->green); snprintf(t, sizeof t, "%d", running); raw(t);
-  ob_puts("\033[22m"); ob_fg(th->blue); raw(" running");
-  if (zombies) { raw(", "); ob_fg(th->red); snprintf(t, sizeof t, "%d", zombies); raw(t); ob_fg(th->blue); raw(" zombie"); }
-  line_end(0);
-
-  line_begin(1);
-  raw(" ");
-  { double p[2] = {user_mem / tot, kmem / tot}; unsigned c[2] = {th->green, th->orange};
-    fmt_mem(a, sizeof a, st.used); fmt_mem(b, sizeof b, st.total); snprintf(t, sizeof t, "%s/%s", a, b);
-    meter("Mem", half - 2, p, c, 2, t); }
-  raw("   ");
-  ob_fg(th->blue); raw("Uptime: "); ob_puts("\033[1m"); ob_fg(th->fg);
-  snprintf(t, sizeof t, "%02ld:%02ld:%02ld", st.uptime / 3600, st.uptime / 60 % 60, st.uptime % 60); raw(t); ob_puts("\033[22m");
-  line_end(1);
-
-  line_begin(2);
-  raw(" ");
-  { double kh = st.kheap / tot; double p[1] = {kh}; unsigned c[1] = {th->yellow};
-    fmt_mem(a, sizeof a, st.kheap); snprintf(t, sizeof t, "%s", a); meter("Heap", half - 2, p, c, 1, t); }
-  raw("   ");
-  ob_fg(th->blue); raw("Syscalls/s: "); ob_puts("\033[1m"); ob_fg(th->fg); fmt_rate(a, sizeof a, total_rate); raw(a); ob_puts("\033[22m");
-  ob_fg(th->grey); fmt_rate(b, sizeof b, peak_rate); snprintf(t, sizeof t, "  (peak %s)", b); raw(t);
-  line_end(2);
-
-  line_begin(3);
-  raw(" ");
-  { double f = total_rate / peak_rate; double p[1] = {f}; unsigned c[1] = {th->aqua}; fmt_rate(a, sizeof a, total_rate); snprintf(t, sizeof t, "%s/s", a); meter("Sys", half - 2, p, c, 1, t); }
-  line_end(3);
-
-  line_begin(4); line_end(4);
+  for (int row = 0; row < 4; row++) {
+    line_begin(row);
+    raw(" ");
+    if (row == 0) { double p[1] = {cpuf}; unsigned c[1] = {level_color(cpuf)}; snprintf(t, sizeof t, "%.1f%%", total_cpu); meter("CPU", mw, p, c, 1, t); }
+    if (row == 1) {
+      double p[2] = {user_mem / scale, kmem / scale}; unsigned c[2] = {th->green, th->orange};
+      fmt_mem(a, sizeof a, st.used); fmt_mem(b, sizeof b, st.total);
+      snprintf(t, sizeof t, "%s of %s", a, b);
+      meter("Mem", mw, p, c, 2, t);
+    }
+    if (row == 2) { double p[1] = {st.kheap / scale}; unsigned c[1] = {th->yellow}; fmt_mem(a, sizeof a, st.kheap); snprintf(t, sizeof t, "%s kernel", a); meter("Heap", mw, p, c, 1, t); }
+    if (row == 3) { double p[1] = {total_rate / peak_rate}; unsigned c[1] = {th->aqua}; fmt_rate(a, sizeof a, total_rate); snprintf(t, sizeof t, "%s/s", a); meter("Sys", mw, p, c, 1, t); }
+    if (wide) {
+      raw("   ");
+      if (row == 0) {
+        ob_fg(th->blue); raw("Tasks: "); ob_puts("\033[1m"); ob_fg(th->fg); snprintf(t, sizeof t, "%d", nrows); raw(t);
+        ob_puts("\033[22m"); ob_fg(th->blue); raw(", "); ob_puts("\033[1m"); ob_fg(th->green); snprintf(t, sizeof t, "%d", running); raw(t);
+        ob_puts("\033[22m"); ob_fg(th->blue); raw(" running");
+        if (sleeping) { raw(", "); ob_fg(th->fg); snprintf(t, sizeof t, "%d", sleeping); raw(t); ob_fg(th->blue); raw(" sleeping"); }
+        if (zombies) { raw(", "); ob_fg(th->red); snprintf(t, sizeof t, "%d", zombies); raw(t); ob_fg(th->blue); raw(" zombie"); }
+      }
+      if (row == 1) {
+        ob_fg(th->blue); raw("Uptime: "); ob_puts("\033[1m"); ob_fg(th->fg);
+        snprintf(t, sizeof t, "%02ld:%02ld:%02ld", st.uptime / 3600, st.uptime / 60 % 60, st.uptime % 60); raw(t); ob_puts("\033[22m");
+      }
+      if (row == 2) {
+        ob_fg(th->blue); raw("Syscalls/s: "); ob_puts("\033[1m"); ob_fg(th->fg); fmt_rate(a, sizeof a, total_rate); raw(a); ob_puts("\033[22m");
+        ob_fg(th->grey); fmt_rate(b, sizeof b, peak_rate); snprintf(t, sizeof t, "  (peak %s)", b); raw(t);
+      }
+    }
+    line_end(row);
+  }
+  int hdr = 5;
+  if (!wide) { /* tasks and uptime get their own line */
+    line_begin(4);
+    char up[32], tasks[96];
+    snprintf(up, sizeof up, "  up %02ld:%02ld:%02ld", st.uptime / 3600, st.uptime / 60 % 60, st.uptime % 60);
+    snprintf(tasks, sizeof tasks, " Tasks %d (%d run, %d sleep", nrows, running, sleeping);
+    if (zombies) snprintf(tasks + strlen(tasks), sizeof tasks - strlen(tasks), ", %d zombie", zombies);
+    strcat(tasks, ")");
+    if (u8_width(tasks) > C) snprintf(tasks, sizeof tasks, " Tasks %d", nrows);
+    ob_fg(th->blue); raw(tasks);
+    if (lw + u8_width(up) <= C) { ob_fg(th->fg); raw(up); }
+    line_end(4);
+    hdr = 6;
+  }
+  line_begin(hdr - 1); line_end(hdr - 1);
 
   /* column header */
-  static const int cw[S_N] = {7, 8, 2, 7, 8, 9, 11, 0};
+  choose_columns();
   const int barw = 12;
-  line_begin(5);
+  line_begin(hdr);
   bg(th->aqua); ob_fg(th->bg); ob_puts("\033[1m");
-  for (int k = 0; k < S_N; k++) {
-    if (k == S_NAME) { raw(" "); txtf(barw, 0, "ACTIVITY"); raw(" "); }
-    if (k == sort_col) bg(th->orange);
-    if (k == S_NAME) txt(sort_names[k], 7, 0);
-    else if (k == S_STATE) txt(" S", 2, 0);
-    else txt(sort_names[k], cw[k], 1);
-    if (k == sort_col) bg(th->aqua);
+  for (int k = 0; k < C_N; k++) {
+    if (!col_on[k]) continue;
+    int sorted = col_sort[k] == sort_col;
+    if (sorted) bg(th->orange);
+    if (k == C_BAR) txt(" ACTIVITY", col_w[k], 0);
+    else if (k == C_NAME) txt(" Command", 8, 0);
+    else if (k == C_S) txt(" S", 2, 0);
+    else txt(sort_names[col_sort[k]], col_w[k], 1);
+    if (sorted) bg(th->aqua);
   }
   while (lw < C) raw(" ");
   ob_puts("\033[22m");
-  line_end(5);
+  line_end(hdr);
 
   /* process rows */
-  int list_top = 6, list_h = R - list_top - 1;
+  list_top = hdr + 1;
+  int list_h = R - list_top - 1;
   if (list_h < 1) list_h = 1;
   if (sel >= nrows) sel = nrows - 1;
   if (sel < 0) sel = 0;
@@ -268,49 +317,54 @@ static void draw(void) {
       int s = i == sel;
       unsigned fg = s ? th->bg : th->fg, dim = s ? th->bg : th->grey;
       if (s) bg(th->blue);
-      ob_fg(fg); txtf(7, 1, "%d", r->p.pid);
-      ob_fg(dim); txtf(8, 1, "%d", r->p.ppid);
-      ob_fg(s ? fg : r->p.state == 'R' ? th->green : r->p.state == 'Z' ? th->red : th->grey); txtf(2, 1, "%c", r->p.state);
-      ob_fg(s ? fg : r->cpu >= 50 ? th->red : r->cpu >= 10 ? th->yellow : th->fg); txtf(7, 1, "%.1f", r->cpu);
-      fmt_mem(a, sizeof a, r->p.mem); ob_fg(fg); txt(a, 8, 1);
-      fmt_rate(a, sizeof a, r->rate); ob_fg(s ? fg : r->rate > 0 ? th->aqua : th->grey); txt(a, 9, 1);
-      fmt_time(t, sizeof t, r->p.cpu_us); ob_fg(dim); txt(t, 11, 1);
-      raw(" ");
-      /* activity bar in eighths */
-      double f = r->rate / maxrate;
-      int eighths = (int)(f * barw * 8 + 0.5);
-      if (r->rate > 0 && eighths == 0) eighths = 1;
-      ob_fg(s ? th->bg : level_color(f));
-      if (!s) bg(th->bg1);
-      static const char *blk[9] = {" ", "\xe2\x96\x8f", "\xe2\x96\x8e", "\xe2\x96\x8d", "\xe2\x96\x8c", "\xe2\x96\x8b", "\xe2\x96\x8a", "\xe2\x96\x89", "\xe2\x96\x88"};
-      for (int k = 0; k < barw; k++) {
-        int e = eighths - k * 8;
-        raw(blk[e >= 8 ? 8 : e > 0 ? e : 0]);
+      if (col_on[C_PID]) { ob_fg(fg); txtf(7, 1, "%d", r->p.pid); }
+      if (col_on[C_PPID]) { ob_fg(dim); txtf(8, 1, "%d", r->p.ppid); }
+      if (col_on[C_S]) { ob_fg(s ? fg : r->p.state == 'R' ? th->green : r->p.state == 'Z' ? th->red : th->grey); txtf(2, 1, "%c", r->p.state); }
+      if (col_on[C_CPU]) { ob_fg(s ? fg : r->cpu >= 50 ? th->red : r->cpu >= 10 ? th->yellow : th->fg); txtf(7, 1, "%.1f", r->cpu); }
+      if (col_on[C_MEM]) { fmt_mem(a, sizeof a, r->p.mem); ob_fg(fg); txt(a, 8, 1); }
+      if (col_on[C_RATE]) { fmt_rate(a, sizeof a, r->rate); ob_fg(s ? fg : r->rate > 0 ? th->aqua : th->grey); txt(a, 9, 1); }
+      if (col_on[C_TIME]) { fmt_time(t, sizeof t, r->p.cpu_us); ob_fg(dim); txt(t, 11, 1); }
+      if (col_on[C_BAR]) {
+        raw(" ");
+        double f = r->rate / maxrate;
+        int eighths = (int)(f * barw * 8 + 0.5);
+        if (r->rate > 0 && eighths == 0) eighths = 1;
+        ob_fg(s ? th->bg : level_color(f));
+        if (!s) bg(th->bg1);
+        static const char *blk[9] = {" ", "\xe2\x96\x8f", "\xe2\x96\x8e", "\xe2\x96\x8d", "\xe2\x96\x8c", "\xe2\x96\x8b", "\xe2\x96\x8a", "\xe2\x96\x89", "\xe2\x96\x88"};
+        for (int k = 0; k < barw; k++) {
+          int e = eighths - k * 8;
+          raw(blk[e >= 8 ? 8 : e > 0 ? e : 0]);
+        }
+        bg(s ? th->blue : th->bg);
       }
-      bg(s ? th->blue : th->bg);
       raw(" ");
       if (!s) ob_puts("\033[1m");
-      ob_fg(s ? fg : th->fg);
-      txt(r->p.name, C - lw > 0 ? C - lw : 0, 0);
+      ob_fg(fg);
+      txt(r->p.name, C - lw, 0);
       ob_puts("\033[22m");
       if (s) { while (lw < C) raw(" "); }
     }
     line_end(list_top + y);
   }
 
-  /* footer: htop's function key bar, or the kill prompt */
+  /* footer: htop's function key bar (only whole entries that fit), or the kill prompt */
   line_begin(R - 1);
   if (confirm_kill && sel < nrows) {
     bg(th->red); ob_fg(th->bg); ob_puts("\033[1m");
-    txtf(C, 0, " Kill %d (%s) with SIGTERM? [y/N] ", rows_[sel].p.pid, rows_[sel].p.name);
+    snprintf(t, sizeof t, " Kill %d (%s) with SIGTERM? [y/N] ", rows_[sel].p.pid, rows_[sel].p.name);
+    if (u8_width(t) > C) snprintf(t, sizeof t, " Kill %d? [y/N] ", rows_[sel].p.pid);
+    txt(t, C, 0);
     ob_puts("\033[22m");
   } else if (msg[0]) {
     ob_fg(th->yellow); txt(msg, C, 0);
   } else {
-    static const char *keys[][2] = {{"F1", "Help"}, {"F6", "SortBy"}, {"I", "Invert"}, {"F9", "Kill"}, {"F10", "Quit"}};
-    for (int k = 0; k < 5 && lw < C - 10; k++) {
+    static const char *keys[][2] = {{"F1", "Help"}, {"F6", "SortBy"}, {"F9", "Kill"}, {"F10", "Quit"}, {"I", "Invert"}};
+    for (int k = 0; k < 5; k++) {
+      int w = (int)strlen(keys[k][0]) + (int)strlen(keys[k][1]) + 2;
+      if (lw + w > C) break;
       bg(th->bg); ob_fg(th->fg); ob_puts("\033[1m"); raw(keys[k][0]); ob_puts("\033[22m");
-      bg(th->aqua); ob_fg(th->bg); txtf(8, 0, "%s", keys[k][1]);
+      bg(th->aqua); ob_fg(th->bg); txtf((int)strlen(keys[k][1]) + 2, 0, "%s", keys[k][1]);
     }
     bg(th->bg); ob_fg(th->grey);
     snprintf(t, sizeof t, " sort: %s%s", sort_names[sort_col], sort_inv ? " (inv)" : "");
@@ -323,13 +377,13 @@ static void draw(void) {
                               "Home/End     first / last", "F6 > <       next / previous sort column",
                               "P M N T S    sort by CPU, MEM, PID, TIME, SYSC/s", "I            invert the order",
                               "k F9         kill the selected process (asks first)", "q F10        quit", "",
+                              "Mem and Heap bars span the next power of two", "above the memory in use.", "",
                               "any key closes this help"};
-    int n = sizeof h / sizeof h[0], w = 56, x0 = (C - w) / 2, y0 = 6;
-    if (x0 < 0) x0 = 0;
+    int n = sizeof h / sizeof h[0], w = 56 < C ? 56 : C, x0 = (C - w) / 2, y0 = list_top;
     for (int i = 0; i < n + 2 && y0 + i < R - 1; i++) {
       ob_goto(y0 + i, x0); ob_bg(th->bg1); ob_fg(i == 1 ? th->orange : th->fg);
       const char *s = i == 0 || i == n + 1 ? "" : h[i - 1];
-      ob_puts("  "); ob_padded(s, w - 4, 0); ob_puts("  ");
+      ob_puts(" "); ob_padded(s, w - 2, 0); ob_puts(" ");
       ob_puts("\033[0m");
       free(prev_line[y0 + i]); prev_line[y0 + i] = 0; /* repaint it when help closes */
     }
@@ -387,6 +441,7 @@ int main(int argc, char **argv) {
     if (k == -1) {
       sample(); resort();
       if (now_ms() - msg_time > 3000) msg[0] = 0;
+      if (theme_reload()) full_redraw(); /* the desktop switched theme (Alt+t) */
       int r, c;
       if (tty_size(1, &r, &c) == 0 && (r != R || c != C)) {
         for (int i = 0; i < R; i++) free(prev_line[i]);
@@ -399,7 +454,7 @@ int main(int argc, char **argv) {
       next = now_ms() + 1000;
       continue;
     }
-    int list_h = R - 7;
+    int list_h = R - list_top - 1;
     if (help) { help = 0; draw(); continue; }
     if (confirm_kill) {
       confirm_kill = 0;

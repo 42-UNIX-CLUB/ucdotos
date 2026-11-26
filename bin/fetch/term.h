@@ -60,10 +60,13 @@ static int tty_raw(int keep_opost) {
 static void tty_restore(void) { if (tty_is_raw) { tty_set(0, &tty_saved); tty_is_raw = 0; } }
 static int tty_check(int fd) { tty_mode t; return tty_get(fd, &t) == 0; }
 
+static double clock_sim_ms; /* testing: round readings down to this step, like a coarse browser clock */
 static double now_ms(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (double)ts.tv_sec * 1e3 + (double)ts.tv_nsec / 1e6;
+  double t = (double)ts.tv_sec * 1e3 + (double)ts.tv_nsec / 1e6;
+  if (clock_sim_ms > 0) t = (double)(long long)(t / clock_sim_ms) * clock_sim_ms;
+  return t;
 }
 
 /* --- output buffer: build a whole frame, then write it in one go --- */
@@ -113,9 +116,42 @@ static const struct theme theme_deck = {"deck", "gruvbox", 0x282828, 0x3c3836, 0
 static const struct theme theme_brand = {"brand", "42 brand", 0x0e362e, 0x174a3f, 0x23604f, 0xede6c5, 0x86a596,
                                          0xfe7700, 0xfc413a, 0xffc72e, 0xa9b200, 0xadc787, 0xadc787, 0xfe7700};
 static const struct theme *th = &theme_deck;
-static void theme_init(void) {
-  const char *t = getenv("THEME");
-  th = (t && !strcmp(t, "brand")) ? &theme_brand : &theme_deck;
+/* The active theme: the first word of ~/.config/ucos/theme (the desktop's switch, Alt+t)
+ * wins over $THEME, which is fixed when the terminal starts. Returns 1 if it changed. */
+static int theme_reload(void) {
+  char name[32] = "", path[300];
+  const char *home = getenv("HOME");
+  snprintf(path, sizeof path, "%s/.config/ucos/theme", home && *home ? home : "/home/user");
+  FILE *f = fopen(path, "r");
+  if (f) {
+    char buf[64];
+    size_t n = fread(buf, 1, sizeof buf - 1, f);
+    fclose(f);
+    buf[n] = 0;
+    size_t i = 0, k = 0;
+    while (i < n && (buf[i] == ' ' || buf[i] == '\t' || buf[i] == '\n' || buf[i] == '\r')) i++;
+    while (i < n && buf[i] > ' ' && k < sizeof name - 1) name[k++] = buf[i++];
+    name[k] = 0;
+  }
+  if (!name[0]) { const char *t = getenv("THEME"); snprintf(name, sizeof name, "%s", t ? t : "deck"); }
+  const struct theme *old = th;
+  th = !strcmp(name, "brand") ? &theme_brand : &theme_deck;
+  return th != old;
+}
+static void theme_init(void) { theme_reload(); }
+
+/* Clock resolution: browsers coarsen performance.now (0.1 ms in Chrome, 1 ms in Firefox).
+ * The smallest non-zero step between consecutive readings, sampled for about ms milliseconds. */
+static double clock_res_ms(double (*clk)(void), double ms) {
+  double start = clk(), prev = start, best = 1e9;
+  long spins = 0;
+  for (;;) {
+    double t = clk();
+    if (t != prev) { if (t - prev < best) best = t - prev; prev = t; }
+    if (t - start >= ms && best < 1e9) break;
+    if (++spins > 50000000L) break;
+  }
+  return best;
 }
 
 /* --- keys: xterm sequences decoded to codes >= 256 --- */

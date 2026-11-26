@@ -11,7 +11,7 @@ if (missing.length) { console.error('missing: ' + missing.join(', ')); process.e
 const sys = await boot({
   kernel: fs.readFileSync(root + opt('build', 'build') + '/kernel.wasm'),
   initrd: fs.readFileSync(root + opt('build', 'build') + '/initrd.tar'),
-  cmdline: 'init=' + opt('init', '/bin/init'),
+  cmdline: 'init=' + opt('init', '/bin/init') + (opt('args', '') ? ' -- ' + opt('args', '') : ''),
   screen: { width: 640, height: 400 },
   log: (s) => process.stdout.write(s),
   debug: args.includes('--debug'),

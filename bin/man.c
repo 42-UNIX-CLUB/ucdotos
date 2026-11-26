@@ -71,8 +71,8 @@ int main(int argc, char **argv) {
   int in_tty = __syscall3(SYS_ioctl, 0, TCGETS, &orig) == 0;
   if (!out_tty || !in_tty) { fwrite(text, 1, len, stdout); return 0; }
   struct winsize ws;
-  int rows = 24;
-  if (__syscall3(SYS_ioctl, 1, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 2) rows = ws.ws_row;
+  int rows = 24, cols = 80;
+  if (__syscall3(SYS_ioctl, 1, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 2) { rows = ws.ws_row; if (ws.ws_col > 10) cols = ws.ws_col; }
   raw = orig;
   raw.c_lflag &= ~(ICANON | ECHO);
   raw.c_cc[VMIN] = 1;
@@ -83,16 +83,25 @@ int main(int argc, char **argv) {
   for (const char *q = text; q < end; q++) if (*q == '\n') nlines++;
   int budget = rows - 1;
   while (p < end) {
-    while (budget > 0 && p < end) {
+    while (p < end) {
       const char *e = memchr(p, '\n', end - p);
       if (!e) e = end;
+      int w = 0; /* screen rows this line takes once the terminal wraps it */
+      for (const char *q = p; q < e; q++) if (((unsigned char)*q & 0xc0) != 0x80) w++;
+      int need = w ? (w + cols - 1) / cols : 1;
+      if (need > budget && budget < rows - 1) break;
       put_line(p, e, 1);
       p = e < end ? e + 1 : end;
       shown++;
-      budget--;
+      budget -= need;
+      if (budget <= 0) break;
     }
     if (p >= end) break;
-    printf("\033[7m Manual page %s(%s) line %d/%d  (space: page, enter: line, q: quit) \033[0m", name, strrchr(path, '.') + 1, shown, nlines);
+    char prompt[256];
+    int n = snprintf(prompt, sizeof prompt, " %s(%s) line %d/%d  space: page, enter: line, q: quit ", name, strrchr(path, '.') + 1, shown, nlines);
+    if (n >= cols) n = cols - 1; /* one row only, so it can be erased */
+    if (n < 0) n = 0;
+    printf("\033[7m%.*s\033[0m", n, prompt);
     fflush(stdout);
     char c;
     if (read(0, &c, 1) != 1) c = 'q';

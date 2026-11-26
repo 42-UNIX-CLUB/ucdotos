@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
     return 0;
   }
   if (argc > 1 && !strcmp(argv[1], "child-sleeper")) { sleep(100); return 0; }
+  if (argc > 1 && !strcmp(argv[1], "child-spin")) { for (;;) __syscall0(SYS_getppid); }
   if (argc > 1 && !strcmp(argv[1], "child-sockflood")) { /* fill a socket, then say who we are from a stack buffer */
     struct { unsigned short fam; char path[108]; } addr = {1, "/tmp/flood.sock"};
     int s = __syscall3(SYS_socket, 1, 1, 0);
@@ -179,6 +180,20 @@ int main(int argc, char **argv) {
   CHECK("kill", __sysret(__syscall2(SYS_kill, pid, 9)) == 0);
   CHECK("killed child reaped", waitpid(pid, &status, 0) == pid && WTERMSIG(status) == 9);
 
+  /* time slicing: a child that never blocks must not stop the parent from running */
+  {
+    char *sp[] = {"ktest", "child-spin", 0};
+    pid = spawn("/bin/ktest", sp, 0, 0);
+    t0 = now_ms();
+    usleep(40000);
+    dt = now_ms() - t0;
+    struct procinfo pi; int seen = 0;
+    for (int i = 0; __syscall2(SYS_procinfo, i, &pi) == 0; i++) if (pi.pid == pid) seen = pi.syscalls > 1000;
+    __syscall2(SYS_kill, pid, 9);
+    waitpid(pid, &status, 0);
+    if (!(dt >= 39 && dt < 150 && seen)) printf("  (slept %.1f ms, child counted %d)\n", dt, seen);
+    CHECK("a spinning process is preempted (parent sleeps 40 ms, wakes on time)", dt >= 39 && dt < 150 && seen);
+  }
   /* many short-lived processes: pids and table slots must be reused */
   int ok = 1;
   char *a6[] = {"true", 0};
@@ -238,6 +253,14 @@ int main(int argc, char **argv) {
   CHECK("Ctrl-C kills the foreground job, not the session leader", waitpid(pid, &status, 0) == pid && WTERMSIG(status) == SIGINT);
   n = read(ptm, buf, sizeof buf);
   CHECK("^C is echoed", n >= 2 && buf[0] == '^' && buf[1] == 'C');
+  { /* Ctrl-C while the session leader itself is in the foreground: not killed, but told */
+    int self = getpid();
+    __syscall3(SYS_ioctl, pts, TIOCSPGRP, &self);
+    __syscall0(SYS_intr);
+    write(ptm, "\x03", 1);
+    CHECK("Ctrl-C reaches a foreground shell as a pending interrupt", __syscall0(SYS_intr) == 1 && __syscall0(SYS_intr) == 0);
+    read(ptm, buf, sizeof buf);
+  }
   close(pts);
   CHECK("master sees hangup when the slave closes", read(ptm, buf, sizeof buf) == 0);
   close(ptm);

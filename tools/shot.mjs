@@ -39,7 +39,7 @@ let logText = '';
 const sys = await boot({
   kernel: fs.readFileSync(root + build + '/kernel.wasm'),
   initrd: fs.readFileSync(root + build + '/initrd.tar'),
-  cmdline: 'init=' + opt('init', '/bin/init'),
+  cmdline: 'init=' + opt('init', '/bin/init') + (opt('args', '') ? ' -- ' + opt('args', '') : ''),
   screen: { width: W, height: H },
   log: (s) => { logText += s; if (!quiet) process.stdout.write(s); },
   debug: args.includes('--debug'),

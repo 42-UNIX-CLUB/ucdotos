@@ -44,11 +44,30 @@ static void line_commit(struct pty *t) {
   for (u32 i = 0; i < t->line_len; i++) in_put(t, t->line[i]);
   t->line_len = 0;
 }
+/* Ctrl-C and friends: kill the foreground job. The session leader (the shell) is not
+ * killed; it gets a pending-interrupt flag that it reads with SYS_intr, so it can stop
+ * a loop of its own. */
 static void kill_foreground(struct pty *t, int sig) {
   for (int i = 1; i < NPROC; i++) {
     struct proc *p = &procs[i];
-    if (p->state != P_RUN || p->pgid != t->fg_pgid || p->sid == p->pid) continue; /* never the session leader */
+    if (p->state != P_RUN || p->pgid != t->fg_pgid) continue;
+    if (p->sid == p->pid) { p->intr = 1; host_wake(p->pid); continue; }
     proc_exit(p, 256 + sig);
+    host_wake(p->pid);
+  }
+}
+/* The terminal went away: everything in its session dies, the shell included. */
+static void hangup(struct pty *t) {
+  /* The session is the one the foreground job belongs to. If that is also the session of
+   * whoever is closing the terminal (no shell ever called setsid), only the job is killed. */
+  int session = 0;
+  for (int i = 1; i < NPROC && !session; i++)
+    if (procs[i].state == P_RUN && procs[i].pgid == t->fg_pgid) session = procs[i].sid;
+  if (!session || session == cur->sid) { kill_foreground(t, 1); return; }
+  for (int i = 1; i < NPROC; i++) {
+    struct proc *p = &procs[i];
+    if (p->state != P_RUN || p->sid != session || p == cur) continue;
+    proc_exit(p, 256 + 1 /* SIGHUP */);
     host_wake(p->pid);
   }
 }
@@ -155,6 +174,8 @@ static long tty_ioctl(struct file *f, u32 cmd, u32 arg) {
   case TIOCSWINSZ: return copy_from_user(&t->ws, arg, sizeof t->ws);
   case TIOCGPGRP: return copy_to_user(arg, &t->fg_pgid, 4);
   case TIOCSPGRP: return copy_from_user(&t->fg_pgid, arg, 4);
+  case 0x540B: t->in_len = 0; t->line_len = 0; return 0; /* TCFLSH */
+  case 0x540A: case 0x5409: return 0;                     /* TCXONC, TCSBRK */
   case TIOCGPTN: return copy_to_user(arg, &t->index, 4);
   case 0x540E: return 0; /* TIOCSCTTY */
   }
@@ -213,7 +234,7 @@ static int ptm_poll(struct file *f, int add) {
 static void ptm_close(struct file *f) {
   struct pty *t = f->priv;
   t->master_open = 0;
-  kill_foreground(t, 1); /* SIGHUP */
+  hangup(t);
   wq_wake(&t->in_wq);
   wq_wake(&t->out_wq);
   pty_release(t);

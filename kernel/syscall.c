@@ -218,6 +218,8 @@ static long sys_nanosleep(u32 ureq) {
 }
 static long sys_clock_gettime(int clk, u32 uts) {
   double ms = clk == CLOCK_REALTIME ? host_epoch() : host_now();
+  if (clk == CLOCK_PROCESS_CPUTIME_ID) ms = cur->cpu_ms + (cur->resumed_at > 0 ? ms - cur->resumed_at : 0);
+  else if (clk != CLOCK_REALTIME && clk != CLOCK_MONOTONIC) return -EINVAL;
   struct timespec ts;
   ts.tv_sec = (s64)(ms / 1000.0);
   ts.tv_nsec = (long)((ms - (double)ts.tv_sec * 1000.0) * 1e6);
@@ -232,8 +234,8 @@ static long sys_uname(u32 ubuf) {
   return copy_to_user(ubuf, &u, sizeof u);
 }
 static long sys_ppoll(u32 ufds, u32 nfds, u32 utimeout) {
-  struct pollfd fds[32];
-  if (nfds > 32) return -EINVAL;
+  struct pollfd fds[NFD];
+  if (nfds > NFD) return -EINVAL;
   if (copy_from_user(fds, ufds, nfds * sizeof fds[0])) return -EFAULT;
   double now = host_now(), timeout = -1;
   if (utimeout) {
@@ -266,7 +268,7 @@ static long sys_spawn(u32 upath, u32 uargv, u32 uenvp, u32 ufdmap) {
   char path[PATH_MAX];
   long err = str_from_user(path, upath, sizeof path);
   if (err < 0) return err;
-  u32 cap = 4096, len = 8;
+  u32 cap = 65536, len = 8;
   u8 *args = kmalloc(cap);
   if (!args) return -ENOMEM;
   u32 counts[2] = {0, 0};
@@ -300,7 +302,7 @@ static long sys_procinfo(int idx, u32 uinfo) {
     if (p->state == P_FREE || idx--) continue;
     struct procinfo pi;
     memset(&pi, 0, sizeof pi);
-    pi.pid = p->pid; pi.ppid = p->ppid; pi.state = p->state; pi.syscalls = p->nsys;
+    pi.pid = p->pid; pi.ppid = p->ppid; pi.state = (p->state == P_RUN && p->sleeping) ? 3 : p->state; pi.syscalls = p->nsys;
     pi.cpu_us = (u64)(p->cpu_ms * 1000.0);
     pi.mem_pages = (p->state == P_RUN && p->mem_pages) ? p->mem_pages() : 0;
     strlcpy(pi.name, p->name, sizeof pi.name);
@@ -331,8 +333,13 @@ static long sys_sysinfo(u32 uinfo) {
     if (procs[i].state == P_RUN && procs[i].mem_pages) upages += procs[i].mem_pages();
   }
   si.procs = n;
-  si.totalram = (kpages + upages) << 16; /* memory the system has claimed from the browser */
-  si.freeram = (kpages << 16) - kmem_used() < (kpages << 16) ? (kpages << 16) - kmem_used() : 0;
+  /* total = what the device reports, capped at what one wasm32 memory can address;
+   * used (total - free) = everything the kernel and all processes have claimed from the browser */
+  double dev = host_memory();
+  u32 claimed = (kpages + upages) << 16;
+  si.totalram = dev >= 4294901760.0 ? 4294901760u : (u32)dev;
+  if (si.totalram < claimed) si.totalram = claimed;
+  si.freeram = si.totalram - claimed;
   si.bufferram = kmem_used();
   return copy_to_user(uinfo, &si, sizeof si);
 }
@@ -379,6 +386,22 @@ EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, l
   (void)e; (void)f;
   cur = &procs[pid];
   cur->nsys++;
+  cur->sleeping = 0;
+  /* Time slicing. Nothing can interrupt running WebAssembly, so the kernel takes the CPU
+   * back at system call boundaries: every 256th call it looks at the clock, and a process
+   * that has run for more than SLICE_MS is parked for one turn of the event loop before
+   * this call is carried out. Input, the screen and other processes get to run. The call
+   * itself has not started yet, so the process simply retries it when it resumes. */
+  if (__builtin_expect((++cur->slice_calls & 255) == 0, 0)) {
+    double now = host_now();
+    if (cur->slice_start == 0) cur->slice_start = now;
+    else if (now - cur->slice_start > SLICE_MS) {
+      cur->nsys--;
+      long r = block(0);
+      cur->sleeping = 0; /* preempted, not sleeping */
+      return r;
+    }
+  }
   switch (nr) {
   case SYS_getppid: return cur->ppid;
   case SYS_getpid: return cur->pid;
@@ -412,6 +435,16 @@ EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, l
   case SYS_wait4: return proc_wait(a, b, c);
   case SYS_kill: return sys_kill(a, b);
   case SYS_exit: case SYS_exit_group: proc_exit(cur, a & 0xff); return -ERESTARTSYS;
+  case SYS_intr: { int was = cur->intr; cur->intr = 0; return was; }
+  case SYS_utimensat: { /* only "set the times to now" is supported */
+    char path[PATH_MAX];
+    long err = str_from_user(path, b, sizeof path);
+    if (err < 0) return err;
+    struct inode *i = vfs_lookup(cur->cwd, path);
+    if (!i) return -ENOENT;
+    i->mtime = (s64)(host_epoch() / 1000);
+    return 0;
+  }
   case SYS_pread64: return sys_prw(0, a, b, c, d);
   case SYS_pwrite64: return sys_prw(1, a, b, c, d);
   case SYS_setpgid: return sys_setpgid(a, b);

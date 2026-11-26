@@ -15,6 +15,11 @@ int tty_init(void) {
 static void raw_mode(void) {
   struct termios t;
   if (__syscall3(SYS_ioctl, 0, TCGETS, &t) == 0) orig = t;
+  /* commands run in cooked mode with ISIG, even if a program left the tty raw */
+  orig.c_lflag |= ISIG | ICANON | ECHO | ECHOE | ECHOK | IEXTEN;
+  orig.c_iflag |= ICRNL;
+  orig.c_oflag |= OPOST | ONLCR;
+  orig.c_cc[VINTR] = orig.c_cc[VINTR] ? orig.c_cc[VINTR] : 3;
   t = orig;
   t.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN);
   t.c_iflag &= ~ICRNL;

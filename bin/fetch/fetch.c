@@ -341,15 +341,47 @@ static void load_config(void) {
   fclose(f);
 }
 static volatile long sink;
-static double measure_getppid(void) { /* best of rounds over ~25 ms, so the JIT has warmed up */
-  double best = 1e9, start = now_ms();
-  for (int r = 0; r < 200 && (r < 4 || now_ms() - start < 25); r++) {
-    double t0 = now_ms();
-    for (int i = 0; i < 20000; i++) sink += getppid();
-    double ns = (now_ms() - t0) * 1e6 / 20000;
-    if (ns < best) best = ns;
+__attribute__((noinline)) static void getppid_batch(long n) { for (long i = 0; i < n; i++) sink += getppid(); }
+/* Warm getppid cost within about 40 ms, adapted to the clock's resolution (browsers coarsen it).
+ * *approx is set when only one long batch fits; returns 0 when the clock is too coarse. */
+static double measure_getppid(int *approx) {
+  double start = now_ms(), res = clock_res_ms(now_ms, 2);
+  double min_batch = 200 * res > 0.2 ? 200 * res : 0.2; /* ms */
+  *approx = 0;
+  if (min_batch <= 12) {
+    long n = 256;
+    double t = 0, best = 0;
+    for (;;) { /* grow the batch until it lasts min_batch */
+      double t0 = now_ms();
+      getppid_batch(n);
+      t = now_ms() - t0;
+      if (t >= min_batch || now_ms() - start > 30) break;
+      n = t > 0 && min_batch / t < 8 ? (long)(n * min_batch / t * 1.1) + 1 : n * 4;
+    }
+    if (t >= min_batch) best = t * 1e6 / n;
+    while (now_ms() - start < 38 - t) { /* repeat while time remains; keep the best batch */
+      double t0 = now_ms();
+      getppid_batch(n);
+      double d = now_ms() - t0;
+      if (d >= min_batch && (best == 0 || d * 1e6 / n < best)) best = d * 1e6 / n;
+    }
+    if (best > 0) return best;
   }
-  return best;
+  double left = 40 - (now_ms() - start); /* one long batch: good to about res / left */
+  if (left < 20 * res || left < 5) return 0;
+  long n = 0;
+  double t0 = now_ms(), t;
+  while ((t = now_ms() - t0) < left) { getppid_batch(1000); n += 1000; }
+  *approx = 1;
+  return t > 0 && n ? t * 1e6 / n : 0;
+}
+static int theme_idx = -1, mem_idx = -1;
+static void set_theme_info(void) {
+  if (theme_idx >= 0) snprintf(info_val[theme_idx], sizeof info_val[0], "%s (%s)", th->name, th->desc);
+}
+static void fmt_size(char *o, size_t cap, double b) {
+  if (b >= 1024.0 * 1048576) snprintf(o, cap, "%.1f GiB", b / (1024.0 * 1048576));
+  else snprintf(o, cap, "%.1f MiB", b / 1048576);
 }
 static void gather(char *userhost, size_t cap) {
   struct sys_uname u;
@@ -369,17 +401,26 @@ static void gather(char *userhost, size_t cap) {
   add_info("Shell", "%s", sh && *sh ? sh : "sh");
   const char *term = getenv("TERM");
   add_info("Terminal", "%s", term ? term : "unknown");
-  add_info("Theme", "%s (%s)", th->name, th->desc);
+  theme_idx = ninfo;
+  add_info("Theme", "");
+  set_theme_info();
   const char *font = getenv("FONT");
   add_info("Font", "%s", font ? font : font_name);
-  double used = s.used / 1048576.0, total = s.total / 1048576.0;
-  add_info("Memory", "%.1f MiB / %.1f MiB (%d%%)", used, total, total > 0 ? (int)(100 * used / total) : 0);
+  char used[32], total[32];
+  fmt_size(used, sizeof used, s.used);
+  fmt_size(total, sizeof total, s.total);
+  mem_idx = ninfo;
+  add_info("Memory", "%s used of %s", used, total);
   add_info("Processes", "%d", s.procs);
-  add_info("Syscall", "getppid %.1f ns (measured now)", measure_getppid());
+  int approx;
+  double ns = measure_getppid(&approx);
+  if (ns > 0) add_info("Syscall", approx ? "getppid ~%.0f ns (warm)" : ns < 100 ? "getppid %.1f ns (warm)" : "getppid %.0f ns (warm)", ns);
 }
 
-/* ---------- output ---------- */
-static int color_out, val_w = 200;
+/* ---------- layout and output ---------- */
+enum { LAY_SIDE, LAY_BELOW, LAY_INFO };
+static int layout = LAY_SIDE, val_w = 200, info_w = 200, pal_block = 3;
+static int LOGO_COLS = 48, LOGO_ROWS = 16;
 static char userhost[200];
 static const unsigned *palette(void) {
   static unsigned p[8];
@@ -387,34 +428,76 @@ static const unsigned *palette(void) {
   memcpy(p, q, sizeof p);
   return p;
 }
-/* info line i of the right column, coloured */
-static void emit_info(int i) {
+static int pal_gap = 1, pal_half = 1; /* blank line before the palette, its half-height second row */
+/* s cut to w columns with an ellipsis when it does not fit */
+static void ob_fit(const char *s, int w) {
+  if (w <= 0) return;
+  if (u8_width(s) <= w) { ob_puts(s); return; }
+  ob_padded(s, w - 1, 0);
+  ob_puts("\xe2\x80\xa6");
+}
+/* info line i, coloured, never wider than info_w; returns the columns used */
+static int emit_info(int i) {
   const int key_w = 11;
   if (i == 0) {
     char *at = strchr(userhost, '@');
+    int w = u8_width(userhost);
+    if (w > info_w) { ob_puts("\033[1m"); ob_fg(th->yellow); ob_fit(userhost, info_w); ob_puts("\033[0m"); return info_w; }
     ob_puts("\033[1m"); ob_fg(th->yellow); ob_put(userhost, at - userhost);
     ob_fg(th->fg); ob_puts("@"); ob_fg(th->yellow); ob_puts(at + 1); ob_puts("\033[0m");
+    return w;
   } else if (i == 1) {
     ob_fg(th->grey);
-    for (int k = u8_width(userhost); k > 0; k--) ob_puts("\xe2\x94\x80");
+    int w = u8_width(userhost);
+    if (w > info_w) w = info_w;
+    for (int k = w; k > 0; k--) ob_puts("\xe2\x94\x80");
     ob_puts("\033[0m");
+    return w;
   } else if (i - 2 < ninfo) {
     int k = i - 2;
     ob_puts("\033[1m"); ob_fg(th->orange); ob_padded(info_key[k], key_w, 0);
     ob_puts("\033[22m"); ob_fg(th->fg);
-    if (u8_width(info_val[k]) > val_w) ob_padded(info_val[k], val_w, 0); else ob_puts(info_val[k]);
+    ob_fit(info_val[k], val_w);
     ob_puts("\033[0m");
-  } else if (i == ninfo + 3) {
+    int vw = u8_width(info_val[k]);
+    return key_w + (vw < val_w ? vw : val_w);
+  } else if ((i == ninfo + 2 + pal_gap || i == ninfo + 3 + pal_gap) && pal_block) {
     const unsigned *p = palette();
-    for (int k = 0; k < 8; k++) { ob_fg(p[k]); ob_puts("\xe2\x96\x88\xe2\x96\x88\xe2\x96\x88"); }
+    const char *b = i == ninfo + 2 + pal_gap ? "\xe2\x96\x88" : "\xe2\x96\x80";
+    for (int k = 0; k < 8; k++) { ob_fg(p[k]); for (int j = 0; j < pal_block; j++) ob_puts(b); }
     ob_puts("\033[0m");
-  } else if (i == ninfo + 4) {
-    const unsigned *p = palette();
-    for (int k = 0; k < 8; k++) { ob_fg(p[k]); ob_puts("\xe2\x96\x80\xe2\x96\x80\xe2\x96\x80"); }
-    ob_puts("\033[0m");
+    return 8 * pal_block;
   }
+  return 0;
 }
-static int info_lines(void) { return ninfo + 5; }
+static int info_lines(void) { return ninfo + 3 + pal_gap + pal_half; }
+static int max_val_width(void) {
+  int w = 0;
+  for (int k = 0; k < ninfo; k++) if (u8_width(info_val[k]) > w) w = u8_width(info_val[k]);
+  return w;
+}
+/* pick the layout for a terminal of tcols columns: logo beside the info when it fits, a smaller
+ * logo or shortened values when it nearly fits, the info below the logo, or the info alone */
+static void choose_layout(int tcols, int textlogo, int text_w) {
+  int need = 11 + max_val_width();
+  if (u8_width(userhost) > need) need = u8_width(userhost);
+  if (need < 24) need = 24;
+  int big = textlogo ? text_w : 48;
+  if (tcols >= big + 2 + need) { layout = LAY_SIDE; LOGO_COLS = big; info_w = tcols - big - 2; }
+  else if (tcols >= big + 2 + 11 + 18) { layout = LAY_SIDE; LOGO_COLS = big; info_w = tcols - big - 2; }
+  else if (!textlogo && tcols >= 26 + 2 + 11 + 18) { layout = LAY_SIDE; LOGO_COLS = 26; LOGO_ROWS = 9; info_w = tcols - 28; }
+  else if (tcols >= 24) {
+    layout = LAY_BELOW;
+    LOGO_COLS = textlogo ? text_w : (tcols - 2 < 40 ? tcols - 2 : 40);
+    LOGO_ROWS = LOGO_COLS * 10 / 30;
+    if (LOGO_ROWS < 6) LOGO_ROWS = 6;
+    if (textlogo && text_w > tcols) layout = LAY_INFO;
+    info_w = tcols - 1;
+  } else { layout = LAY_INFO; info_w = tcols - 1; }
+  if (info_w < 12) info_w = 12;
+  val_w = info_w - 11;
+  pal_block = info_w >= 24 ? 3 : info_w >= 16 ? 2 : info_w >= 8 ? 1 : 0;
+}
 
 static void print_plain(void) {
   printf("%s\n", userhost);
@@ -472,19 +555,51 @@ static void pose(const char *name, float t, float *yaw, float *pitch, float *rol
   if (angle_set) *yaw = angle_deg * PI / 180 + t * 0.75f;
 }
 
-static int LOGO_COLS = 48, LOGO_ROWS = 16;
-
 static void usage(void) {
   fprintf(stderr, "usage: fetch [-a|--animate] [--logo mark|cube|torus|text] [--angle degrees] [--bench [frames]]\n");
 }
-
 static void on_exit_restore(void) { tty_restore(); }
+
+static int textlogo, logo_top, block_lines, tcols_g = 80, info_top_g = 1;
+static void line_end(int used) { ob_puts("\033[0m"); if (used < tcols_g) ob_puts("\033[K"); ob_puts("\n"); }
+/* write every line of the block (logo rows at full, info) starting where the cursor is */
+static void print_block(void) {
+  int lines = info_lines();
+  int lrows = textlogo ? text_logo_n : LOGO_ROWS;
+  if (layout == LAY_SIDE) {
+    int info_top = textlogo ? 0 : info_top_g;
+    block_lines = lines + info_top > lrows ? lines + info_top : lrows;
+    logo_top = 0;
+    for (int i = 0; i < block_lines; i++) {
+      int lw = textlogo ? text_logo_w : FW;
+      if (textlogo) emit_text_logo_row(i);
+      else if (i < LOGO_ROWS) { emit_row(i, 1, 0); set_colors(-1, -1); }
+      else for (int c = 0; c < FW; c++) ob_put(" ", 1);
+      ob_puts("  ");
+      int used = lw + 2;
+      if (i - info_top >= 0) used += emit_info(i - info_top);
+      line_end(used);
+    }
+  } else {
+    int nlogo = layout == LAY_BELOW ? lrows + 1 : 0;
+    block_lines = nlogo + lines;
+    logo_top = 0;
+    for (int i = 0; i < nlogo - 1; i++) {
+      if (textlogo) emit_text_logo_row(i);
+      else { emit_row(i, 1, 0); set_colors(-1, -1); }
+      line_end(textlogo ? text_logo_w : FW);
+    }
+    if (nlogo) line_end(0);
+    for (int i = 0; i < lines; i++) line_end(emit_info(i));
+  }
+}
 
 int main(int argc, char **argv) {
   int animate = 0, bench = 0;
   const char *logo = 0;
   theme_init();
   load_config();
+  if (getenv("FETCH_CLOCK_RES")) clock_sim_ms = atof(getenv("FETCH_CLOCK_RES")) / 1000.0; /* hidden, in us */
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "-a") || !strcmp(argv[i], "--animate")) animate = 1;
     else if (!strcmp(argv[i], "--logo") && i + 1 < argc) logo = argv[++i];
@@ -520,22 +635,24 @@ int main(int argc, char **argv) {
   }
 
   gather(userhost, sizeof userhost);
-  color_out = tty_check(1);
-  if (!color_out) { print_plain(); return 0; }
+  if (!tty_check(1)) { print_plain(); return 0; }
 
-  int textlogo = !strcmp(logo, "text");
+  textlogo = !strcmp(logo, "text");
   if (textlogo && load_text_logo()) textlogo = 0, logo = "mark";
-  int lines = info_lines();
-  int logo_rows = textlogo ? text_logo_n : LOGO_ROWS;
-  int L = lines + 1 > logo_rows ? lines + 1 : logo_rows;
   int trows = 24, tcols = 80;
   tty_size(1, &trows, &tcols);
-  val_w = tcols - (textlogo ? text_logo_w : LOGO_COLS) - 2 - 11;
-  if (val_w < 8) val_w = 8;
+  choose_layout(tcols, textlogo, text_logo_w);
+  tcols_g = tcols;
+  if (layout == LAY_SIDE && (LOGO_ROWS < 16 || trows < info_lines() + 3)) info_top_g = 0; /* short window: no spacer line */
+  /* short window: drop the half palette row, then the blank line, so the block, the command
+   * line and the next prompt fit without scrolling the user@host line away */
+  int extra = 2 + (layout == LAY_BELOW ? LOGO_ROWS + 1 : 0);
+  if (trows < info_lines() + info_top_g + extra) pal_half = 0;
+  if (trows < info_lines() + info_top_g + extra) pal_gap = 0;
+  if (layout == LAY_INFO) textlogo = 0;
   if (textlogo) animate = 0;
-  if (animate && trows <= L + 1) animate = 0; /* the block must fit to be redrawn in place */
-
-  if (!textlogo) {
+  if (layout == LAY_INFO) animate = 0;
+  if (!textlogo && layout != LAY_INFO) {
     build_shape(logo);
     canvas_init(LOGO_COLS, LOGO_ROWS);
     prev_top = calloc(FW * FH / 2, sizeof(unsigned)); prev_bot = calloc(FW * FH / 2, sizeof(unsigned));
@@ -543,21 +660,16 @@ int main(int argc, char **argv) {
     pose(logo, 0, &y, &p, &r);
     render(y, p, r);
   }
+  int lrows = textlogo ? text_logo_n : LOGO_ROWS;
+  int L = layout == LAY_SIDE ? (info_lines() + info_top_g > lrows ? info_lines() + info_top_g : lrows) : (layout == LAY_BELOW ? lrows + 1 : 0) + info_lines();
+  if (animate && trows <= L + 1) animate = 0; /* the block must fit on screen to be redrawn in place */
   if (animate) { ob_puts("\033[?25l"); atexit(on_exit_restore); tty_raw(1); }
-  int info_top = textlogo ? 0 : 1;
-  for (int i = 0; i < L; i++) {
-    if (textlogo) emit_text_logo_row(i);
-    else if (i < LOGO_ROWS) { emit_row(i, 1, 0); set_colors(-1, -1); }
-    else for (int c = 0; c < FW; c++) ob_put(" ", 1);
-    ob_puts("  ");
-    if (i - info_top >= 0) emit_info(i - info_top);
-    ob_puts("\033[0m\n");
-  }
+  print_block();
   ob_flush();
   if (!animate) return 0;
 
-  crow = L; ccol = 0;
-  double start = now_ms(), next = start;
+  crow = block_lines; ccol = 0;
+  double start = now_ms(), next = start, theme_check = start;
   long frames = 0;
   double cost = 0;
   for (;;) {
@@ -568,9 +680,23 @@ int main(int argc, char **argv) {
     double a = now_ms();
     float y, p, r;
     pose(logo, (float)((a - start) / 1000.0), &y, &p, &r);
+    if (a - theme_check >= 1000) { /* follow the desktop's theme switch */
+      theme_check = a;
+      if (theme_reload()) {
+        nv = nt = 0;
+        build_shape(logo);
+        set_theme_info();
+        render(y, p, r);
+        move_to(0, 0);
+        print_block();
+        crow = block_lines; ccol = 0;
+        ob_flush();
+        continue;
+      }
+    }
     render(y, p, r);
-    for (int row = 0; row < LOGO_ROWS; row++) emit_row(row, 0, 0);
-    move_to(L, 0);
+    for (int row = 0; row < LOGO_ROWS; row++) emit_row(row, 0, logo_top);
+    move_to(block_lines, 0);
     set_colors(-1, -1);
     cost += now_ms() - a;
     frames++;

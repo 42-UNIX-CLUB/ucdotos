@@ -51,7 +51,7 @@ static int info_procs(struct pinfo *out, int max) {
     struct procinfo p;
     if (__syscall2(SYS_procinfo, i, (long)&p) != 0) break;
     out[n].pid = p.pid; out[n].ppid = p.ppid;
-    out[n].state = p.state == 1 ? 'R' : p.state == 2 ? 'Z' : '?';
+    out[n].state = p.state == 1 ? 'R' : p.state == 2 ? 'Z' : p.state == 3 ? 'S' : '?';
     out[n].mem = (double)p.mem_pages * 65536.0;
     out[n].syscalls = p.syscalls;
     out[n].cpu_us = p.cpu_us;

@@ -8,7 +8,14 @@
 int last_status, last_bg_pid, interactive, opt_x, brk, cont, retflag, in_func, loop_depth;
 int exit_pending, exit_code, exec_keep;
 extern int expand_error;
-#define STOP (brk || cont || retflag || exit_pending)
+#define STOP (brk || cont || retflag || exit_pending || intr_pending)
+int intr_pending;
+/* Ctrl-C while the shell itself is busy (a loop of builtins, say): the kernel
+ * only sets a flag for us. Checking it is also a preemption point. */
+int check_intr(void) {
+  if (!intr_pending && __syscall0(SYS_intr) == 1) intr_pending = 1;
+  return intr_pending;
+}
 
 /* ---- output, and $(...) capture ---- */
 struct cap { int rfd; char *buf; size_t len, cap; };
@@ -259,7 +266,7 @@ static int wait_pid(pid_t pid) {
     if (sig == SIGSEGV) outs(2, "Segmentation fault\n");
     else if (sig == SIGKILL) outs(2, "Killed\n");
     else if (sig == SIGTERM) outs(2, "Terminated\n");
-    else if (sig == SIGINT && interactive) outs(2, "\n");
+    else if (sig == SIGINT) intr_pending = 1; /* stop the loop or list it ran in, like other shells */
     return 128 + sig;
   }
   return WEXITSTATUS(st);
@@ -535,7 +542,7 @@ static int loop_end(int *stop) {
   /* after a loop body: 1 = leave the loop */
   if (brk) { brk--; *stop = 1; return 1; }
   if (cont) { if (--cont) { *stop = 1; return 1; } return 0; }
-  if (retflag || exit_pending) { *stop = 1; return 1; }
+  if (retflag || exit_pending || check_intr()) { *stop = 1; return 1; }
   return 0;
 }
 
@@ -608,6 +615,7 @@ static int run_compound(node *n) {
 
 int run(node *n) {
   int st = 0;
+  if (check_intr()) return last_status = 130;
   if (!n) return last_status = 0;
   switch (n->type) {
   case N_SEQ:

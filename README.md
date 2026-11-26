@@ -52,6 +52,8 @@ node tools/shot.mjs --script=tools/tests/desktop.mjs    # boots the desktop head
 | `bin/` | programs: `sh`, core tools, `wm`, `bar`, `launcher`, `term`, `vi`, `htop`, `fetch`, `bc`, `doom` |
 | `rootfs/` | files copied into the system image: dotfiles, themes, fonts, man pages, the club's pages |
 | `tools/` | test runners |
+| `docs/` | how it works, how to develop it, what has been decided, current status |
+| `CLAUDE.md`, `AGENTS.md` | context for coding agents; start here if you are one |
 
 ## Licence
 

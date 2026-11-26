@@ -1,0 +1,53 @@
+// vi in the desktop at three widths (one, two, three terminals) and in both themes.
+//   node tools/shot.mjs --build=build-apps2 --out=build-apps2/shots/vi --script=bin/vi/shots.mjs --quiet
+export default async (t) => {
+  await t.sleep(2500);
+  await t.type('cp /usr/share/fetch/config /tmp/notes.md\n');
+  await t.sleep(300);
+  await t.type('vi /tmp/demo.c\n');
+  await t.sleep(800);
+  await t.type('i#include <stdio.h>\n/* a block comment\n   on two lines */\nint main(void) {\n\tprintf("hello, rice %d\\n", 42); // the club\n\treturn 0;\n}\n');
+  await t.tap('Escape');
+  await t.sleep(200);
+  await t.type(':set nu\n');
+  await t.sleep(800);
+  t.shot('vi-1-deck');
+  await t.tap('Enter', { alt: true });
+  await t.sleep(1500);
+  await t.type('vi /tmp/notes.md\n');
+  await t.sleep(1000);
+  t.shot('vi-2-deck');
+  await t.tap('Enter', { alt: true });
+  await t.sleep(1500);
+  await t.type('vi /tmp/demo.c\n');
+  await t.sleep(800);
+  await t.type('Vj');
+  await t.sleep(800);
+  t.shot('vi-3-deck');
+  await t.tap('KeyT', { alt: true }); // vi re-reads the theme at most once a second, on redraw
+  await t.sleep(1500);
+  await t.tap('Escape');
+  await t.sleep(300);
+  await t.type('i');
+  await t.sleep(300);
+  await t.tap('KeyK', { alt: true });
+  await t.sleep(300);
+  await t.tap('KeyL', { ctrl: true });
+  await t.sleep(300);
+  await t.tap('KeyK', { alt: true });
+  await t.sleep(300);
+  await t.tap('KeyL', { ctrl: true });
+  await t.sleep(800);
+  t.shot('vi-3-brand');
+  await t.tap('KeyK', { alt: true });
+  await t.sleep(300);
+  await t.tap('Escape');
+  await t.type(':q!\n');
+  await t.sleep(300);
+  await t.tap('KeyQ', { alt: true, shift: true });
+  await t.sleep(1500);
+  t.shot('vi-2-brand');
+  await t.tap('KeyQ', { alt: true, shift: true });
+  await t.sleep(1500);
+  t.shot('vi-1-brand');
+};

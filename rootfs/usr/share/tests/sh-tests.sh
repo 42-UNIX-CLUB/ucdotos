@@ -344,6 +344,19 @@ check "man" 1 "$(man sh | grep -c '^NAME')"
 check "man section" 1 "$(man 7 unix-club | grep -c '^UNIX-CLUB(7) ')"
 check "man missing" 16 "$(man nothing-at-all 2>/dev/null; echo $?)"
 
+echo "--- long command lines"
+check "echo /bin/* (long glob)" "$(ls /bin | wc -l)" "$(echo /bin/* | wc -w)"
+check "long glob to a program" "$(ls /bin | wc -l)" "$(/bin/echo /bin/* | wc -w)"
+check "5000 arguments to a program" 5000 "$(set -- $(seq 1 5000); /bin/echo "$@" | wc -w)"
+check "5000 arguments to a builtin" 5000 "$(echo $(seq 1 5000) | wc -w)"
+check "5000-argument for loop" 5000 "$(n=0; for i in $(seq 1 5000); do n=$((n + 1)); done; echo $n)"
+touch tt; touch tt
+check "touch an existing file" 0 "$?"
+sleep 1 &
+sleep 0.3
+check "ps shows a sleeping process as S" 1 "$(ps | grep -c ' S .* sleep$')"
+wait
+
 echo "--- bc"
 check "bc 2^200" "1606938044258990275541962092341162602522202993782792835301376" "$(echo '2^200' | bc)"
 check "bc scale=50 1/7" ".14285714285714285714285714285714285714285714285714" "$(echo 'scale=50; 1/7' | bc)"

@@ -75,7 +75,8 @@ char *find_in_path(const char *name);
 void reap_jobs(int report);
 int wait_jobs(void);
 extern int last_status, last_bg_pid, interactive, opt_x, brk, cont, retflag, in_func;
-extern int exit_pending, exit_code, exec_keep, loop_depth;
+extern int exit_pending, exit_code, exec_keep, loop_depth, intr_pending;
+int check_intr(void);
 
 /* builtin.c */
 typedef int (*builtin_fn)(int argc, char **argv);

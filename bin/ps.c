@@ -7,7 +7,7 @@ int main(int argc, char **argv) {
   struct procinfo pi;
   printf("%5s %5s %-5s %8s %9s %10s  %s\n", "PID", "PPID", "STATE", "MEM", "SYSCALLS", "TIME", "NAME");
   for (int i = 0; __syscall2(SYS_procinfo, i, &pi) == 0; i++) {
-    const char *st = pi.state == 1 ? "R" : pi.state == 2 ? "Z" : "?";
+    const char *st = pi.state == 1 ? "R" : pi.state == 2 ? "Z" : pi.state == 3 ? "S" : "?";
     unsigned long long ms = pi.cpu_us / 1000;
     char t[32];
     snprintf(t, sizeof t, "%llu:%02llu.%03llu", ms / 60000, ms / 1000 % 60, ms % 1000);

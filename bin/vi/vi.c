@@ -390,6 +390,36 @@ static void row_end(int r) {
   memcpy(prev_row[r], ob + row_start, n);
   prev_row[r][n] = 0;
 }
+/* Soft wrap (on by default, :set nowrap turns it off): a line is split into screen segments,
+ * breaking after a blank when the word would not fit, so words are not cut in half.
+ * seg_x[k] is the first byte of segment k and seg_c[k] its display column. */
+static int wrap_on = 1;
+static int segments(int y, int tw, int *seg_x, int *seg_c, int max) {
+  int n = 1, col = 0, brk_x = -1, brk_c = 0;
+  seg_x[0] = 0; seg_c[0] = 0;
+  if (!wrap_on || tw < 1) return 1;
+  const char *s = S(y);
+  for (int i = 0; i < LEN(y); i = nextc(y, i)) {
+    int w = char_w(s, i, col);
+    if (col + w - seg_c[n - 1] > tw && n < max) {
+      if (brk_x > seg_x[n - 1]) { seg_x[n] = brk_x; seg_c[n] = brk_c; }
+      else { seg_x[n] = i; seg_c[n] = col; }
+      n++;
+      brk_x = -1;
+    }
+    col += w;
+    if (is_blank(s[i])) { brk_x = nextc(y, i); brk_c = col; }
+  }
+  return n;
+}
+#define MAXSEG 256
+static int seg_of(int y, int x, int tw, int *col_in_seg) { /* segment holding byte x, and the column in it */
+  int sx[MAXSEG], sc[MAXSEG], n = segments(y, tw, sx, sc, MAXSEG), k = n - 1;
+  while (k > 0 && sx[k] > x) k--;
+  if (col_in_seg) *col_in_seg = dcol(y, x) - sc[k];
+  return k;
+}
+static int line_rows(int y, int tw) { int sx[MAXSEG], sc[MAXSEG]; return segments(y, tw, sx, sc, MAXSEG); }
 static void scroll_to_cursor(void) {
   int th_ = text_rows();
   if (cy < top) top = cy - top < -th_ / 2 ? cy - th_ / 2 : cy;
@@ -401,11 +431,22 @@ static void scroll_to_cursor(void) {
   if (top > cy) top = cy;
   int tw = C - gutter();
   if (tw < 1) tw = 1;
+  if (wrap_on) { /* wrapped lines take several rows: scroll until the cursor's row is on screen */
+    leftcol = 0;
+    for (;;) {
+      int rows = seg_of(cy, cx, tw, 0) + 1;
+      for (int y = top; y < cy; y++) rows += line_rows(y, tw);
+      if (rows <= th_ || top >= cy) break;
+      top++;
+    }
+    return;
+  }
   int col = dcol(cy, cx);
   if (col < leftcol) leftcol = col;
   if (col >= leftcol + tw) leftcol = col - tw + 1;
 }
-static void draw_text_row(int r, int y, int ft, int *incomment, unsigned char *hl, int vis1, int vis2) {
+/* screen row r shows line y from byte x0 to x1, display column c0 at the left edge */
+static void draw_text_row(int r, int y, int x0, int x1, int c0, int first, unsigned char *hl, int vis1, int vis2) {
   int gw = gutter(), tw = C - gw;
   unsigned bgc = (mode == M_VISUAL && y >= vis1 && y <= vis2) ? th->bg2 : th->bg;
   row_begin(r);
@@ -418,21 +459,20 @@ static void draw_text_row(int r, int y, int ft, int *incomment, unsigned char *h
   if (gw) {
     ob_bg(th->bg);
     if (y == cy) { ob_puts("\033[1m"); ob_fg(th->yellow); } else ob_fg(th->grey);
-    ob_printf("%*d ", gw - 1, y + 1);
+    if (first) ob_printf("%*d ", gw - 1, y + 1); else ob_printf("%*s ", gw - 1, "");
     ob_puts("\033[22m");
   }
   ob_bg(bgc);
-  highlight(y, hl, ft, incomment);
   const char *s = S(y);
-  int col = 0, i = 0, n = LEN(y), out = 0, cur = -1;
-  while (i < n && out < tw) {
+  int col = dcol(y, x0), i = x0, out = 0, cur = -1;
+  while (i < x1 && out < tw) {
     int w = char_w(s, i, col), next = nextc(y, i);
     int h = hl[i];
     unsigned char c = s[i];
     if (c < 32 || c == 127) h = H_CTRL;
     for (int k = 0; k < w; k++) {
       int vc = col + k;
-      if (vc < leftcol || out >= tw) continue;
+      if (vc < c0 || out >= tw) continue;
       if (h != cur) {
         ob_fg(hl_color(h));
         if (h == H_HEADING) ob_puts("\033[1m"); else if (cur == H_HEADING) ob_puts("\033[22m");
@@ -485,7 +525,10 @@ static void draw_status(int r) {
 static void render(void) {
   int r, c;
   if (tty_size(1, &r, &c) == 0) { R = r < 3 ? 3 : r; C = c < 20 ? 20 : c; }
-  if (R != prev_R || C != prev_C) {
+  static double theme_checked;
+  int theme_changed = 0;
+  if (now_ms() - theme_checked > 1000) { theme_checked = now_ms(); theme_changed = theme_reload(); } /* Alt+t */
+  if (R != prev_R || C != prev_C || theme_changed) {
     for (int i = 0; i < prev_R; i++) free(prev_row[i]);
     free(prev_row);
     prev_row = calloc(R, sizeof *prev_row);
@@ -508,7 +551,19 @@ static void render(void) {
     free(tmp);
   }
   int v1 = vis_y < cy ? vis_y : cy, v2 = vis_y < cy ? cy : vis_y;
-  for (int i = 0; i < th_; i++) draw_text_row(i, top + i, ft, &incomment, hl, v1, v2);
+  int tw = C - gutter(), sr = 0, cur_row = 0, cur_col = 0;
+  for (int y = top; sr < th_; y++) {
+    if (y >= nl) { draw_text_row(sr++, y, 0, 0, 0, 1, hl, v1, v2); continue; }
+    if (LEN(y) + 1 > maxlen) { maxlen = LEN(y) + 1; hl = realloc(hl, maxlen); }
+    highlight(y, hl, ft, &incomment);
+    int sx[MAXSEG], sc[MAXSEG], n = segments(y, tw, sx, sc, MAXSEG);
+    for (int k = 0; k < n && sr < th_; k++, sr++) {
+      int x1 = k + 1 < n ? sx[k + 1] : LEN(y);
+      if (wrap_on) draw_text_row(sr, y, sx[k], x1, sc[k], k == 0, hl, v1, v2);
+      else draw_text_row(sr, y, 0, LEN(y), leftcol, 1, hl, v1, v2);
+    }
+    if (y == cy) { int c; int k = seg_of(cy, cx, tw, &c); cur_row = sr - n + k; cur_col = wrap_on ? c : dcol(cy, cx) - leftcol; }
+  }
   free(hl);
   draw_status(R - 2);
   row_begin(R - 1);
@@ -523,10 +578,10 @@ static void render(void) {
     int w = u8_width(cmdline);
     ob_goto(R - 1, w < C ? w : C - 1);
   } else {
-    int col = dcol(cy, cx);
-    if (mode != M_INSERT && cx < LEN(cy) && S(cy)[cx] == '\t') col += char_w(S(cy), cx, col) - 1;
-    int sc = gutter() + col - leftcol;
-    ob_goto(cy - top, sc < C ? sc : C - 1);
+    int col = cur_col;
+    if (mode != M_INSERT && cx < LEN(cy) && S(cy)[cx] == '\t') col += char_w(S(cy), cx, dcol(cy, cx)) - 1;
+    int sc = gutter() + col;
+    ob_goto(cur_row, sc < C ? sc : C - 1);
   }
   ob_puts("\033[?25h");
   ob_flush();
@@ -1233,6 +1288,8 @@ static void ex_command(const char *line) {
       if (!strcmp(opt, "nu") || !strcmp(opt, "number")) number = 1;
       else if (!strcmp(opt, "nonu") || !strcmp(opt, "nonumber")) number = 0;
       else if (!strcmp(opt, "nu!") || !strcmp(opt, "invnumber") || !strcmp(opt, "invnu")) number = !number;
+      else if (!strcmp(opt, "wrap")) wrap_on = 1;
+      else if (!strcmp(opt, "nowrap")) wrap_on = 0;
       else { set_msg(1, "E518: Unknown option: %s", opt); return; }
     }
     return;
@@ -1513,7 +1570,8 @@ static void run_normal(void) {
     set_msg(0, "\"%s\"%s %d line%s --%d%%--", filename[0] ? filename : "[No Name]", modified ? " [Modified]" : "", nl, nl == 1 ? "" : "s", (cy + 1) * 100 / nl);
     break;
   }
-  case 12: /* Ctrl-L */
+  case 12: /* Ctrl-L: full redraw, picking up the desktop theme */
+    theme_reload();
     for (int i = 0; i < prev_R; i++) { free(prev_row[i]); prev_row[i] = 0; }
     ob_puts("\033[2J");
     break;
@@ -1589,12 +1647,12 @@ int main(int argc, char **argv) {
     if (argv[i][0] == '+' && isdigit((unsigned char)argv[i][1])) { /* +N: start on line N */ }
     else if (!file) file = argv[i];
   }
+  interactive = tty_check(0) && tty_check(1); /* before open_file: its message must not go to stdout */
   if (file) open_file(file);
   else { lreserve(1); L[0] = lnew("", 0); nl = 1; }
   cx = first_nb(0);
   for (int i = 1; i < argc; i++)
     if (argv[i][0] == '+' && isdigit((unsigned char)argv[i][1])) { cy = atoi(argv[i] + 1) - 1; clamp(); cx = first_nb(cy); }
-  interactive = tty_check(0) && tty_check(1);
   if (!interactive) {
     fprintf(stderr, "vi: not a terminal: reading ex commands from standard input\n");
     batch_mode();

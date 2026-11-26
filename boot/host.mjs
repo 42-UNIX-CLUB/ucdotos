@@ -59,6 +59,24 @@ export function checkSupport() {
 
 export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, debug = false }) {
   const dec = new TextDecoder();
+  // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
+  const deviceMemory = ((globalThis.navigator && globalThis.navigator.deviceMemory) || 4) * 2 ** 30;
+  // yieldTask(f): run f after one turn of the event loop, without the 4 ms clamp that
+  // browsers put on repeated setTimeout(0). Used when the kernel preempts a process.
+  const yieldQueue = [];
+  const yieldChannel = new MessageChannel();
+  // A process that keeps yielding must not starve sleeping ones: some event loops serve a
+  // steady stream of messages ahead of timers. So every yield first wakes sleepers that are due.
+  const sleepers = new Set();
+  yieldChannel.port1.onmessage = () => {
+    if (sleepers.size) { const now = performance.now(); for (const S of sleepers) if (S.deadline <= now) S.fire(); }
+    const f = yieldQueue.shift();
+    if (f) f();
+    if (!yieldQueue.length && port.unref) port.unref(); // Node: do not keep the process alive when idle
+  };
+  const port = yieldChannel.port1;
+  if (port.unref) port.unref();
+  const yieldTask = (f) => { if (port.ref) port.ref(); yieldQueue.push(f); yieldChannel.port2.postMessage(0); };
   const shimModule = await WebAssembly.compile(SHIM);
   const trampModule = await WebAssembly.compile(TRAMPOLINE);
   const procs = new Map();        // pid -> { pid, dead, wake, timer, slot }
@@ -73,10 +91,11 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     if (P.wake) { const w = P.wake; P.wake = null; w(); }
   }
   const host = {
-    log(p, n) { log(dec.decode(mem().slice(p, p + n))); },
+    log(p, n) { log(dec.decode(mem().slice(p, p + n), { stream: true })); },
     now: () => performance.now(),
     epoch: () => Date.now(),
     random() { crypto.getRandomValues(rnd); return rnd[0]; },
+    memory: () => deviceMemory,
     fb_dirty() { onFrame(); },
     wake(pid) {
       const P = procs.get(pid);
@@ -114,12 +133,16 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
       const ms = k.block_timeout(pid);
       await new Promise((resolve) => {
         P.wake = resolve;
-        if (ms >= 0) P.timer = setTimeout(() => { if (P.wake === resolve) { P.wake = null; resolve(); } }, ms);
+        const fire = () => { if (P.wake === resolve) { P.wake = null; resolve(); } };
+        if (ms === 0) yieldTask(fire);
+        else if (ms > 0) { P.deadline = performance.now() + ms; P.fire = fire; sleepers.add(P); P.timer = setTimeout(fire, ms); }
       });
+      sleepers.delete(P);
       clearTimeout(P.timer);
       if (!alive()) throw EXIT;
       k.set_current(pid);
       P.t0 = performance.now();
+      k.proc_resumed(pid, P.t0);
     });
     let inst;
     try {
@@ -141,6 +164,7 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     }
     k.set_current(pid);
     P.t0 = performance.now();
+    k.proc_resumed(pid, P.t0);
     try {
       await WebAssembly.promising(inst.exports._start)();
     } catch (e) {

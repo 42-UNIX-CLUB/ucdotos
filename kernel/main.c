@@ -30,11 +30,27 @@ EXPORT(kmain) int kmain(u8 *initrd, u32 initrd_len, const char *cmdline) {
   int files = vfs_load_tar(initrd, initrd_len);
   kprintf("[kernel] %s %s (wasm32), initrd %u KiB, %d files, up in %.2f ms\n", OS_NAME, OS_RELEASE,
           initrd_len >> 10, files, host_now() - t0);
-  u8 *args = kmalloc(16);
-  u32 counts[2] = {1, 0};
+  /* argv for init: its own name, then any words after " -- " on the command line */
+  u32 cl = cmdline ? strlen(cmdline) : 0;
+  u8 *args = kmalloc(16 + PATH_MAX + cl);
+  u32 counts[2] = {1, 0}, alen = 8;
+  const char *base = strrchr(init, '/');
+  base = base ? base + 1 : init;
+  memcpy(args + alen, base, strlen(base) + 1);
+  alen += strlen(base) + 1;
+  for (const char *c = cmdline; c && *c; c++) {
+    if (strncmp(c, " -- ", 4)) continue;
+    for (c += 4; *c;) {
+      while (*c == ' ') c++;
+      if (!*c) break;
+      while (*c && *c != ' ') args[alen++] = *c++;
+      args[alen++] = 0;
+      counts[0]++;
+    }
+    break;
+  }
   memcpy(args, counts, 8);
-  memcpy(args + 8, "init", 5);
-  int pid = proc_spawn(NULL, init, args, 13, NULL);
+  int pid = proc_spawn(NULL, init, args, alen, NULL);
   if (pid < 0) { kprintf("[kernel] cannot start %s: error %d\n", init, pid); return pid; }
   struct inode *con = vfs_lookup(vfs_root, "/dev/console");
   for (int i = 0; i < 3; i++) procs[pid].fd[i] = file_new(dev_fops(DEV_CONSOLE), con, O_RDWR, NULL);
