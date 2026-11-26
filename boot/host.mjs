@@ -63,7 +63,7 @@ export function checkSupport() {
 // kernel gets instead (boot/worker-proto/ext.mjs uses it to run some processes in Workers).
 // remote(url): how remote files are fetched (kernel/remote.c); a Promise of a fetch Response.
 // The page passes fetch relative to its own folder; the Node tools read the build directory.
-export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, debug = false, extend = null, sound = {}, remote = (url) => fetch(url) }) {
+export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onPointerLock = () => {}, debug = false, extend = null, sound = {}, remote = (url) => fetch(url) }) {
   const dec = new TextDecoder();
   // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
   const deviceMemory = ((globalThis.navigator && globalThis.navigator.deviceMemory) || 4) * 2 ** 30;
@@ -112,6 +112,9 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
       const url = new TextDecoder().decode(mem().slice(p, p + n));
       queueMicrotask(() => fetchRemote(id, url, dst, size, gz)); // never call back into the kernel from inside an import
     },
+    // The window manager captured (1) or released (0) the mouse for a fullscreen game: the
+    // page locks or unlocks the browser's pointer (boot/page.mjs).
+    pointer_lock(on) { onPointerLock(!!on); },
     wake(pid) {
       const P = procs.get(pid);
       if (P && P.wake) { const w = P.wake; P.wake = null; w(); }

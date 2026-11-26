@@ -64,6 +64,7 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `fb_dirty()` | the framebuffer was written since the host last took the damage box (`fb_damage`); show it on the next animation frame. Called once per frame, not per write |
    | `fetch(id, url, url_len, dst, size, gz)` | fetch a remote file (section 7) straight into the kernel buffer at `dst`, chunk by chunk through the kernel exports `remote_data(id, len)` and `remote_end(id, ok)`; never called back from inside the import (`queueMicrotask`). It uses the `remote(url)` option of `boot()` |
    | `audio_rate audio_open audio_write audio_close audio_volume audio_reset` | the host half of `/dev/dsp` (`boot/audio.mjs`): samples go to the mixer on the browser's audio thread, or to a real-time stand-in under Node. See section 15 |
+   | `pointer_lock(on)` | the window manager captured (1) or released (0) the mouse (`EVIOCGRAB`); the page locks or unlocks the browser's pointer (section 10) |
 
 3. Copies the initrd (a ustar archive) and the command line into kernel memory with the
    kernel export `boot_alloc`, calls `fb_resize(w, h)` if there is a screen, then
@@ -415,10 +416,24 @@ page says what happened.
 | ...that typed a character | followed by `(EV_MSC=4, 0x10, Unicode code point)`: the browser already applied the keyboard layout |
 | key release | `(EV_KEY, code, 0)` |
 | pointer | `(EV_ABS=3, 0, x)`, `(EV_ABS, 1, y)` in framebuffer pixels |
+| pointer, while captured | `(EV_REL=2, 0, dx)`, `(EV_REL, 1, dy)`: how far it moved, in framebuffer pixels |
 | buttons | `EV_KEY` with `0x110` left, `0x111` right, `0x112` middle |
 | wheel | `(EV_REL=2, 8, +1 or -1)` |
 | screen resized | `(EV_MSC, 0x11, (w << 16) | h)` |
 | end of a batch | `(EV_SYN=0, 0, 0)` |
+
+**Mouse capture.** `ioctl(EVIOCGRAB, 1)` on `/dev/input/event0` (Linux's number; here it
+means "capture the mouse") calls `host.pointer_lock(1)`: the page locks the browser's
+pointer (Pointer Lock), which hides it and keeps it in the page, and sends movement as
+`EV_REL` instead of positions. A browser grants the lock only right after a click or key
+press; if it refuses, the next click on the page takes it and is not passed on. Esc
+always releases it (the browser's rule) and a click takes it again. A browser that
+refuses the lock outright (headless Firefox does) gets its clicks passed on as usual, so
+buttons keep working without movement. While locked the page never calls
+`setPointerCapture`, which browsers refuse with an exception then. `0` releases it.
+Only the window manager does this, for a window that asked with `ui_pointer_lock` while
+that window is fullscreen, focused and on the current workspace; the window then gets
+`UI_EV_MOUSE_REL` events and the cursor is not drawn.
 
 Use the code point for text and the key code for shortcuts. Text from dead keys and
 input methods arrives as key 240 with a code point. The page keeps F5, F11, F12 and

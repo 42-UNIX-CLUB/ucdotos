@@ -22,7 +22,8 @@ HOST(epoch) double host_epoch(void);                     /* milliseconds since 1
 HOST(random) u32 host_random(void);
 HOST(memory) double host_memory(void);                   /* bytes of memory the device reports */
 #define SLICE_MS 8.0 /* longest a process runs before the kernel makes it yield at a system call */
-HOST(fb_dirty) void host_fb_dirty(void);                 /* framebuffer changed, present it */
+HOST(fb_dirty) void host_fb_dirty(void);
+HOST(pointer_lock) void host_pointer_lock(int on);       /* capture the mouse (1) or release it (0) */                 /* framebuffer changed, present it */
 
 /* klib */
 void *memcpy(void *, const void *, usize);

@@ -66,6 +66,7 @@ extern void gfx_init(gfx_surface *, unsigned int *, int, int, int) __attribute__
 extern void gfx_fill_rect(gfx_surface *, int, int, int, int, unsigned int) __attribute__((weak));
 extern int gfx_text(gfx_surface *, ttf_cache *, int, int, const char *, int, unsigned int) __attribute__((weak));
 extern int gfx_text_width(ttf_cache *, const char *, int) __attribute__((weak));
+extern int ui_pointer_lock(ui_window *, int) __attribute__((weak));
 
 #define SRC_W 320
 #define SRC_H 200
@@ -253,6 +254,7 @@ static void pump_win(void) {
     case UI_EV_KEY_UP: linux_key(e.key, 0); break;
     case UI_EV_MOUSE_DOWN: if (e.button == 0) linux_key(BTN_LEFT, 1); else if (e.button == 2) linux_key(BTN_RIGHT, 1); break;
     case UI_EV_MOUSE_UP: if (e.button == 0) linux_key(BTN_LEFT, 0); else if (e.button == 2) linux_key(BTN_RIGHT, 0); break;
+    case UI_EV_MOUSE_REL: break;               /* captured mouse: buttons only, it does not turn the view */
     case UI_EV_RESIZE: win_set_size(); break;
     case UI_EV_BLUR: release_all(); break;
     case UI_EV_CLOSE: I_Quit(); break;
@@ -357,6 +359,7 @@ void DG_Init(void) { /* also called early, by DG_FetchFile or DG_ErrorBox: once 
     win = ui_open("Doom", "doom", 960, 600, UI_NORMAL);
   if (win) {
     win_set_size();
+    if (ui_pointer_lock) ui_pointer_lock(win, 1);   /* fullscreen (Alt+f): hide the cursor, keep the buttons in Doom */
   } else {
     unsigned info[40] = {0};
     fb_fd = open("/dev/fb0", O_RDWR);
