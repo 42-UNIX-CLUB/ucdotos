@@ -503,25 +503,24 @@ must call `ui_theme_load()` again on every `UI_EV_RESIZE` and redraw.
 **wm** (`bin/wm/`): two tiling layouts per workspace (master and stack, or a split tree),
 gaps, rounded anti-aliased borders (2 px accent on the focused window, 1 px grey on the
 others), fullscreen, floating windows (`float` toggles, on Mod+y and Mod+Shift+space; Mod +
-left-button drag moves a floating window, and that click never reaches the program; a
-window that never takes the focus, such as the cheat sheet, is not moved), workspaces, damage-based compositing at
-most once per 15 ms, zero work when idle. It keeps no full-screen buffers: damaged
-rectangles are painted a band of rows at a time into a static 256 KiB strip and each band
-is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made rows
-(plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2 MiB
-plus a copy of every window's pixels.
-Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
-`focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
-`layout master|split|toggle`, `open left|right|up|down CMD`, `toggle APP` (hide or show every
-window whose app_id is APP, like i3's scratchpad; windows that program opens later start the
-same way, and shown ones get a CONFIGURE so they redraw and re-read their files),
-`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `trace on|off` (print, for each
-`PRESENT`, the time from its first byte to the framebuffer write; used by the latency
-probe), `animation MS`,
-`zoom in|out|reset` (sends the zoom event to the focused window; bound by default to
-Ctrl+= with or without Shift, Ctrl+- and Ctrl+0, which therefore no longer reach programs.
-Bindings are by key position, so on a non-US keyboard these are the keys in the US
-positions of = and -, and the numeric keypad cannot be bound).
+left-button drag moves a floating window, and that click never reaches the program; a window
+that never takes the focus, such as the cheat sheet, is not moved), workspaces, damage-based
+compositing at most once per 15 ms, zero work when idle. It keeps no full-screen buffers:
+damaged rectangles are painted a band of rows at a time into a static 256 KiB strip and each
+band is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made
+rows (plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2
+MiB plus a copy of every window's pixels. Commands (bindable keys and `ui_wm_command`):
+`exec CMD`, `workspace N`, `move N`, `focus next|prev`, `swap next|prev|master`, `master
+grow|shrink`, `fullscreen`, `float`, `layout master|split|toggle`, `open left|right|up|down
+CMD`, `toggle APP` (hide or show every window whose app_id is APP, like i3's scratchpad;
+windows that program opens later start the same way, and shown ones get a CONFIGURE so they
+redraw and re-read their files), `kill`, `theme next|NAME`, `reload`, `exit`, `stats`,
+`bench`, `trace on|off` (print, for each `PRESENT`, the time from its first byte to the
+framebuffer write; used by the latency probe), `animation MS`, `zoom in|out|reset` (sends
+the zoom event to the focused window; bound by default to Ctrl+= with or without Shift,
+Ctrl+- and Ctrl+0, which therefore no longer reach programs. Bindings are by key position,
+so on a non-US keyboard these are the keys in the US positions of = and -, and the numeric
+keypad cannot be bound).
 
 A workspace switch slides: for `animation` milliseconds (`[general]` in `wm.uconf`; 160 by
 default, 0 for none) the old and the new workspace pan across the screen, eased out. The
