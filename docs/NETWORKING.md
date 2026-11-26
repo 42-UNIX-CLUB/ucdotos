@@ -150,6 +150,12 @@ Without any of these, an ordinary tab keeps what section 2 lists.
   and names fail with "temporary failure". `routerd -d` puts things back.
 - `fetch()` in a browser follows redirects itself, drops `Set-Cookie` and most response
   headers, and decompresses bodies; routerd's answer is what the browser lets it see.
+- Both fetches the host makes for programs, the HTTP request and the DNS-over-HTTPS
+  lookup, pass `credentials: 'omit'` (`boot/hostnet.mjs`): a program's request never
+  carries the browser's cookies or HTTP authentication, not even to the page's own host.
+  Checked under Node (every request of the router suite records `omit`); not checked in a
+  browser, where it follows from the Fetch standard. The site sets no cookies today. This is
+  the first half of decision 30; the admin program's own channel is not built.
   Under Node, redirects are passed to the client as they are.
 - The host does not slow down a sender on its side: data a UC.OS program writes to a
   Node socket is buffered by Node without limit.
