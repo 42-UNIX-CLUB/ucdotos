@@ -301,9 +301,29 @@ The host tells the kernel how long a process ran each time it parks
   foreground group it was forgets it (foreground group 0). The kernel does not generate
   `SIGTTIN` and `SIGTTOU`.
 - Credentials: real, effective, saved and file-system uid and gid, supplementary groups,
-  umask and the chroot directory, inherited by `spawn` and by a clone. Every process
-  starts as uid and gid 1000; the set*id calls follow Linux's rules. Permissions are not
-  enforced (section 7).
+  umask and the chroot directory, inherited by `spawn` and by a clone. The first process
+  starts as root (uid 0); the set*id calls follow Linux's rules. See "Users" below.
+
+### Users, groups and the session (`bin/init.c`, `libc/src/pwd.c`, `bin/su.c`, `bin/sudo.c`)
+
+- `/etc/passwd` has `root` (0), `user` (1000) and `nobody`; `/etc/group` has `root`, `tty`
+  (5), `audio` (29), `video` (44), `users` (100), `input` (101), `user` and `nogroup`. The
+  desktop user is in audio, video, users and input. The libc reads them (`getpwnam`,
+  `getpwuid`, `getgrnam`, `getgrouplist`, `initgroups`, ...).
+- `init` runs as root. It starts `routerd` as root (a system service), then makes
+  `/run/user/UID` for the desktop user and starts the sound server and every stage of the
+  desktop as that user (groups, group, then user, through `fork_call`), with
+  `XDG_RUNTIME_DIR` set, the way a display manager does on Linux. `init PROGRAM ARGS` runs
+  one program as the desktop user (for tests), `init --root PROGRAM ARGS` as root.
+- Per-user services put their sockets in `$XDG_RUNTIME_DIR` (`/run` when the variable is
+  not set, as for a test run as pid 1): `audiod.sock`, `clip.sock`, `wm.sock`.
+- **Entitled sessions.** UC.OS has no passwords. Whether this session may become root is
+  decided at boot: the boot parameter `ucos.admin=1` (the page passes it only when the
+  server that serves the page says so, with `<meta name="ucos-admin" content="1">`; the
+  address bar cannot set it). The kernel honours the set-user-ID and set-group-ID bits of
+  a program only in an entitled session. `su` and `sudo` are installed set-user-ID root:
+  entitled, they switch without asking; not entitled, they run as the caller and refuse.
+  Root may always switch to anyone.
 
 ### Fork, exec and migration (`kernel/fork.c`, `libc/src/fork.c`, `tools/wasmfork.c`)
 
@@ -395,10 +415,16 @@ The full reference for the file system is `docs/VFS-NOTES.md`; persistence is
   into 8 bytes inside the kernel), from the host clock, strictly increasing; atime follows
   "relatime" without the 24-hour rule. Files from the image keep the tar's mode, owner and
   mtime. `utimensat` sets the times it is given.
-- **Permissions are stored, not enforced.** One switch, `VFS_ENFORCE_DEFAULT` in
-  `kernel/kernel.h`, is 0: nothing is refused. Level 1 refuses to run a file with no
-  execute bit; level 2 is full owner, group and other checks with the sticky bit. Every
-  process starts as uid and gid 1000 and counts as privileged while the switch is 0.
+- **Permissions are enforced.** One switch, `VFS_ENFORCE_DEFAULT` in `kernel/kernel.h`,
+  is 2: full owner, group and other checks on open, create, unlink, search, exec,
+  utimensat, chmod and chown, with the sticky bit; root (uid 0) passes, as on Linux.
+  Level 1 only refuses to run a file with no execute bit; level 0 refuses nothing. The
+  image belongs to root and only root may write to it, except `/home/user` (uid and gid
+  1000); `/root` is 0700, `/var/tmp` 1777; `/tmp` is 1777. Devices: `/dev/fb0` root:video
+  0660, `/dev/input/event0` root:input 0660, `/dev/dsp` root:audio 0660, `/dev/console`
+  root:tty 0622, `/dev/hostnet` root 0600 (only the router uses it), `/dev/hostclip` 0666
+  (an open question for the owners: any user can read the browser's clipboard through
+  it).
 - **Locks**, advisory: `flock` (owned by the open file), POSIX record locks with byte ranges
   (owned by the process; a wait that would close a circle of waiting processes is
   `EDEADLK`), OFD locks.
@@ -432,9 +458,13 @@ The full reference for the file system is `docs/VFS-NOTES.md`; persistence is
   `tools/run.mjs --store=FILE`). The stored layer lies over the image: at boot only the
   metadata is read, contents arrive on first open, and a newer image updates every file
   the user has not changed. Write-behind delay 0.5 s; `fsync`, `fdatasync`, `syncfs` and
-  `sync` wait until the data is stored (park-and-retry) and return `EIO` once storage has
-  failed. One tab owns the store (a Web Lock); a second tab boots from the image and
-  keeps nothing. `?reset` on the page wipes the store, `?nostore` boots without it.
+  `sync` wait until the data is stored (park-and-retry). When the browser refuses a batch
+  for lack of room, nothing is lost (the changes are queued again), writes to stored files
+  fail with `ENOSPC`, and deleting files frees room; the bar shows "disk N%" from
+  `/proc/ucos-store`. One tab at a time: a tab boots only while it holds the Web Lock
+  `ucos-store`; a second tab waits and says why, and boots when the first one closes
+  (`?nostore` boots at once, without storage). A store written before users existed gets
+  the image's owners for image files once (record `O` marks a store written with users). `?reset` on the page wipes the store, `?nostore` boots without it.
   Remote files are never stored (they come back from the server); files dropped on the
   page are stored like any other user file.
 - `struct file` has reference counts, flags, an offset and a `struct fops`
@@ -509,12 +539,14 @@ and polls `POLLHUP`; a terminal emulator closes its window then.
 ## 9. Sockets (`kernel/sock.c`)
 
 `AF_UNIX`, `SOCK_STREAM` only: `socket bind listen accept connect`, then `read`,
-`write`, `ppoll`. 512 KiB buffer per direction, backlog 16, short writes, `-EPIPE` when
+`write`, `ppoll`, and `sendto`, `recvfrom`, `sendmsg`, `recvmsg` with flags (`MSG_NOSIGNAL`:
+a send to a peer that is gone gives `EPIPE` without `SIGPIPE`; otherwise such a send
+raises `SIGPIPE`, as on Linux). `connect` does not check write permission on the
+socket file (Linux does). 512 KiB buffer per direction, backlog 16, short writes, `-EPIPE` when
 the peer is gone, `-ECONNREFUSED` with no listener (and when the backlog is full). A bound
 socket keeps its inode alive: unlinking the path while the socket is open is safe. No
 datagrams, no `socketpair`, no `accept4` (set close-on-exec with `fcntl` after `accept`).
-`send` and `recv` on a unix socket are `write` and `read`; `accept` reports the peer as an
-unnamed `AF_UNIX` address.
+`accept` reports the peer as an unnamed `AF_UNIX` address.
 
 `AF_INET` and `AF_PACKET` sockets go to `kernel/inet.c`: `sys_socket`, `sys_bind`,
 `sys_listen`, `sys_connect` and `sys_accept` hand over any descriptor that is not a unix
@@ -578,7 +610,7 @@ manager, or `term --fb` when there is none.
 ## 11. The desktop stack
 
 ```
-init -> wm (owns /dev/fb0 and /dev/input/event0, listens on /run/wm.sock)
+init -> wm (owns /dev/fb0 and /dev/input/event0, listens on $XDG_RUNTIME_DIR/wm.sock)
           +- bar        (role UI_BAR)       workspaces, title, clock, mem / procs / syscalls per second
           +- launcher   (role UI_FLOATING)  on Alt+d
           +- term ...   (role UI_NORMAL)    each owns a pty and a shell
@@ -691,7 +723,7 @@ inside `ESC [200~ ... ESC [201~` when bracketed paste is on), 1 KiB every 4 ms.
 
 **The clipboard** is its own program, not part of the window manager or the kernel.
 `clipd` (`bin/clipd.c`) keeps up to 20 entries (1 MiB each, 4 MiB in all) and answers on
-the socket `/run/clip.sock`, one request per connection (`PUT GET LIST SELECT REMOVE
+the socket `$XDG_RUNTIME_DIR/clip.sock` (`/run/clip.sock` without the variable), one request per connection (`PUT GET LIST SELECT REMOVE
 CLEAR`, format in `libclip/clip.h`). `libclip` is the client; the first call that finds no
 `clipd` starts one. `clip` (`bin/clip/`) is the shell side (`ls | clip`, `clip -o`,
 `clip -l`, `clip -s N`, `clip -d N`, `clip -c`), and `clipboard` (`bin/clipboard/`) a
@@ -878,7 +910,7 @@ How it maps onto UC.OS:
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
 threads, shared memory, networking beyond the machine
-itself (section 16), sound input (recording), users and permission enforcement, time zones, a clipboard, dynamic linking for UC.OS
+itself (section 16), sound input (recording), passwords and logins, time zones, a clipboard, dynamic linking for UC.OS
 programs. Unmodified Linux binaries run through an ordinary program,
 `bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
 on top of this kernel); its design is in `docs/LINUX-BINARIES.md`. It needs nothing from
@@ -915,7 +947,7 @@ rule). Under Node, or without Web Audio, a stand-in consumes each stream in real
 (`--audio-capture=FILE` in `tools/run.mjs` and `tools/shot.mjs`).
 
 **audiod**, the sound server for everything but games, a user program started by `init`.
-It listens on `/run/audiod.sock`. A client sends a 20-byte header (`"UCAU"`, rate, channels,
+It listens on `$XDG_RUNTIME_DIR/audiod.sock` (`/run/audiod.sock` without the variable), as the desktop user. A client sends a 20-byte header (`"UCAU"`, rate, channels,
 bits, volume 0 to 100, total bytes or 0) and samples: 8-bit unsigned or 16-bit, mono or
 stereo, 4 to 192 kHz. Each client is converted with linear interpolation in integers
 (16.16 positions, 15-bit fractions; a client at the device rate skips interpolation),

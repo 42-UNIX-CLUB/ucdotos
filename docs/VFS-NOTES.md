@@ -66,12 +66,10 @@ machines splits a 64-bit offset over two registers; the binary engine must trans
   (and set-group-ID when group-execute is set), as Linux. `chmod` of a link with
   `AT_SYMLINK_NOFOLLOW` is `EOPNOTSUPP`. Files from the boot image keep the tar's mode,
   uid, gid and mtime (the build makes everything uid 0, gid 0).
-- **Users**: every process starts as uid/gid 1000 (as `getuid` said before). The set*id
-  calls work with Linux rules for root; while enforcement is off every process counts as
-  privileged, so `setuid(0)` succeeds. Whether a root user exists is an owner decision.
+- **Users**: the first process is root; `init` starts the desktop as `user` (1000). The
+  set*id calls work with Linux rules (ARCHITECTURE.md section 5, "Users").
 - **Permission enforcement** is one switch, `VFS_ENFORCE_DEFAULT` in `kernel/kernel.h`,
-  **0 today**: modes are stored and reported, nothing is refused (like running everything
-  as root, plus root's exec rule turned off). Level 1 refuses to run a file with no execute
+  **2 with users**. Level 0: modes are stored and reported, nothing is refused. Level 1 refuses to run a file with no execute
   bit (`EACCES` from spawn, as Linux does even for root). Level 2 is full owner/group/other
   checks on open, create, unlink, search, utimensat, chmod, chown, with the sticky bit.
   `access()` answers by the same switch. Level 1 breaks the shell suite's `./s.sh` test
@@ -179,7 +177,8 @@ path measured, and an 8-component path walks in the same time as before. Details
 step: docs/PERSISTENCE.md section 7.
 
 How the path walk stays cheap: a fast loop handles plain components (no ".", "..", symlink,
-/proc, trailing slash, enforcement off) and hands anything else to the full walk from the
+/proc, trailing slash; with enforcement, a directory every class may search needs no
+further test, and one that refuses the caller goes to the full walk) and hands anything else to the full walk from the
 point it reached; directories of up to 16 entries are searched by length and bytes without
 hashing; each dentry carries its inode's type; a directory's dirdata sits in the same block
 as its inode; the root is looked up only once some process has used chroot.

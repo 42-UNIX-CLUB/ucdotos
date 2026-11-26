@@ -8,7 +8,7 @@ const has = (s, re) => s.rows.some((r) => re.test(r));
 
 export default async (t) => {
   let s = await waitPrompt(t, 8000);
-  check('a prompt appears', s.rows.length > 0 && /\$\s*$/.test(s.rows.filter((r) => r.trim()).pop() || ''), JSON.stringify(s.rows.slice(0, 3)));
+  check('a prompt appears', s.rows.length > 0 && /[$#]\s*$/.test(s.rows.filter((r) => r.trim()).pop() || ''), JSON.stringify(s.rows.slice(0, 3)));
   const bg = t.pixel(1270, 710);
   check('padding is the theme background (282828)', bg[0] === 0x28 && bg[1] === 0x28 && bg[2] === 0x28, bg.join(','));
   // the cursor is a block in the accent colour (fe8019) at the cursor cell
@@ -18,7 +18,7 @@ export default async (t) => {
   // typing and echo
   await t.type('echo hello world\n');
   s = await waitPrompt(t);
-  check('typed command is echoed', has(s, /\$ echo hello world$/), s.text);
+  check('typed command is echoed', has(s, /[$#] echo hello world$/), s.text);
   check('command output', s.rows.includes('hello world'), s.text);
 
   // line editing with Backspace
@@ -45,7 +45,7 @@ export default async (t) => {
   await t.tap('KeyC', { ctrl: true });
   s = await waitPrompt(t);
   const last = s.rows.filter((r) => r.trim());
-  check('Ctrl-C returns to the prompt', /\$$/.test(last[last.length - 1]) && has(s, /\^C/), s.text);
+  check('Ctrl-C returns to the prompt', /[$#]$/.test(last[last.length - 1]) && has(s, /\^C/), s.text);
   await t.type('echo after-ctrl-c\n');
   s = await waitPrompt(t);
   check('shell still works after Ctrl-C', s.rows.includes('after-ctrl-c'), s.text);

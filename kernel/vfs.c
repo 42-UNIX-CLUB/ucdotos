@@ -46,7 +46,7 @@ void vfs_proc_start(int pid, int parent, struct inode *exe) {
   struct inode *oldroot = c->root, *oldexe = c->exe;
   u32 gen = c->gen;
   if (parent > 0) *c = fscred[parent];
-  else { memset(c, 0, sizeof *c); c->uid = c->euid = c->suid = c->fsuid = 1000; c->gid = c->egid = c->sgid = c->fsgid = 1000; c->umask = 022; }
+  else { memset(c, 0, sizeof *c); c->umask = 022; } /* the first process (init) is root, uid 0 gid 0 */
   c->gen = gen + 1; /* record locks name their owner by pid and generation */
   c->sync_target = 0;
   c->lockwait = 0;
@@ -65,6 +65,22 @@ void vfs_proc_exec(int pid, struct inode *exe) {
   c->exe = exe;
   if (exe) inode_get(exe);
   if (oldexe) inode_put(oldexe);
+}
+/* At spawn and execve, after the credentials are in place: a set-user-ID or set-group-ID
+ * program runs with its owner's (group's) id as the effective and saved id, as on Linux,
+ * but only in a session entitled to administration (ucos.admin=1). Elsewhere the bits are
+ * ignored, as on a file system mounted nosuid: in an entitled session su and sudo can make
+ * anyone root anyway, so honouring the bits there gives no power the session lacks; in an
+ * unentitled one they are the only way up, and stay shut. Then, as Linux does at every
+ * exec, the saved ids become the effective ones. */
+int vfs_admin;
+void vfs_exec_ids(int pid, struct inode *exe) {
+  struct fscred *c = &fscred[pid];
+  if (exe && vfs_admin && vfs_enforce >= 2) {
+    if (exe->mode & S_ISUID) c->euid = c->fsuid = exe->uid;
+    if ((exe->mode & (S_ISGID | 010)) == (S_ISGID | 010)) c->egid = c->fsgid = exe->gid; /* set-group-ID without group execute means mandatory locking, not this */
+  }
+  c->suid = c->euid; c->sgid = c->egid;
 }
 void vfs_proc_end(int pid) {
   struct fscred *c = &fscred[pid];
@@ -240,12 +256,14 @@ int vfs_symlink_target(struct inode *i, char *buf, u32 cap) {
  * following a link to a directory it leads to that directory's real parent. */
 static __attribute__((noinline)) int walk_full(struct inode *base, const char *path, int flags, struct nameidata *nd);
 /* The common case first: plain names, each one a directory except the last, no ".", "..",
- * symbolic link, /proc or trailing slash, and no permission checks. Anything else goes to
- * walk_full, which starts again from the beginning (nothing has been changed). */
+ * symbolic link, /proc or trailing slash. With enforcement, each directory passed needs
+ * search permission, as in walk_full: a directory that every class may search needs no
+ * further test; one that refuses the caller goes to walk_full, which gives EACCES. Anything
+ * else goes to walk_full too, from where the loop stopped (nothing has been changed). */
 int vfs_walk(struct inode *base, const char *path, int flags, struct nameidata *nd) {
   struct inode *d = *path == '/' ? vfs_cred_root() : base;
   const char *p = path;
-  if (!*p || vfs_enforce >= 2) return walk_full(base, path, flags, nd);
+  if (!*p) return walk_full(base, path, flags, nd);
   for (;;) {
     while (*p == '/') p++;
     const char *s = p;
@@ -253,6 +271,7 @@ int vfs_walk(struct inode *base, const char *path, int flags, struct nameidata *
     u32 n = p - s;
     if (!n) break;
     if (n > VFS_NAME_MAX || s[0] == '.' || d->kind) return walk_full(d, s, flags, nd); /* go on from here */
+    if (vfs_enforce >= 2 && (d->mode & 0111) != 0111 && vfs_may(d, 1)) return walk_full(d, s, flags, nd);
     struct dentry *de = d_lookup(d, s, n);
     if (!*p) { /* the last component */
       if (de && de->type == (S_IFLNK >> 12) && (flags & W_FOLLOW)) return walk_full(d, s, flags, nd);
@@ -352,6 +371,7 @@ struct inode *vfs_mknod_at(struct nameidata *nd, u32 mode, int *err) {
   if (dir->kind) { *err = -EACCES; return NULL; }
   if (nd->trailing && !S_ISDIR(mode)) { *err = S_ISREG(mode) ? -EISDIR : -ENOENT; return NULL; }
   if ((*err = vfs_may(dir, 3))) return NULL;
+  if ((*err = store_room_name(dir))) return NULL;
   struct inode *i = inode_alloc(mode);
   if (!i) { *err = -ENOMEM; return NULL; }
   if (dir->mode & S_ISGID) { /* BSD group semantics, as on Linux */
@@ -415,6 +435,7 @@ int vfs_link_at(struct inode *i, struct nameidata *nd) {
   if (!i->nlink) return -ENOENT; /* an unlinked open file cannot get a name back */
   if (i->nlink >= 65000) return -EMLINK;
   int e = vfs_may(dir, 3);
+  if (!e) e = store_room_name(dir);
   if (e) return e;
   if (!d_add(dir, nd->last, nd->lastlen, i)) return -ENOMEM;
   i->nlink++;
@@ -452,6 +473,15 @@ int vfs_rename_nd(struct nameidata *f, struct nameidata *t, int flags) {
   if (old && (flags & RENAME_NOREPLACE)) return -EEXIST;
   int e = vfs_may(odir, 3);
   if (!e && ndir != odir) e = vfs_may(ndir, 3);
+  /* as Linux: a sticky directory protects both the name that moves and the one it replaces;
+   * a directory that changes parent needs write permission on itself (its ".." changes) */
+  if (!e && vfs_enforce >= 2 && cred()->fsuid) {
+    u32 me = cred()->fsuid;
+    if ((odir->mode & S_ISVTX) && me != i->uid && me != odir->uid) e = -EPERM;
+    else if (old && (ndir->mode & S_ISVTX) && me != old->uid && me != ndir->uid) e = -EPERM;
+    else if (idir && ndir != odir) e = vfs_may(i, 2);
+    else if (old && (flags & RENAME_EXCHANGE) && S_ISDIR(old->mode) && ndir != odir) e = vfs_may(old, 2);
+  }
   if (e) return e;
   if (flags & RENAME_EXCHANGE) {
     int odd = S_ISDIR(old->mode);
@@ -530,6 +560,7 @@ int vfs_symlink_at(const char *target, struct nameidata *nd) {
   if (nd->trailing) return -ENOENT;
   if (dir->kind) return -EACCES;
   int e = vfs_may(dir, 3);
+  if (!e) e = store_room_name(dir);
   if (e) return e;
   struct inode *i = symlink_inode(target, len);
   if (!i) return -ENOMEM;
@@ -553,14 +584,15 @@ struct inode *inode_alloc_proc(u32 mode, int kind, int dev, struct inode *parent
   if (i->dir && parent) i->dir->parent = parent;
   return i;
 }
-void vfs_mkdev(const char *path, int dev) {
+void vfs_mkdev(const char *path, int dev) { vfs_mkdev_mode(path, dev, 0666, 0, 0); }
+void vfs_mkdev_mode(const char *path, int dev, u32 mode, u32 uid, u32 gid) {
   /* The kernel makes the node, also when it does so inside a process's call (a pty's
    * /dev/pts/N is made when /dev/ptmx is opened): root's rights, the real root directory. */
   struct fscred *c = cred(), saved = *c;
   c->fsuid = c->fsgid = 0; c->root = NULL;
   int err;
   struct inode *i = vfs_create(vfs_root, path, S_IFCHR | 0666, &err);
-  if (i) { i->dev = dev; i->uid = i->gid = 0; }
+  if (i) { i->dev = dev; i->uid = uid; i->gid = gid; i->mode = S_IFCHR | (mode & 07777); }
   c->fsuid = saved.fsuid; c->fsgid = saved.fsgid; c->root = saved.root;
 }
 
@@ -704,7 +736,9 @@ void vfs_init(void) {
   vfs_lookup(vfs_root, "/dev/shm")->mode = S_IFDIR | 01777;
   vfs_mkdev("/dev/null", DEV_NULL);
   vfs_mkdev("/dev/zero", DEV_ZERO);
-  vfs_mkdev("/dev/console", DEV_CONSOLE);
+  /* Linux has crw--w---- root tty; here others may write too (0622), because the test
+   * scripts read what programs in the desktop write to the console (the kernel log) */
+  vfs_mkdev_mode("/dev/console", DEV_CONSOLE, 0622, 0, GID_TTY);
   vfs_mkdev("/dev/urandom", DEV_RANDOM);
   vfs_mkdev("/dev/random", DEV_RANDOM);
   vfs_mkdev("/dev/hostclip", DEV_HOSTCLIP);
@@ -742,6 +776,7 @@ static long reg_write(struct file *f, u32 ubuf, u32 len) {
   if (f->flags & O_APPEND) f->off = i->size;
   if (!user_ok(ubuf, len)) return -EFAULT; /* before growing the file for nothing */
   if ((u64)f->off + len > 0xffffffffu) return -ENOSPC;
+  if (i->sflags & S_PERSIST_BIT) { long e = store_room(i, f->off + len); if (e) return e; } /* the browser's storage is full */
   if (reg_reserve(i, f->off + len)) return -ENOSPC;
   u32 lo = f->off;
   if (f->off > i->size) { lo = i->size; memset(i->data + i->size, 0, f->off - i->size); }
@@ -763,6 +798,7 @@ const struct fops reg_lk_fops = {reg_read, reg_write, always_ready, reg_close, N
 const struct fops dir_fops = {NULL, NULL, always_ready, dir_close, NULL};
 int reg_truncate(struct inode *i, u32 size) {
   u32 old = i->size;
+  if (size > i->size && (i->sflags & S_PERSIST_BIT)) { long e = store_room(i, size); if (e) return e; }
   if (size > i->size) { if (reg_reserve(i, size)) return -ENOSPC; memset(i->data + i->size, 0, size - i->size); }
   i->size = size;
   i->mtime = i->ctime = vfs_now();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* id [-u | -g | -G] [-n] [-r] [user]: print user and group ids. Names come
- * from /etc/passwd and /etc/group when they exist; otherwise numbers only. */
+ * from /etc/passwd and /etc/group when they exist; otherwise numbers only.
+ * groups= and -G list the supplementary groups too (getgroups, or /etc/group for a user). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,43 @@ static int lookup(const char *file, int key, const char *s, int want, char *out,
 }
 static const char *uname_of(unsigned id) { static char b[64]; char k[16]; snprintf(k, sizeof k, "%u", id); return lookup("/etc/passwd", 2, k, 0, b, sizeof b) ? b : NULL; }
 static const char *gname_of(unsigned id) { static char b[64]; char k[16]; snprintf(k, sizeof k, "%u", id); return lookup("/etc/group", 2, k, 0, b, sizeof b) ? b : NULL; }
+
+/* The groups: the primary group first, then the supplementary ones, each once. For this
+ * process they come from the kernel (getgroups); for a named user, from the member lists
+ * in /etc/group (the groups that user would get at login). */
+static int group_list(const char *user, unsigned gid, unsigned *out, int cap) {
+  int n = 0;
+  out[n++] = gid;
+  if (!user) {
+    gid_t g[64];
+    int k = getgroups(64, g);
+    for (int j = 0; j < k && n < cap; j++) {
+      int dup = 0;
+      for (int m = 0; m < n; m++) if (out[m] == (unsigned)g[j]) dup = 1;
+      if (!dup) out[n++] = g[j];
+    }
+    return n;
+  }
+  FILE *f = fopen("/etc/group", "r");
+  if (!f) return n;
+  char line[1024];
+  while (n < cap && fgets(line, sizeof line, f)) {
+    line[strcspn(line, "\n")] = 0;
+    char *fld[4] = {0}, *p = line;
+    int nf = 0;
+    while (nf < 4) { fld[nf++] = p; p = strchr(p, ':'); if (!p) break; *p++ = 0; }
+    if (nf < 4) continue;
+    unsigned g = strtoul(fld[2], NULL, 10);
+    for (char *m = strtok(fld[3], ","); m; m = strtok(NULL, ",")) {
+      if (strcmp(m, user)) continue;
+      int dup = 0;
+      for (int j = 0; j < n; j++) if (out[j] == g) dup = 1;
+      if (!dup) out[n++] = g;
+    }
+  }
+  fclose(f);
+  return n;
+}
 
 int main(int argc, char **argv) {
   int i = 1, ou = 0, og = 0, oG = 0, names = 0;
@@ -54,7 +92,20 @@ int main(int argc, char **argv) {
     if (lookup("/etc/passwd", 2, k, 3, b, sizeof b)) gid = atoi(b);
   }
   const char *un = uname_of(uid), *gn = gname_of(gid);
-  if (ou || og || oG) {
+  unsigned gl[64];
+  char uname_copy[64] = "";
+  if (i < argc && un) snprintf(uname_copy, sizeof uname_copy, "%s", un);
+  int ng = group_list(i < argc ? uname_copy : NULL, gid, gl, 64);
+  if (oG) { /* every group, separated by spaces */
+    for (int k = 0; k < ng; k++) {
+      const char *n = gname_of(gl[k]);
+      if (k) putchar(' ');
+      if (names && n) fputs(n, stdout); else printf("%u", gl[k]);
+    }
+    putchar('\n');
+    return 0;
+  }
+  if (ou || og) {
     unsigned v = ou ? uid : gid;
     const char *n = ou ? un : gn;
     if (names && n) puts(n);
@@ -66,8 +117,12 @@ int main(int argc, char **argv) {
   if (un) printf("(%s)", un);
   printf(" gid=%u", gid);
   if (gn) printf("(%s)", gn);
-  printf(" groups=%u", gid);
-  if (gn) printf("(%s)", gn);
+  printf(" groups=");
+  for (int k = 0; k < ng; k++) {
+    const char *n = gname_of(gl[k]);
+    printf("%s%u", k ? "," : "", gl[k]);
+    if (n) printf("(%s)", n);
+  }
   putchar('\n');
   return 0;
 }

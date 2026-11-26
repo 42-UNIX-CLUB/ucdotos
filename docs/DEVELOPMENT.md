@@ -83,7 +83,10 @@ node tools/run.mjs --build=B --init=/bin/sysbench --args="--json"
 `--input` types text and then sends end-of-file (the console buffer holds 1024 bytes, so
 put long scripts in a file inside the image). `--args` are passed to the program.
 `--debug` prints trap messages from the host. The console is not a terminal: terminal
-ioctls return `ENOTTY` there. A program started as pid 1 has no environment.
+ioctls return `ENOTTY` there. A program started as pid 1 has no environment and runs as
+root. To run it as the desktop user, start it through init: `--init=/bin/init
+--args="/bin/PROGRAM ARGS"` (init makes `/run/user/1000` and sets `XDG_RUNTIME_DIR`).
+`--admin` boots a session entitled to administration (`ucos.admin=1`: `su`, `sudo`).
 
 **`shot.mjs`: headless with a screen.** Boots under Node with a framebuffer, drives the
 input device with scripted events, writes PNG screenshots to `B/shots/`.
@@ -120,9 +123,10 @@ first six and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|
-| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 271 checks, 0 failed` |
-| C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 324 checks, 0 failed` |
-| shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
+| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 332 checks, 0 failed` |
+| kernel, in a session entitled to administration | `node tools/run.mjs --build=B --init=/bin/ktest --args=users --admin` | `ktest: 61 checks, 0 failed` |
+| C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 335 checks, 0 failed` |
+| shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 250 checks, 250 passed, 0 failed` |
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
 | network | `node tools/run.mjs --build=B --init=/bin/nettest` | `nettest: 89 checks, 0 failed` |
 | router (HTTP path, offline) | `node tools/tests/router-http.mjs --build=B` | `routertest: 24 checks, 0 failed` |
@@ -147,8 +151,11 @@ Component suites:
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | core tools | `tools/tests/coretools/` | native, against the host's tools: `node tools/tests/coretools/run.mjs [TOOL...]` (`--regen` rewrites expectations from the host, `--emit-os` writes the in-OS script); in the OS: `sh /usr/share/tests/coretools.sh [-v] [TOOL...]`; fuzzing: `node tools/tests/coretools/fuzz.mjs sed\|diff SECONDS` and `tools/tests/coretools/fuzzre.c`. On this machine the host's grep is ugrep and its find is bfs, not GNU | 19,072 native, 1,755 in the OS (2026-11-26; cases marked `@noos` run natively only) |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
-| shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 859 of 859 with the file system layer (858 without it: umask-effect needs file modes) |
+| shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 871 of 871 with users (12 SIGPIPE cases added); 859 of 859 with the file system layer alone |
 | shell job control | `bin/sh/test/jobs.mjs` | `shot.mjs` | 10 checks on a kernel with signals, 2 without |
+| users in the desktop | `tools/tests/desktop-users.mjs` | `shot.mjs`, once as is and once with `--admin` | 1 screenshot each; look at it: `su` refuses without `--admin` and gives root with it |
+| a full store | `tools/tests/store-full.mjs` | `node tools/tests/store-full.mjs --build=B` | 6 checks |
+| tabs and storage in Chromium | `tools/tests/browser-tabs.mjs`, `browser-storage.mjs` | `browser.mjs` (needs `make dist`) | 14 and 5 checks |
 | image loader | `tools/tests/vfs-tar.mjs` | `node tools/tests/vfs-tar.mjs --build=B` | 11 checks: links, modes, owners, times from the tar |
 | persistence | `tools/tests/persist.mjs`, `persist-crash.mjs`, `integ-store.mjs`, `browser-persist.mjs` | `node tools/tests/NAME.mjs --build=B` (Node, a store file per run); `browser-persist.mjs` with `browser.mjs` (needs `make dist`) | 11, 10 and 7 checks (2026-11-26); the Chromium one not run with the current tree |
 | file system speed and scaling | `bin/fsbench.c` | `--init=/bin/fsbench` | see PERSISTENCE.md section 7 |

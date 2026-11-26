@@ -16,5 +16,5 @@ int main(int argc, char **argv) {
   line[n++] = '\n';
   size_t len = 0;
   while (len + n <= sizeof buf) { memcpy(buf + len, line, n); len += n; }
-  for (;;) if (write(1, buf, len) < 0) return 1; /* EPIPE: there are no signals, so stop here */
+  for (;;) if (write(1, buf, len) < 0) return 1; /* SIGPIPE ends yes when the reader goes; with SIGPIPE ignored, EPIPE does */
 }

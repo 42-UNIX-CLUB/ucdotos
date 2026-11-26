@@ -103,17 +103,24 @@ struct inode *vfs_lookup_err(struct inode *cwd, const char *path, int *err); /* 
 struct inode *vfs_create(struct inode *cwd, const char *path, u32 mode, int *err);
 int vfs_path(struct inode *ino, char *buf, u32 cap);
 void vfs_mkdev(const char *path, int dev);
+void vfs_mkdev_mode(const char *path, int dev, u32 mode, u32 uid, u32 gid);
+/* groups of the device nodes, as in /etc/group (Debian's numbers for tty and video; input
+ * has no fixed number on Debian, 101 is this system's) */
+#define GID_TTY 5
+#define GID_VIDEO 44
+#define GID_INPUT 101
+#define GID_AUDIO 29 /* Debian's number: /dev/dsp is root:audio 0660, the desktop user is in audio */
 void inode_get(struct inode *i);
 void inode_put(struct inode *i);
 
 /* ---- file system calls and their helpers (vfs.c, fs_sys.c, procfs.c) ---- */
-/* Permission enforcement, one switch. 0: none, as before (modes are stored and reported
- * but nothing is refused); 1: also refuse to run a file that has no execute bit at all, as
- * Linux does even for root (this breaks scripts run as ./name without chmod +x);
- * 2: full owner/group/other checks. An owner decision; see docs/DECISIONS.md. Build a
- * kernel with another level for tests: make CFLAGS="... -DVFS_ENFORCE_DEFAULT=2". */
+/* Permission enforcement, one switch. 0: none (modes are stored and reported but nothing
+ * is refused); 1: only refuse to run a file that has no execute bit at all, as Linux does
+ * even for root; 2: full owner/group/other checks, root (uid 0) passes, as on Linux.
+ * 2 is the default (owner decision 2026-11-26: "perm bits are enforced, root user exists").
+ * Build a kernel with another level for tests: make CFLAGS="... -DVFS_ENFORCE_DEFAULT=0". */
 #ifndef VFS_ENFORCE_DEFAULT
-#define VFS_ENFORCE_DEFAULT 0
+#define VFS_ENFORCE_DEFAULT 2
 #endif
 #define KT_MAKE(sec, ns) ((s64)(sec) * 1073741824ll + (s64)(ns))
 #define KT_SEC(t) ((t) >> 30)
@@ -176,6 +183,13 @@ void store_apply(void);              /* kmain: after the image, before init */
 void store_statfs(u64 *total, u64 *free);
 long store_need_data(struct inode *i);
 #define S_LAZY_BIT 8 /* inode->sflags: contents still in the store (store.c) */
+#define S_PERSIST_BIT 1 /* inode->sflags: in the persistent part of the tree */
+long store_room(struct inode *i, u32 end); /* -ENOSPC when the store has no room for a write ending at end */
+long store_room_name(struct inode *dir);  /* -ENOSPC when a new name in dir cannot be stored */
+int store_alert_poll(u32 seen, int add);  /* 1 when the storage level changed since alert number `seen` */
+u32 store_alert_seq(void);
+extern int vfs_admin; /* boot parameter ucos.admin=1: this session may become root (su, sudo, set-user-ID files) */
+void vfs_exec_ids(int pid, struct inode *exe); /* spawn and execve: set-user-ID and set-group-ID bits, saved ids */
 #define S_NEVER_BIT 64 /* inode->sflags: never stored, not even after a change: a remote file (remote.c) */
 long remote_open(struct inode *i, int flags); /* remote.c: 0, or wait while a remote file is fetched */
 u32 remote_blocks(struct inode *i);           /* remote.c: st_blocks of a remote file (bytes received / 512) */
@@ -300,6 +314,10 @@ long inet_accept(int fd, u32 uaddr, u32 ulen);
 long sys_getsockname(int fd, u32 uaddr, u32 ulen);
 long sys_getpeername(int fd, u32 uaddr, u32 ulen);
 long sys_sendto(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 alen);
+long unix_sendto(int fd, u32 ubuf, u32 len, int flags, u32 uaddr); /* sock.c: AF_UNIX streams; inet.c dispatches */
+long unix_recvfrom(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 ulen);
+long sys_sendmsg(int fd, u32 umsg, int flags);
+long sys_recvmsg(int fd, u32 umsg, int flags);
 long sys_recvfrom(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 ulen);
 long sys_setsockopt(int fd, int level, int opt, u32 uval, u32 len);
 long sys_getsockopt(int fd, int level, int opt, u32 uval, u32 ulen);

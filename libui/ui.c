@@ -34,7 +34,14 @@ static double now_ms(void) {
 
 static int send_all(ui_window *win, const void *buf, unsigned len) {
   if (win->dead) return -1;
-  if (len && write(win->fd, buf, len) != (long)len) { win->dead = 1; return -1; }
+  /* MSG_NOSIGNAL: a library must not let the manager's death kill its program with
+   * SIGPIPE; the program sees the window die (EPIPE) and decides */
+  while (len) {
+    long n = __syscall6(SYS_sendto, win->fd, (long)buf, len, MSG_NOSIGNAL, 0, 0);
+    if (n == -EINTR) continue;
+    if (n <= 0) { win->dead = 1; return -1; }
+    buf = (const char *)buf + n; len -= n;
+  }
   return 0;
 }
 static int send_msg(ui_window *win, int type, const void *payload, unsigned len) {

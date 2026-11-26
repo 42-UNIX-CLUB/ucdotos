@@ -31,6 +31,7 @@ int trace;
 int bar_h;
 
 static int ev_fd = -1, listen_fd = -1;
+static char sock_path[108];
 static int mods, swallow[256], swallow_text;
 static int buttons;
 static client *grab;  /* the window that got the mouse button press receives motion until release */
@@ -53,9 +54,10 @@ void state_changed(void) { state_dirty = 1; }
 /* ---------- sending ---------- */
 static void flush_out(client *c) {
   while (c->outlen) {
-    long n = __syscall3(SYS_write, c->fd, c->out, c->outlen);
+    /* MSG_NOSIGNAL: a client that went away gives EPIPE here, never SIGPIPE */
+    long n = __syscall6(SYS_sendto, c->fd, (long)c->out, c->outlen, MSG_NOSIGNAL, 0, 0);
     if (n == -EAGAIN) return;
-    if (n <= 0) { c->outlen = 0; return; } /* the hangup is noticed by the next read */
+    if (n <= 0) { c->outlen = 0; return; } /* EPIPE or another error: the hangup is noticed by the next read */
     memmove(c->out, c->out + n, c->outlen - n);
     c->outlen -= n;
   }
@@ -610,15 +612,24 @@ int main(int argc, char **argv) {
   int fb = open("/dev/fb0", O_RDWR | O_CLOEXEC);
   if (fb < 0 || fb_setup(fb) < 0) { fprintf(stderr, "wm: no framebuffer\n"); return 1; }
   ev_fd = open("/dev/input/event0", O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-  mkdir("/run", 0755);
-  unlink("/run/wm.sock");
+  /* the socket goes in the user's runtime directory (init makes /run/user/UID, as logind
+   * does); /run/wm.sock when there is none (started by hand, or as root) */
   struct { unsigned short fam; char path[108]; } addr = {1, "/run/wm.sock"};
+  const char *rt = getenv("XDG_RUNTIME_DIR");
+  struct stat rst;
+  if (rt && *rt && !stat(rt, &rst) && S_ISDIR(rst.st_mode) && strlen(rt) + 9 < sizeof addr.path) snprintf(addr.path, sizeof addr.path, "%s/wm.sock", rt);
+  else mkdir("/run", 0755);
+  strlcpy(sock_path, addr.path, sizeof sock_path);
+  unlink(sock_path);
   listen_fd = __syscall3(SYS_socket, 1, 1 | O_NONBLOCK | O_CLOEXEC, 0);
   if (listen_fd < 0 || __syscall3(SYS_bind, listen_fd, &addr, sizeof addr) < 0 || __syscall2(SYS_listen, listen_fd, 16) < 0) {
-    fprintf(stderr, "wm: cannot listen on /run/wm.sock\n");
+    fprintf(stderr, "wm: cannot listen on %s\n", sock_path);
     return 1;
   }
-  setenv("WM_SOCKET", "/run/wm.sock", 1);
+  setenv("WM_SOCKET", sock_path, 1);
+  /* a client that dies while the manager writes to it must not take the manager with it:
+   * writes to clients use MSG_NOSIGNAL (flush_out), so SIGPIPE stays at its default here and
+   * in every program the manager starts */
   ui_theme_load(&theme, NULL);
   config_load(1);
   for (int i = 0; i < MAX_WS; i++) master_of[i] = cfg.master;
@@ -626,7 +637,7 @@ int main(int argc, char **argv) {
   ptr_x = scr_w / 2; ptr_y = scr_h / 2;
   damage_all();
   compose();
-  fprintf(stderr, "wm: %dx%d, theme %s, listening on /run/wm.sock\n", scr_w, scr_h, theme.name);
+  fprintf(stderr, "wm: %dx%d, theme %s, listening on %s\n", scr_w, scr_h, theme.name, sock_path);
   for (int i = 0; i < cfg.nauto; i++) wm_spawn(cfg.autostart[i]);
 
   double next_frame = 0;
@@ -686,6 +697,6 @@ int main(int argc, char **argv) {
   }
   fprintf(stderr, "wm: exit\n");
   for (int i = 0; i < nclients; i++) close(order[i]->fd);
-  unlink("/run/wm.sock");
+  unlink(sock_path);
   return 0;
 }

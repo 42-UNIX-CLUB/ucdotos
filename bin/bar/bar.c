@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* bar: the top bar. Workspaces and the focused window on the left, date and time in
  * the centre, live system numbers on the right. It wakes once a second (poll timeout)
- * and whenever the window manager pushes new state; otherwise it sleeps. */
+ * and whenever the window manager pushes new state; otherwise it sleeps.
+ *
+ * With a persistent store (browser storage), the right side also shows "disk N%": how full
+ * the browser's quota for this site is (/proc/ucos-store, the same figures as statfs and
+ * df). From 80% the number turns yellow, from 95% (or when the browser refused data) red,
+ * and each time the level goes up, a notice takes the title's place for ten seconds. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <fcntl.h>
 #include <sys/syscall.h>
 #include "ui.h"
 #include "theme.h"
@@ -21,6 +27,9 @@ static ttf_metrics met;
 static ui_wm_info info;
 static char clock_str[48], stats_str[96];
 static int cell_w, ws_x0;  /* workspace cells, for clicks */
+static char notice[96];    /* storage warning shown in place of the title until notice_until */
+static double notice_until;
+static int disk_level;     /* 0 ok, 1 warning, 2 critical, 3 full: the last level seen */
 
 static double now_ms(void) {
   struct timespec ts;
@@ -61,6 +70,33 @@ static void format_clock(char *out, int cap) {
   snprintf(out, cap, "%s %u %s %02d:%02d:%02d", wd[days % 7], d, mo[m - 1], (int)(sod / 3600), (int)(sod / 60 % 60), (int)(sod % 60));
 }
 
+/* Browser storage from /proc/ucos-store: "" when no store is attached. A value that starts
+ * with '!' is drawn in the warning colour, "!!" in the alarm colour (draw_stats). */
+static void format_disk(char *out, int cap) {
+  char t[1024], state[32] = "", lev[16] = "";
+  double pct = 0;
+  out[0] = 0;
+  int fd = open("/proc/ucos-store", O_RDONLY);
+  if (fd < 0) return;
+  long n = read(fd, t, sizeof t - 1);
+  close(fd);
+  if (n <= 0) return;
+  t[n] = 0;
+  for (char *l = t; l && *l; l = strchr(l, '\n'), l = l ? l + 1 : NULL) {
+    if (!strncmp(l, "state: ", 7)) sscanf(l + 7, "%31s", state);
+    else if (!strncmp(l, "used_percent: ", 14)) pct = strtod(l + 14, NULL);
+    else if (!strncmp(l, "level: ", 7)) sscanf(l + 7, "%15s", lev);
+  }
+  if (!strcmp(state, "off") || !state[0]) return;
+  int level = !strcmp(lev, "full") ? 3 : !strcmp(lev, "critical") ? 2 : !strcmp(lev, "warning") ? 1 : 0;
+  if (level > disk_level) { /* once per crossing: the level must fall back (the kernel adds a margin) before it warns again */
+    if (level == 3) snprintf(notice, sizeof notice, "browser storage is full: delete files to make room");
+    else snprintf(notice, sizeof notice, "browser storage is %.0f%% full", pct);
+    notice_until = now_ms() + 10000;
+  }
+  disk_level = level;
+  snprintf(out, cap, "|disk %s%.0f%%", level >= 2 ? "!!" : level == 1 ? "!" : "", pct);
+}
 /* Memory in use, process count, and system calls per second summed over every process. */
 static void format_stats(char *out, int cap) {
   struct sample { int pid; unsigned long long n; };
@@ -88,7 +124,9 @@ static void format_stats(char *out, int cap) {
   if (rate >= 1e6) snprintf(r, sizeof r, "%.1fM", rate / 1e6);
   else if (rate >= 1e3) snprintf(r, sizeof r, "%.1fk", rate / 1e3);
   else snprintf(r, sizeof r, "%d", (int)rate);
-  snprintf(out, cap, "mem %luM|procs %d|sys %s/s", used >> 20, si.procs, r);
+  char disk[32];
+  format_disk(disk, sizeof disk);
+  snprintf(out, cap, "mem %luM|procs %d|sys %s/s%s", used >> 20, si.procs, r, disk);
 }
 
 /* Draw "label value" pairs separated by '|', labels dim and values bright. Returns the width. */
@@ -101,10 +139,13 @@ static int draw_stats(gfx_surface *s, int x, int base, const char *str, int meas
     if (next) *next++ = 0;
     char *sp = strchr(part, ' ');
     if (sp) *sp = 0;
-    if (measure) x += gfx_text_width(reg, part, -1) + met.advance + (sp ? gfx_text_width(bld, sp + 1, -1) : 0);
+    const char *val = sp ? sp + 1 : NULL;
+    unsigned vc = th.bar_fg;
+    if (val && val[0] == '!') { val++; vc = th.color[3]; if (val[0] == '!') { val++; vc = th.color[1]; } }
+    if (measure) x += gfx_text_width(reg, part, -1) + met.advance + (val ? gfx_text_width(bld, val, -1) : 0);
     else {
       x = gfx_text(s, reg, x, base, part, -1, th.dim) + met.advance;
-      if (sp) x = gfx_text(s, bld, x, base, sp + 1, -1, th.bar_fg);
+      if (val) x = gfx_text(s, bld, x, base, val, -1, vc);
     }
     if (next) x += met.advance * 2;
   }
@@ -143,12 +184,13 @@ static void draw(int what) {
   draw_stats(&s, sx, base, stats_str, 0);
   /* the focused window title, cut to fit before the clock */
   int room = cx - 24 - title_x;
-  if (info.focused_title[0] && room > met.advance * 4) {
+  int show_notice = notice[0] && now_ms() < notice_until;
+  if ((show_notice || info.focused_title[0]) && room > met.advance * 4) {
     char t[128];
-    strlcpy(t, info.focused_title, sizeof t);
+    strlcpy(t, show_notice ? notice : info.focused_title, sizeof t);
     int len = strlen(t);
     while (len > 0 && gfx_text_width(reg, t, len) > room) len--;
-    gfx_text(&s, reg, title_x, base, t, len, th.dim);
+    gfx_text(&s, reg, title_x, base, t, len, show_notice ? (disk_level >= 2 ? th.color[1] : th.color[3]) : th.dim);
   }
   if (what == 7) ui_present(win, 0, 0, w, h);
   else {
@@ -177,7 +219,10 @@ int main(void) {
       char c[48], st[96];
       format_clock(c, sizeof c);
       format_stats(st, sizeof st);
-      int what = (strcmp(c, clock_str) ? 2 : 0) | (strcmp(st, stats_str) ? 4 : 0);
+      static int noticed;
+      int now_notice = notice[0] && now_ms() < notice_until;
+      int what = (strcmp(c, clock_str) ? 2 : 0) | (strcmp(st, stats_str) ? 4 : 0) | (now_notice != noticed ? 1 : 0);
+      noticed = now_notice;
       strcpy(clock_str, c); strcpy(stats_str, st);
       if (what) draw(what);
       continue;

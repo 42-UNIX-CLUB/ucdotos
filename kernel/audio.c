@@ -153,4 +153,4 @@ struct file *dsp_open(struct inode *ino, int flags) {
   }
   return NULL;
 }
-void audio_init(void) { vfs_mkdev("/dev/dsp", DEV_DSP); }
+void audio_init(void) { vfs_mkdev_mode("/dev/dsp", DEV_DSP, 0660, 0, GID_AUDIO); } /* root:audio, as on Linux */

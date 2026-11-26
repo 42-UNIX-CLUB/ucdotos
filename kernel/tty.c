@@ -288,7 +288,10 @@ struct file *pty_open_master(struct inode *ino, int flags) {
     t->ws.ws_row = 24; t->ws.ws_col = 80;
     char path[32];
     snprintf(path, sizeof path, "/dev/pts/%d", i);
-    if (!vfs_lookup(vfs_root, path)) vfs_mkdev(path, DEV_PTS0 + i);
+    struct inode *node = vfs_lookup(vfs_root, path);
+    if (!node) { vfs_mkdev(path, DEV_PTS0 + i); node = vfs_lookup(vfs_root, path); }
+    /* as Linux's devpts: the slave belongs to whoever opened the master, group tty, 0620 */
+    if (node) { node->uid = fscred[cur->pid].fsuid; node->gid = GID_TTY; node->mode = S_IFCHR | 0620; }
     return f;
   }
   return NULL;

@@ -266,6 +266,8 @@ check "exit status of sh -c" 7 "$(sh -c 'exit 7'; echo $?)"
 echo 'echo script $1; exit 4' > s.sh
 check "sh file args" "script x" "$(sh s.sh x)"
 check "script exit status" 4 "$(sh s.sh >/dev/null; echo $?)"
+check "script without the execute bit is refused (126)" 126 "$(./s.sh y 2>/dev/null; echo $?)"
+chmod +x s.sh
 check "script without sh" "script y" "$(./s.sh y)"
 check "script on stdin" "piped 3" "$(echo 'echo piped $((1+2))' | sh)"
 
@@ -385,6 +387,21 @@ check "bc scale of fractions" "3.1428571428" "$(echo 'scale=10; 22/7' | bc)"
 check "bc -l e(1)" "2.71828182845904523536" "$(echo 'e(1)' | bc -l)"
 check "bc -l pi" "3.14159265358979323844" "$(echo '4*a(1)' | bc -l)"
 check "bc quit" "1" "$(printf '1\nquit\n2\n' | bc)"
+
+# SIGPIPE, as on Linux: a writer whose reader is gone is killed (status 141); the shell
+# itself ignores SIGPIPE but gives the programs it starts the default
+check "yes | head -1 ends (yes is killed by SIGPIPE)" "y" "$(yes | head -1)"
+check "seq 100000 | head -3" "1 2 3" "$(seq 100000 | head -3 | { read a; read b; read c; echo $a $b $c; })"
+seq 50000 > big.txt
+check "cat bigfile | true" "0" "$(cat big.txt | true; echo $?)"
+check "pipefail: a stage killed by SIGPIPE gives 141" "141" "$(sh -c 'set -o pipefail; yes | head -1 >/dev/null; echo $?')"
+check "without pipefail the last stage decides" "0" "$(sh -c 'yes | head -1 >/dev/null; echo $?')"
+check "a builtin writing to a closed pipe: the loop stops, the shell lives" "y y alive" "$(sh -c 'while :; do echo y; done | head -2; echo alive' | { read a; read b; read c; echo $a $b $c; })"
+check "trap '' PIPE is inherited: yes gets EPIPE and exits 1" "1" "$(sh -c "set -o pipefail; trap '' PIPE; yes | head -1 >/dev/null; echo \$?")"
+check "a shell started with SIGPIPE ignored keeps it ignored for its children" "1" "$(trap '' PIPE; sh -c 'set -o pipefail; yes | head -1 >/dev/null; echo $?')"
+check "trap - PIPE does not make the shell killable by its own writes" "alive" "$(sh -c 'trap - PIPE; while :; do echo y; done | head -1 >/dev/null; echo alive')"
+check "exec of a writer: SIGPIPE ends it" "y" "$(sh -c 'exec yes' | head -1)"
+check "a background writer is killed by SIGPIPE too" "y" "$(sh -c '{ yes | head -1; } & wait')"
 
 cd /
 rm -r $T

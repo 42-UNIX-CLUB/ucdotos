@@ -463,12 +463,13 @@ static void fs_tests(void) {
           (fd = open(FS "/d", O_RDONLY)) >= 0 && statx(fd, "", AT_EMPTY_PATH, STATX_TYPE, &sx) == 0 && S_ISDIR(sx.stx_mode) && close(fd) == 0);
   }
 
-  /* credentials: one user unless changed */
+  /* credentials: one user unless changed (the kernel starts pid 1 as root) */
   {
     uid_t r, e, s;
     gid_t g[4] = {5, 6};
-    CHECK("getuid/geteuid/getgid/getegid", getuid() == 1000 && geteuid() == 1000 && getgid() == 1000 && getegid() == 1000);
-    CHECK("getresuid", getresuid(&r, &e, &s) == 0 && r == 1000 && e == 1000 && s == 1000);
+    uid_t me = getuid();
+    CHECK("getuid/geteuid/getgid/getegid agree (one user: root as pid 1, else the caller's)", geteuid() == me && getgid() == getegid() && (getpid() != 1 || me == 0));
+    CHECK("getresuid", getresuid(&r, &e, &s) == 0 && r == me && e == me && s == me);
     CHECK("setgroups + getgroups", setgroups(2, g) == 0 && getgroups(0, 0) == 2 && getgroups(4, g) == 2 && g[1] == 6 && setgroups(0, 0) == 0);
   }
 
@@ -810,10 +811,216 @@ static void integ_checks(void) {
   CHECK("a forked child makes a tree with a symlink, a hard link and modes; the parent sees all of it", r == 0 && run_forktest("x-treecheck", IX "/tree", 0, 0) == 0);
 }
 
+/* ---- users, permissions, and SIGPIPE on sockets (children are "ktest child-u-NAME") ---- */
+#include <sys/socket.h>
+#include <sys/un.h>
+#define UX "/tmp/ktest-users"
+static int admin_session(void) { /* the boot parameter ucos.admin=1, as /proc/cmdline shows it */
+  char b[300] = "";
+  int fd = open("/proc/cmdline", O_RDONLY);
+  if (fd < 0) return 0;
+  long n = read(fd, b, sizeof b - 1);
+  close(fd);
+  b[n > 0 ? n : 0] = 0;
+  for (char *p = b; (p = strstr(p, "ucos.admin=")); p++) if ((p == b || p[-1] == ' ') && p[11] == '1') return 1;
+  return 0;
+}
+static int drop_to_user(int ngroups, const gid_t *groups) {
+  return setgroups(ngroups, groups) || setresgid(1000, 1000, 1000) || setresuid(1000, 1000, 1000) ? -1 : 0;
+}
+static int user_child(int argc, char **argv) {
+  const char *m = argv[1] + 8;
+  if (!strcmp(m, "ids")) { /* exit 0 if this process runs as uid/gid argv[2] with no saved root */
+    unsigned r, e, s, want = argc > 2 ? (unsigned)atoi(argv[2]) : 1000;
+    getresuid(&r, &e, &s);
+    return r == want && e == want && s == want && getgid() == want && getegid() == want ? 0 : 1;
+  }
+  if (!strcmp(m, "euid")) return geteuid() == 0 ? 0 : 1; /* run set-user-ID: did it take? */
+  if (!strcmp(m, "sockpipe")) { write(1, "x", 1); return 3; } /* stdout is a socket whose peer is gone */
+  if (!strcmp(m, "sockpipe-nosig")) return send(1, "x", 1, MSG_NOSIGNAL) == -1 && errno == EPIPE ? 0 : 3;
+  if (!strcmp(m, "sockpipe-ign")) { signal(SIGPIPE, SIG_IGN); return write(1, "x", 1) == -1 && errno == EPIPE ? 0 : 3; }
+  if (!strcmp(m, "checks") && argc > 2) { /* the permission checks, as the desktop user */
+    gid_t vg[1] = {44};
+    if (drop_to_user(1, vg)) return 100;
+    checks = fails = 0;
+    struct stat st;
+    char buf[64];
+    int fd;
+    CHECK("user: setuid(0) -> EPERM, setresuid to root -> EPERM", setuid(0) == -1 && errno == EPERM && setresuid(-1, 0, -1) == -1 && errno == EPERM);
+    CHECK("user: setgroups -> EPERM", setgroups(0, 0) == -1 && errno == EPERM);
+    CHECK("user: create a file in a root directory (/etc) -> EACCES", open("/etc/ktest-x", O_WRONLY | O_CREAT, 0644) == -1 && errno == EACCES);
+    CHECK("user: mkdir in /etc -> EACCES", mkdir("/etc/ktest-d", 0755) == -1 && errno == EACCES);
+    CHECK("user: /etc/passwd opens for reading, not for writing", (fd = open("/etc/passwd", O_RDONLY)) >= 0 && close(fd) == 0 && open("/etc/passwd", O_WRONLY) == -1 && errno == EACCES);
+    CHECK("user: access(W_OK) agrees: /etc/passwd not writable, ~ writable", access("/etc/passwd", W_OK) == -1 && errno == EACCES && access("/home/user", W_OK) == 0);
+    CHECK("user: a root file of mode 0600 cannot be read", open(UX "/secret", O_RDONLY) == -1 && errno == EACCES);
+    CHECK("user: a directory of mode 0700 cannot be searched (stat inside -> EACCES)", stat(UX "/private/f", &st) == -1 && errno == EACCES);
+    CHECK("user: ...nor listed", open(UX "/private", O_RDONLY | O_DIRECTORY) == -1 && errno == EACCES);
+    CHECK("user: a directory of mode 0755 lists but takes no new name", (fd = open(UX, O_RDONLY | O_DIRECTORY)) >= 0 && close(fd) == 0 && open(UX "/new", O_CREAT | O_WRONLY, 0644) == -1 && errno == EACCES);
+    CHECK("user: unlink in a root directory -> EACCES", unlink(UX "/open") == -1 && errno == EACCES);
+    /* the package-installation question (a root-owned tree like /debian from the image): as on
+     * Linux, the user can neither add to it nor give files to root */
+    CHECK("user: mkdir in a root-owned package tree (like /debian) -> EACCES", mkdir(UX "/debian/usr/x", 0755) == -1 && errno == EACCES);
+    CHECK("user: a file the user owns cannot be given to root (what dpkg would need) -> EPERM",
+          (fd = open("/tmp/ktest-pkg", O_CREAT | O_WRONLY, 0644)) >= 0 && close(fd) == 0 && chown("/tmp/ktest-pkg", 0, 0) == -1 && errno == EPERM && unlink("/tmp/ktest-pkg") == 0);
+    CHECK("user: truncate a root file of mode 0644 -> EACCES", truncate(UX "/ro", 0) == -1 && errno == EACCES);
+    CHECK("user: write a root file of mode 0666 works", (fd = open(UX "/open", O_WRONLY)) >= 0 && write(fd, "u", 1) == 1 && close(fd) == 0);
+    /* sticky /tmp */
+    CHECK("user: /tmp is sticky and open to all", stat("/tmp", &st) == 0 && (st.st_mode & 07777) == 01777);
+    CHECK("user: in sticky /tmp, root's file cannot be removed -> EPERM", unlink("/tmp/ktest-rootfile") == -1 && errno == EPERM);
+    CHECK("user: ...nor renamed over -> EPERM", (fd = open("/tmp/ktest-mine", O_CREAT | O_WRONLY, 0644)) >= 0 && close(fd) == 0 &&
+          rename("/tmp/ktest-mine", "/tmp/ktest-rootfile") == -1 && errno == EPERM);
+    CHECK("user: own files in /tmp come and go", unlink("/tmp/ktest-mine") == 0);
+    /* owners and modes */
+    fd = open("/tmp/ktest-own", O_CREAT | O_WRONLY | O_TRUNC, 0644); close(fd);
+    CHECK("user: a new file belongs to uid 1000, gid 1000", stat("/tmp/ktest-own", &st) == 0 && st.st_uid == 1000 && st.st_gid == 1000);
+    CHECK("user: chown of one's own file to root -> EPERM", chown("/tmp/ktest-own", 0, -1) == -1 && errno == EPERM);
+    CHECK("user: chgrp to a group one is not in -> EPERM", chown("/tmp/ktest-own", -1, 0) == -1 && errno == EPERM);
+    CHECK("user: chgrp to a supplementary group (video) works", chown("/tmp/ktest-own", -1, 44) == 0 && stat("/tmp/ktest-own", &st) == 0 && st.st_gid == 44);
+    CHECK("user: chown of root's file to oneself -> EPERM", chown(UX "/open", 1000, -1) == -1 && errno == EPERM);
+    CHECK("user: chmod of root's file -> EPERM", chmod(UX "/open", 0777) == -1 && errno == EPERM);
+    CHECK("user: chmod g+s keeps set-group-ID in one's own group", chmod("/tmp/ktest-own", 02755) == 0 && stat("/tmp/ktest-own", &st) == 0 && (st.st_mode & 07777) == 02755);
+    CHECK("user: chmod g+s of one's file in a group one is not in drops set-group-ID (as Linux)", chmod(UX "/grp0", 02755) == 0 && stat(UX "/grp0", &st) == 0 && (st.st_mode & 07777) == 0755);
+    CHECK("user: utimensat with explicit times on root's file -> EPERM; \"now\" on a writable one works",
+          utimensat(AT_FDCWD, UX "/open", (struct timespec[2]){{1, 0}, {1, 0}}, 0) == -1 && errno == EPERM && utimensat(AT_FDCWD, UX "/open", 0, 0) == 0);
+    unlink("/tmp/ktest-own");
+    /* devices: the seat groups */
+    CHECK("user: /dev/fb0 opens for a member of video", (fd = open("/dev/fb0", O_RDWR)) >= 0 && close(fd) == 0);
+    CHECK("user: /dev/input/event0 refuses a non-member of input", open("/dev/input/event0", O_RDONLY) == -1 && errno == EACCES);
+    CHECK("user: /dev/null and /dev/tty modes are 0666, /dev/console 0622 root:tty", stat("/dev/null", &st) == 0 && (st.st_mode & 0777) == 0666 &&
+          stat("/dev/console", &st) == 0 && (st.st_mode & 0777) == 0622 && st.st_gid == 5);
+    CHECK("user: the slave of a pty this user opens belongs to the user (group tty, 0620)",
+          (fd = open("/dev/ptmx", O_RDWR)) >= 0 && ({ int n = -1; __syscall3(SYS_ioctl, fd, TIOCGPTN, &n); snprintf(buf, sizeof buf, "/dev/pts/%d", n); stat(buf, &st) == 0; }) &&
+          st.st_uid == 1000 && st.st_gid == 5 && (st.st_mode & 0777) == 0620 && close(fd) == 0);
+    /* signals */
+    CHECK("user: kill of a root process (pid 1) -> EPERM", kill(1, 0) == -1 && errno == EPERM && kill(1, SIGTERM) == -1 && errno == EPERM);
+    CHECK("user: kill of one's own process works", kill(getpid(), 0) == 0);
+    /* programs */
+    { char *av[] = {"x", 0};
+      CHECK("user: spawn of a root program of mode 0700 -> EACCES", spawn(UX "/rootonly", av, 0, 0) == -1 && errno == EACCES); }
+    /* credentials across spawn, clone and exec */
+    { char *av[] = {"ktest", "child-u-ids", "1000", 0};
+      pid_t c = spawn("/bin/ktest", av, 0, 0); int s2 = -1; waitpid(c, &s2, 0);
+      CHECK("user: a spawned child has uid and gid 1000, saved ids too", WIFEXITED(s2) && WEXITSTATUS(s2) == 0); }
+    struct stat ft;
+    if (!stat("/bin/forktest", &ft)) {
+      CHECK("user: a forked (cloned) child has the same user, group and groups", run_forktest("x-ids", 0, 0, 0) == 0);
+      CHECK("user: fork then exec keeps uid and gid 1000", run_forktest("x-exec", "/bin/ktest", "child-u-ids", "1000") == 0);
+    }
+    /* set-user-ID: only in a session entitled to administration */
+    { int admin = admin_session();
+      char *av[] = {"ktest", "child-u-euid", 0};
+      pid_t c = spawn(UX "/suid", av, 0, 0); int s2 = -1; waitpid(c, &s2, 0);
+      CHECK(admin ? "user, entitled session: a set-user-ID root program runs as root" : "user, unentitled session: the set-user-ID bit is ignored",
+            WIFEXITED(s2) && WEXITSTATUS(s2) == (admin ? 0 : 1));
+      if (!stat("/bin/sudo", &ft)) {
+        char *sa[] = {"sudo", "/bin/ktest", "child-u-euid", 0};
+        int dn = open("/dev/null", O_WRONLY), map[3] = {-1, -1, dn};
+        c = spawn("/bin/sudo", sa, 0, map); s2 = -1; waitpid(c, &s2, 0); close(dn);
+        CHECK(admin ? "user, entitled session: sudo runs a command as root" : "user, unentitled session: sudo refuses (status 1)", WIFEXITED(s2) && WEXITSTATUS(s2) == (admin ? 0 : 1));
+      } }
+    int out = atoi(argv[2]);
+    snprintf(buf, sizeof buf, "%d %d", checks, fails);
+    write(out, buf, strlen(buf));
+    return 0;
+  }
+  return 99;
+}
+static void user_checks(void) {
+  printf("--- users and permissions\n");
+  struct stat st;
+  int fd, root = geteuid() == 0;
+  if (getpid() == 1) {
+    uid_t r, e, s;
+    CHECK("the first process runs as root: uid, gid and saved ids 0", getuid() == 0 && geteuid() == 0 && getgid() == 0 && getegid() == 0 &&
+          getresuid(&r, &e, &s) == 0 && r == 0 && e == 0 && s == 0);
+  }
+  printf("  info  this session is %s to administration (ucos.admin)\n", admin_session() ? "entitled" : "not entitled");
+  CHECK("/proc/cmdline holds the kernel command line", (fd = open("/proc/cmdline", O_RDONLY)) >= 0 && read(fd, (char[8]){0}, 8) > 0 && close(fd) == 0);
+  CHECK("image owners: /etc/passwd root 0644, /home/user uid 1000, /root 0700", stat("/etc/passwd", &st) == 0 && st.st_uid == 0 && (st.st_mode & 07777) == 0644 &&
+        stat("/home/user", &st) == 0 && st.st_uid == 1000 && st.st_gid == 1000 && stat("/root", &st) == 0 && (st.st_mode & 07777) == 0700);
+  CHECK("image: su and sudo are set-user-ID root", stat("/bin/su", &st) != 0 || (st.st_uid == 0 && (st.st_mode & 04000)));
+  if (!root) { printf("  info  not root: the checks that need root are skipped\n"); return; }
+  mkdir(UX, 0755); chmod(UX, 0755);
+  put(UX "/secret", "s"); chmod(UX "/secret", 0600);
+  put(UX "/ro", "r"); chmod(UX "/ro", 0644);
+  put(UX "/open", "o"); chmod(UX "/open", 0666);
+  mkdir(UX "/private", 0700); put(UX "/private/f", "f");
+  put("/tmp/ktest-rootfile", "r"); chmod("/tmp/ktest-rootfile", 0666);
+  put(UX "/grp0", "g"); chown(UX "/grp0", 1000, 0);
+  CHECK("root: makes a package tree and gives a file to root (what an installing dpkg does)", mkdir(UX "/debian", 0755) == 0 && mkdir(UX "/debian/usr", 0755) == 0 &&
+        put(UX "/debian/usr/f", "f") == 1 && chown(UX "/debian/usr/f", 1000, 1000) == 0 && chown(UX "/debian/usr/f", 0, 0) == 0);
+  copy_file("/bin/ktest", UX "/rootonly", 0700);
+  copy_file("/bin/ktest", UX "/suid", 04755);
+  CHECK("root: chmod 4755 keeps set-user-ID; chown to the user and back works", stat(UX "/suid", &st) == 0 && (st.st_mode & 07777) == 04755 &&
+        chown(UX "/ro", 1000, 1000) == 0 && chown(UX "/ro", 0, 0) == 0);
+  CHECK("root: chown clears set-user-ID (as Linux)", copy_file("/bin/ktest", UX "/suid2", 04755) == 0 && chown(UX "/suid2", 0, 0) == 0 &&
+        stat(UX "/suid2", &st) == 0 && !(st.st_mode & 04000));
+  CHECK("root: reads a file of mode 0000", chmod(UX "/secret", 0) == 0 && (fd = open(UX "/secret", O_RDONLY)) >= 0 && close(fd) == 0 && chmod(UX "/secret", 0600) == 0);
+  /* the user half runs in a child that drops to uid 1000 */
+  int p[2];
+  pipe(p); /* not close-on-exec: the child writes its counts to p[1] */
+  char fdn[8]; snprintf(fdn, sizeof fdn, "%d", p[1]);
+  char *av[] = {"ktest", "child-u-checks", fdn, 0};
+  pid_t c = spawn("/bin/ktest", av, 0, 0);
+  close(p[1]);
+  char buf[32] = "";
+  long n = read(p[0], buf, sizeof buf - 1);
+  close(p[0]);
+  int s2 = -1; waitpid(c, &s2, 0);
+  int cc = 0, cf = 0;
+  if (n > 0) { buf[n] = 0; sscanf(buf, "%d %d", &cc, &cf); }
+  checks += cc; fails += cf;
+  CHECK("the user child ran to the end", n > 0 && WIFEXITED(s2) && WEXITSTATUS(s2) == 0);
+}
+/* SIGPIPE on sockets: a write to a connection whose peer is gone */
+static void sock_sig_checks(void) {
+  printf("--- sockets: send, recv, SIGPIPE\n");
+  struct sockaddr_un a = {AF_UNIX, "/tmp/ktest-sig.sock"};
+  unlink(a.sun_path);
+  int l = socket(AF_UNIX, SOCK_STREAM, 0);
+  CHECK("bind + listen through the libc wrappers", l >= 0 && bind(l, (struct sockaddr *)&a, sizeof a) == 0 && listen(l, 4) == 0);
+  for (int k = 0; k < 3; k++) {
+    int c = socket(AF_UNIX, SOCK_STREAM, 0);
+    connect(c, (struct sockaddr *)&a, sizeof a);
+    int s = accept(l, 0, 0);
+    close(s); /* the peer goes away */
+    static const char *mode[] = {"child-u-sockpipe", "child-u-sockpipe-nosig", "child-u-sockpipe-ign"};
+    char *av[] = {"ktest", (char *)mode[k], 0};
+    int map[3] = {-1, c, -1};
+    pid_t pid = spawn("/bin/ktest", av, 0, map);
+    close(c);
+    int st = -1; waitpid(pid, &st, 0);
+    if (k == 0) CHECK("write to a socket whose peer closed: SIGPIPE terminates the writer", WIFSIGNALED(st) && WTERMSIG(st) == SIGPIPE);
+    if (k == 1) CHECK("send with MSG_NOSIGNAL: EPIPE and no signal", WIFEXITED(st) && WEXITSTATUS(st) == 0);
+    if (k == 2) CHECK("write with SIGPIPE ignored: EPIPE", WIFEXITED(st) && WEXITSTATUS(st) == 0);
+  }
+  int c = socket(AF_UNIX, SOCK_STREAM, 0);
+  connect(c, (struct sockaddr *)&a, sizeof a);
+  int s = accept(l, 0, 0);
+  char buf[16] = {0}, b2[16] = {0};
+  CHECK("send + recv with MSG_PEEK: peeking leaves the bytes", send(c, "hello", 5, 0) == 5 && recv(s, buf, 5, MSG_PEEK) == 5 && recv(s, b2, 5, 0) == 5 && !memcmp(buf, b2, 5));
+  CHECK("recv with MSG_DONTWAIT on an empty socket: EAGAIN", recv(s, buf, 5, MSG_DONTWAIT) == -1 && errno == EAGAIN);
+  struct iovec v[2] = {{"ab", 2}, {"cde", 3}}, r[2] = {{buf, 1}, {b2, 8}};
+  struct msghdr m = {0}, rm = {0};
+  m.msg_iov = v; m.msg_iovlen = 2; rm.msg_iov = r; rm.msg_iovlen = 2;
+  CHECK("sendmsg and recvmsg with two pieces", sendmsg(c, &m, 0) == 5 && recvmsg(s, &rm, 0) == 5 && buf[0] == 'a' && !memcmp(b2, "bcde", 4));
+  CHECK("sendto with an address on a connected stream: EISCONN", sendto(c, "x", 1, 0, (struct sockaddr *)&a, sizeof a) == -1 && errno == EISCONN);
+  CHECK("send on a file that is not a socket: ENOTSOCK", send(1, "x", 1, 0) == -1 && errno == ENOTSOCK);
+  CHECK("send with an unknown flag: EOPNOTSUPP", send(c, "x", 1, 0x10000000) == -1 && errno == EOPNOTSUPP);
+  close(s);
+  signal(SIGPIPE, SIG_IGN);
+  CHECK("send after the peer closed, SIGPIPE ignored: EPIPE", send(c, "x", 1, 0) == -1 && errno == EPIPE);
+  signal(SIGPIPE, SIG_DFL);
+  CHECK("send after the peer closed with MSG_NOSIGNAL: EPIPE, the caller lives", send(c, "x", 1, MSG_NOSIGNAL) == -1 && errno == EPIPE);
+  close(c); close(l); unlink(a.sun_path);
+}
+
 int main(int argc, char **argv) {
   if (argc > 1 && !strncmp(argv[1], "child-fs", 8)) return fs_child(argc, argv);
   if (argc > 1 && !strncmp(argv[1], "child-p-", 8)) return proc_child(argc, argv);
   if (argc > 1 && !strncmp(argv[1], "child-x-", 8)) return integ_child(argc, argv);
+  if (argc > 1 && !strncmp(argv[1], "child-u-", 8)) return user_child(argc, argv);
+  if (argc > 1 && !strcmp(argv[1], "users")) { user_checks(); sock_sig_checks(); printf("ktest: %d checks, %d failed\n", checks, fails); return fails ? 1 : 0; }
   if (argc > 1 && !strcmp(argv[1], "child-exit")) return atoi(argv[2]);
   if (argc > 1 && !strcmp(argv[1], "child-crash")) { volatile int *p = (int *)0x7ffffff0; return *p; }
   if (argc > 1 && !strcmp(argv[1], "child-upper")) {
@@ -1413,6 +1620,8 @@ int main(int argc, char **argv) {
 
   proc_checks(); /* clone, exec and signals */
   integ_checks(); /* fork, exec and signals with the file system */
+  user_checks(); /* users, permissions, set-user-ID, credentials across spawn, clone, exec */
+  sock_sig_checks(); /* send, recv, SIGPIPE and MSG_NOSIGNAL on sockets */
 
   /* informational: cost of the cheapest system call */
   t0 = now_ms();

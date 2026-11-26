@@ -3,11 +3,22 @@
 #define _SYS_SOCKET_H
 #include <stddef_extra.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
+#include <sys/uio.h>
 /* Families, types, options and struct sockaddr_in come from abi/abi.h (Linux values). */
 typedef unsigned socklen_t;
 typedef unsigned short sa_family_t;
 struct sockaddr { sa_family_t sa_family; char sa_data[14]; };
 struct sockaddr_storage { sa_family_t ss_family; char __ss_pad[126]; };
+struct msghdr {
+  void *msg_name;
+  socklen_t msg_namelen;
+  struct iovec *msg_iov;
+  size_t msg_iovlen;
+  void *msg_control;
+  size_t msg_controllen;
+  int msg_flags;
+};
 #define AF_UNSPEC 0
 #define AF_LOCAL AF_UNIX
 #define PF_UNSPEC AF_UNSPEC
@@ -29,4 +40,6 @@ int getsockopt(int fd, int level, int opt, void *val, socklen_t *len);
 int shutdown(int fd, int how);
 int getsockname(int fd, struct sockaddr *addr, socklen_t *len);
 int getpeername(int fd, struct sockaddr *addr, socklen_t *len);
+ssize_t sendmsg(int fd, const struct msghdr *msg, int flags);
+ssize_t recvmsg(int fd, struct msghdr *msg, int flags);
 #endif
