@@ -12,6 +12,8 @@
 // `async (t) => { ... }` with the same helpers as tools/shot.mjs where they make sense:
 //   t.sleep(ms)  t.shot(name)  t.key(code, down)  t.tap(code, {shift,ctrl,alt,meta})  t.type('text\n')
 //   t.move(x, y)  t.click(x, y, button=0)  t.wheel(dy)  t.resize(w, h)
+//   mods may also carry commands: ['paste'], the editing commands a real key press runs
+//   (the protocol sends bare keys; a real browser maps Ctrl+V to its paste command itself)
 //   t.eval('js expression')      evaluate in the page, returns the value
 //   t.log                        everything the page printed to its console so far
 //   t.requests                   every network request so far: { url, bytes (on the wire, once finished), status }
@@ -122,11 +124,12 @@ const t = {
     if (!(code in K.KEY)) throw new Error('unknown key ' + code);
     const key = text || (code.startsWith('Key') ? code.slice(3).toLowerCase() : code.startsWith('Digit') ? code.slice(5) : code);
     const typed = text || (mods.ctrl || mods.alt || mods.meta ? '' : named[code] || '');
-    await send('Input.dispatchKeyEvent', { type: down ? (typed ? 'keyDown' : 'rawKeyDown') : 'keyUp', code, key, modifiers: modBits(mods), ...(down && typed ? { text: typed } : {}) });
+    await send('Input.dispatchKeyEvent', { type: down ? (typed ? 'keyDown' : 'rawKeyDown') : 'keyUp', code, key, modifiers: modBits(mods),
+      ...(down && typed ? { text: typed } : {}), ...(down && mods.commands ? { commands: mods.commands } : {}) });
   },
   async tap(code, mods = {}, text = '') {
     const held = [mods.ctrl && 'ControlLeft', mods.alt && 'AltLeft', mods.shift && 'ShiftLeft', mods.meta && 'MetaLeft'].filter(Boolean);
-    for (const m of held) await t.key(m, true, mods);
+    for (const m of held) await t.key(m, true, { ...mods, commands: undefined });
     await t.key(code, true, mods, mods.ctrl || mods.alt || mods.meta ? '' : text);
     await sleep(8);
     await t.key(code, false, mods);
