@@ -1,0 +1,158 @@
+##### j-basic
+=== make -j4
+--- status 0
+--- stdout
+a
+b
+c
+d
+--- stderr
+
+=== make -j4
+--- status 0
+--- stdout
+a
+b
+c
+d
+--- stderr
+
+=== files
+Makefile: "all: a b c d ; @cat a b c d\na b c d: ; @echo $@ > $@\n"
+a: "a\n"
+b: "b\n"
+c: "c\n"
+d: "d\n"
+##### j-order
+=== make -j8 | sort
+--- status 0
+--- stdout
+final
+--- stderr
+
+=== cat final
+--- status 0
+--- stdout
+base
+base
+--- stderr
+
+=== files
+Makefile: "all: final\nfinal: mid1 mid2 ; @cat mid1 mid2 > final; echo final\nmid1: base ; @cat base > mid1\nmid2: base ; @cat base > mid2\nbase: ; @echo base > base\n"
+base: "base\n"
+final: "base\nbase\n"
+mid1: "base\n"
+mid2: "base\n"
+##### j-error
+=== make -j2 2>&1 | sort; echo "status $?"
+--- status 0
+--- stdout
+make: *** Waiting for unfinished jobs....
+make: *** [Makefile:2: bad] Error 1
+slow done
+status 0
+--- stderr
+
+=== files
+Makefile: "all: bad slow\nbad: ; @exit 1\nslow: ; @sleep 0.2; echo slow done\n"
+##### j-keep-going
+=== make -k -j3 2>&1 | sort
+--- status 0
+--- stdout
+good1
+good2
+make: *** [Makefile:2: bad] Error 1
+make: Target 'all' not remade because of errors.
+--- stderr
+
+=== files
+Makefile: "all: bad good1 good2\nbad: ; @exit 1\ngood1 good2: ; @echo $@\n"
+##### j-notparallel
+=== make -j4
+--- status 0
+--- stdout
+a
+b
+--- stderr
+
+=== files
+Makefile: ".NOTPARALLEL:\nall: a b\na: ; @sleep 0.1; echo a\nb: ; @echo b\n"
+##### j-unlimited
+=== make -j
+--- status 0
+--- stdout
+x1 x2 x3 x4 x5 x6
+--- stderr
+
+=== files
+Makefile: "all: x1 x2 x3 x4 x5 x6 ; @echo $^\nx%: ; @touch $@\n"
+x1: ""
+x2: ""
+x3: ""
+x4: ""
+x5: ""
+x6: ""
+##### j-many
+=== make -j3
+--- status 0
+--- stdout
+20
+--- stderr
+
+=== files
+Makefile: "N := 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20\nall: $(addprefix t,$(N)) ; @cat $^ | wc -l\nt%: ; @echo $* > $@\n"
+t1: "1\n"
+t10: "10\n"
+t11: "11\n"
+t12: "12\n"
+t13: "13\n"
+t14: "14\n"
+t15: "15\n"
+t16: "16\n"
+t17: "17\n"
+t18: "18\n"
+t19: "19\n"
+t2: "2\n"
+t20: "20\n"
+t3: "3\n"
+t4: "4\n"
+t5: "5\n"
+t6: "6\n"
+t7: "7\n"
+t8: "8\n"
+t9: "9\n"
+##### j-recursive
+=== make -j2
+--- status 0
+--- stdout
+a
+b
+--- stderr
+
+=== files
+Makefile: "all: ; @$(MAKE) -s -C sub\n"
+sub/
+sub/Makefile: "all: a b ; @cat a b\na b: ; @echo $@ > $@\n"
+sub/a: "a\n"
+sub/b: "b\n"
+##### j-grouped
+=== make -j3 | sort
+--- status 0
+--- stdout
+once
+--- stderr
+
+=== files
+Makefile: "all: x y z\nx y &: ; @echo once; touch x y\nz: ; @touch z\n"
+x: ""
+y: ""
+z: ""
+##### j-wait
+=== make -j4 | tail -1
+--- status 0
+--- stdout
+c
+--- stderr
+
+=== files
+Makefile: "all: a b .WAIT c\na: ; @sleep 0.1; echo a\nb: ; @sleep 0.1; echo b\nc: ; @echo c\n"

@@ -123,15 +123,38 @@ Component suites:
 | dotfiles | `tools/tests/dotfiles.mjs` | `shot.mjs --init=/bin/wm` | 14 checks; bar and launcher by eye on the screenshots |
 | window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 8 scripts, 126 checks (2026-11-26) |
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
+| core tools | `tools/tests/coretools/` | native, against the host's tools: `node tools/tests/coretools/run.mjs [TOOL...]` (`--regen` rewrites expectations from the host, `--emit-os` writes the in-OS script); in the OS: `sh /usr/share/tests/coretools.sh [-v] [TOOL...]`; fuzzing: `node tools/tests/coretools/fuzz.mjs sed\|diff SECONDS` and `tools/tests/coretools/fuzzre.c`. On this machine the host's grep is ugrep and its find is bfs, not GNU | 19,072 native, 1,755 in the OS (2026-11-26; cases marked `@noos` run natively only) |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
+| shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 858 of 859; the known failure is umask-effect (no file modes on `main`) |
+| shell job control | `bin/sh/test/jobs.mjs` | `shot.mjs` | 10 checks on a kernel with signals, 2 without |
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs a WAD (not in git) | play, demo, window tests pass |
+| Linux programs (`lx`) | `bin/lx/tests/` | native: `sh bin/lx/tests/run.sh` (add `LX_SCRATCH=DIR` after `LX_SCRATCH=DIR sh bin/lx/tests/fetch-debian.sh`, which downloads Debian riscv64 packages outside the repository, for the Debian milestones); in UC.OS: `sh bin/lx/tests/mkimage.sh BUILD FILE:PATH...` then for example `node tools/run.mjs --build=BUILD --init=/bin/lx --args="/usr/bin/busybox sh /lx/m2.sh /usr/bin/busybox /tmp"` (busybox script) or `--args="/usr/bin/dash /lx/m34.sh"` (dynamic programs), with the small Debian root from `bin/lx/tests/mkimage-debian.sh`. The scripts need exactly these arguments: without them the busybox script reports 29 failures that are not real. Full commands in `docs/LINUX-BINARIES.md` section 11 | 23 of 23 native; in the OS 37 of 37 (busybox) and 10 of 10 (dynamic programs), 2026-11-26 |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
 | C compiler and linker | `bin/cc/tests/` | `sh bin/cc/tests/build.sh B` once, then `sh bin/cc/tests/run.sh B` | 36: 18 programs compared with clang, 3 mixed links, 15 diagnostics (2026-11-26) |
 | cc random expressions | `bin/cc/tests/fuzz.py`, `fuzz.sh` | `sh bin/cc/tests/fuzz.sh B SEED COUNT` (keep runs under a minute) | 6,750 expressions, 0 differences |
 | programs built by cc, in the OS | `bin/cc/tests/os.sh`, `buildall.sh` | `sh bin/cc/tests/os.sh B "prog ..."` | see STATUS.md |
 
+| make vs GNU Make | `bin/make/tests/cases/*.mk`, `expected/` | native: `node bin/make/tests/run.mjs` (builds make with `cc` and ASan; compares with the host's GNU Make 4.x, or with the stored outputs if there is none) | see STATUS.md |
+| make in the OS | `bin/make/tests/os/cases.mk` -> `rootfs/usr/share/tests/make/` | `sh bin/make/tests/os/run.sh build-NAME` (builds the image and runs the cases inside UC.OS) | see STATUS.md |
+| shell features recipes use | `rootfs/usr/share/tests/make/shell-survey.sh` | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/make/shell-survey.sh\nexit\n'` | see STATUS.md |
+| make speed | `bin/make/tests/perf/gen.mk` (also in the image as `/usr/share/tests/make/perf-gen.mk`) | instructions at the top of the file | PERFORMANCE.md |
+
 Gap to know about: the vi/htop/fetch test scripts are not in the repository.
+
+### Testing make
+
+- A case file holds several cases, each starting with `##### name`, then `--- Makefile`,
+  `--- file NAME` and `--- run` sections. Every `run` line is a shell command run in a
+  scratch directory; standard output, standard error, the exit status and every file left
+  behind are compared. `node bin/make/tests/run.mjs NAME` runs the files or cases whose
+  name contains NAME; `-v` lists passes; `--keep` keeps the scratch directories.
+- After adding or changing cases, refresh the stored outputs with `--update` (needs GNU
+  Make 4.x) so the suite still runs on a machine without GNU Make.
+- Use `touch -d '2001-01-01' file` for old files instead of `sleep`: the host file system
+  has nanosecond times. In-OS cases must use `sleep 1`: UC.OS keeps whole seconds.
+- After editing `bin/make/tests/os/cases.mk`, run `node bin/make/tests/os/gen.mjs`: it
+  writes the case tree into `rootfs/usr/share/tests/make/` with GNU Make's output.
 
 ### Writing a kernel test
 

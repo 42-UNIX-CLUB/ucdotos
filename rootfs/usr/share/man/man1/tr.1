@@ -1,0 +1,20 @@
+TR(1)                     UC.OS Manual                     TR(1)
+
+NAME
+       tr - translate, delete or squeeze bytes
+
+SYNOPSIS
+       tr [-cCdst] string1 [string2]
+
+DESCRIPTION
+       Translate, delete or squeeze bytes. Strings take ranges
+       (a-z), classes ([:alpha:]), equivalence classes
+       ([=a=]), repeats in string2 ([x*] and [x*n]) and the
+       escapes \\ \a \b \f \n \r \t \v \NNN. As in GNU tr, a
+       short string2 is padded with its last byte unless -t is
+       given.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                  TR(1)

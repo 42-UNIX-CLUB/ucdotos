@@ -1,0 +1,732 @@
+##### recursive-vs-simple
+=== make
+--- status 0
+--- stdout
+[later] []
+--- stderr
+
+=== files
+Makefile: "A = $(B)\nC := $(B)\nB = later\nall: ; @echo \"[$(A)] [$(C)]\"\n"
+##### double-colon-equals
+=== make
+--- status 0
+--- stdout
+one
+--- stderr
+
+=== files
+Makefile: "B = one\nA ::= $(B)\nB = two\nall: ; @echo $(A)\n"
+##### triple-colon-equals
+=== make
+--- status 0
+--- stdout
+x$$y x$y
+--- stderr
+
+=== files
+Makefile: "B = x$$y\nA :::= $(B)\nall: ; @echo '$(value A)' '$(A)'\n"
+##### conditional-assign
+=== make
+--- status 0
+--- stdout
+[set] [fresh] []
+--- stderr
+
+=== make B=cmd
+--- status 0
+--- stdout
+[set] [cmd] []
+--- stderr
+
+=== files
+Makefile: "A = set\nA ?= other\nB ?= fresh\nC =\nC ?= notused\nall: ; @echo \"[$(A)] [$(B)] [$(C)]\"\n"
+##### append
+=== make
+--- status 0
+--- stdout
+[a later] [a] [new] [x]
+--- stderr
+
+=== files
+Makefile: "R = a\nR += $(X)\nS := a\nS += $(X)\nU += new\nE =\nE += x\nX = later\nall: ; @echo \"[$(R)] [$(S)] [$(U)] [$(E)]\"\n"
+##### shell-assign
+=== make
+--- status 0
+--- stdout
+[hello world] [a b ] [0]
+--- stderr
+
+=== files
+Makefile: "A != echo hello; echo world\nB != printf 'a\\nb\\n\\n'\nall: ; @echo \"[$(A)] [$(B)] [$(.SHELLSTATUS)]\"\n"
+##### value-trailing-space
+=== make
+--- status 0
+--- stdout
+[word   ][lead]
+--- stderr
+
+=== files
+Makefile: "A = word   # comment\nB =    lead\nall: ; @echo \"[$(A)][$(B)]\"\n"
+##### computed-names
+=== make
+--- status 0
+--- stdout
+z final one
+--- stderr
+
+=== files
+Makefile: "x = y\ny = z\nz = final\na_1 = one\nn = 1\nall: ; @echo $($(x)) $($($(x))) $(a_$(n))\n"
+##### single-char-vars
+=== make
+--- status 0
+--- stdout
+ex ex ex
+--- stderr
+
+=== files
+Makefile: "X = ex\nall: ; @echo $X $(X) ${X}\n"
+##### subst-refs
+=== make
+--- status 0
+--- stdout
+a.o b.o dir/c.o
+obj/a.o obj/b.o obj/dir/c.o
+a.x b.x dir/c.x
+a b dir/c
+--- stderr
+
+=== files
+Makefile: "SRC = a.c b.c dir/c.c\nall:\n\t@echo $(SRC:.c=.o)\n\t@echo $(SRC:%.c=obj/%.o)\n\t@echo ${SRC:c=x}\n\t@echo $(SRC:.c=)\n"
+##### override
+=== make
+--- status 0
+--- stdout
+[file] [file] [more]
+--- stderr
+
+=== make A=cmd B=cmd C=cmd
+--- status 0
+--- stdout
+[file] [cmd] [cmd more]
+--- stderr
+
+=== files
+Makefile: "override A = file\nB = file\noverride C += more\nall: ; @echo \"[$(A)] [$(B)] [$(C)]\"\n"
+##### cmdline-beats-file
+=== make
+--- status 0
+--- stdout
+file appended file
+--- stderr
+
+=== make V=cmd
+--- status 0
+--- stdout
+cmd command line
+--- stderr
+
+=== make V+=cmdappend
+--- status 0
+--- stdout
+cmdappend command line
+--- stderr
+
+=== files
+Makefile: "V = file\nV += appended\nall: ; @echo $(V) $(origin V)\n"
+##### environment
+=== make
+--- status 0
+--- stdout
+file file environment
+
+--- stderr
+
+=== ENVV=env make
+--- status 0
+--- stdout
+file file environment
+file
+--- stderr
+
+=== ENVV=env make -e
+--- status 0
+--- stdout
+env environment override environment
+env
+--- stderr
+
+=== files
+Makefile: "ENVV = file\nall: ; @echo $(ENVV) $(origin ENVV) $(origin HOME); echo $$ENVV\n"
+##### env-default-export
+=== EV=e make
+--- status 0
+--- stdout
+[] [e]
+--- stderr
+
+=== EV=e make EV=c
+--- status 0
+--- stdout
+[] [c]
+--- stderr
+
+=== files
+Makefile: "FILEV = f\nall: ; @echo \"[$$FILEV] [$$EV]\"\n"
+##### export
+=== HOME2=h make
+--- status 0
+--- stdout
+[a] [b] [] [d] [] []
+--- stderr
+
+=== files
+Makefile: "export A = a\nB = b\nexport B\nC = c\nexport D E\nD = d\nunexport HOME2\nall: ; @echo \"[$$A] [$$B] [$$C] [$$D] [$$E] [$$HOME2]\"\n"
+##### export-all
+=== make
+--- status 0
+--- stdout
+[a]
+--- stderr
+
+=== files
+Makefile: "export\nA = a\nall: ; @echo \"[$$A]\"\n"
+##### export-all-variables
+=== make
+--- status 0
+--- stdout
+[a]
+--- stderr
+
+=== files
+Makefile: ".EXPORT_ALL_VARIABLES:\nA = a\nall: ; @echo \"[$$A]\"\n"
+##### unexport-env
+=== SECRET=s make
+--- status 0
+--- stdout
+[]
+--- stderr
+
+=== files
+Makefile: "unexport SECRET\nall: ; @echo \"[$$SECRET]\"\n"
+##### define
+=== make
+--- status 2
+--- stdout
+one
+two
+[]
+--- stderr
+/bin/sh: -c: line 1: unexpected EOF while looking for matching `''
+make: *** [Makefile:17: all] Error 2
+
+=== files
+Makefile: "define TWO\necho one\necho two\nendef\ndefine SIMPLE :=\n$(X)\nendef\nX = x\ndefine NESTED\ndefine INNER\ninner\nendef\nendef\nall:\n\t@$(TWO)\n\t@echo \"[$(SIMPLE)]\"\n\t@echo '$(subst $(newline), ,$(NESTED))'\n"
+##### define-append
+=== make
+--- status 0
+--- stdout
+first second bee
+--- stderr
+
+=== files
+Makefile: "A = first\ndefine A +=\nsecond\nendef\ndefine B ?=\nbee\nendef\nall: ; @echo \"$(A)\" \"$(B)\"\n"
+##### canned-recipe
+=== make
+--- status 0
+--- stdout
+step one
+false
+step three
+--- stderr
+make: [Makefile:7: all] Error 1 (ignored)
+
+=== files
+Makefile: "define RUN\n@echo step one\n-false\n@echo step three\nendef\nall:\n\t$(RUN)\n"
+##### undefine
+=== make
+--- status 0
+--- stdout
+[] undefined undefined
+--- stderr
+
+=== files
+Makefile: "A = a\nundefine A\nall: ; @echo \"[$(A)] $(origin A) $(flavor A)\"\n"
+##### origin
+=== make C=1
+--- status 0
+--- stdout
+file override default environment undefined command line automatic
+--- stderr
+
+=== files
+Makefile: "F = f\noverride O = o\nall:\n\t@echo $(origin F) $(origin O) $(origin CC) $(origin PATH) $(origin NOPE) $(origin C) $(origin @)\n"
+##### flavor
+=== make
+--- status 0
+--- stdout
+recursive simple undefined
+--- stderr
+
+=== files
+Makefile: "R = r\nS := s\nall: ; @echo $(flavor R) $(flavor S) $(flavor NOPE)\n"
+##### value
+=== make
+--- status 0
+--- stdout
+$(B) and $$C
+--- stderr
+
+=== files
+Makefile: "A = $(B) and $$C\nB = bee\nall: ; @echo '$(value A)'\n"
+##### recursion-error
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** Recursive variable 'A' references itself (eventually).  Stop.
+
+=== files
+Makefile: "A = $(A) x\nall: ; @echo $(A)\n"
+##### recursion-append-ok
+=== make
+--- status 0
+--- stdout
+a b
+--- stderr
+
+=== files
+Makefile: "A := a\nA := $(A) b\nall: ; @echo $(A)\n"
+##### target-specific
+=== make
+--- status 0
+--- stdout
+one one
+two global
+--- stderr
+
+=== files
+Makefile: "V = global\nall: one two\none: V = one\none: ; @echo one $(V)\ntwo: ; @echo two $(V)\n"
+##### target-specific-inherit
+=== make
+--- status 0
+--- stdout
+dep from-all
+all from-all
+--- stderr
+
+=== make dep
+--- status 0
+--- stdout
+dep global
+--- stderr
+
+=== files
+Makefile: "V = global\nall: V = from-all\nall: dep ; @echo all $(V)\ndep: ; @echo dep $(V)\nother: dep\n"
+##### target-specific-append
+=== make debug rel
+--- status 0
+--- stdout
+-O2 -g
+-O2
+--- stderr
+
+=== files
+Makefile: "CFLAGS = -O2\ndebug: CFLAGS += -g\ndebug: ; @echo $(CFLAGS)\nrel: ; @echo $(CFLAGS)\n"
+##### target-specific-private
+=== make
+--- status 0
+--- stdout
+dep []
+all [secret]
+--- stderr
+
+=== files
+Makefile: "all: private V = secret\nall: dep ; @echo \"all [$(V)]\"\ndep: ; @echo \"dep [$(V)]\"\n"
+##### target-specific-override
+=== make t1 t2 V=cmd
+--- status 0
+--- stdout
+t1 cmd
+t2 file
+--- stderr
+
+=== files
+Makefile: "t1: V = file\nt1: ; @echo t1 $(V)\nt2: override V = file\nt2: ; @echo t2 $(V)\n"
+##### target-specific-export
+=== make t u
+--- status 0
+--- stdout
+[tv]
+[]
+--- stderr
+
+=== files
+Makefile: "t: export TV = tv\nt: ; @echo \"[$$TV]\"\nu: ; @echo \"[$$TV]\"\n"
+##### pattern-specific
+=== make
+--- status 0
+--- stdout
+a.o generic
+lib/b.o lib
+--- stderr
+
+=== files
+Makefile: "all: a.o lib/b.o\n%.o: V = generic\nlib/%.o: V = lib\na.o lib/b.o: ; @echo $@ $(V)\n"
+##### target-specific-simple
+=== make
+--- status 0
+--- stdout
+early
+--- stderr
+
+=== files
+Makefile: "X = early\nt: Y := $(X)\nX = late\nt: ; @echo $(Y)\n"
+##### target-specific-cond
+=== make
+--- status 0
+--- stdout
+global target
+--- stderr
+
+=== files
+Makefile: "A = global\nt: A ?= target\nt: B ?= target\nt: ; @echo $(A) $(B)\n"
+##### multiple-target-specific
+=== make a b c
+--- status 0
+--- stdout
+a shared
+b shared
+c
+--- stderr
+
+=== files
+Makefile: "a b: V = shared\na b c: ; @echo $@ $(V)\n"
+##### makelevel
+=== make
+--- status 0
+--- stdout
+0 1
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(MAKELEVEL) $$MAKELEVEL\n"
+##### curdir
+=== make -s
+--- status 0
+--- stdout
+curdir file
+--- stderr
+
+=== make -s -C sub
+--- status 0
+--- stdout
+sub
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(notdir $(CURDIR)) $(origin CURDIR)\n"
+sub/
+sub/Makefile: "all: ; @echo $(notdir $(CURDIR))\n"
+##### makefile-list
+=== make
+--- status 0
+--- stdout
+[Makefile]
+inc [Makefile inc.mk]
+[Makefile inc.mk]
+inc.mk
+--- stderr
+
+=== make -f Makefile
+--- status 0
+--- stdout
+[Makefile]
+inc [Makefile inc.mk]
+[Makefile inc.mk]
+inc.mk
+--- stderr
+
+=== files
+Makefile: "$(info [$(MAKEFILE_LIST)])\ninclude inc.mk\n$(info [$(MAKEFILE_LIST)])\nall: ; @echo $(lastword $(MAKEFILE_LIST))\n"
+inc.mk: "$(info inc [$(MAKEFILE_LIST)])\n"
+##### makecmdgoals
+=== make
+--- status 0
+--- stdout
+all []
+--- stderr
+
+=== make a b
+--- status 0
+--- stdout
+a [a b]
+b [a b]
+--- stderr
+
+=== files
+Makefile: "all a b: ; @echo \"$@ [$(MAKECMDGOALS)]\"\n"
+##### dot-variables
+=== make
+--- status 0
+--- stdout
+CC MAKE MYVAR
+--- stderr
+
+=== files
+Makefile: "MYVAR = 1\nall: ; @echo $(sort $(filter MYVAR CC MAKE,$(.VARIABLES)))\n"
+##### make-variable
+=== make
+--- status 0
+--- stdout
+make
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(MAKE)\n"
+##### shell-variable
+=== SHELL=/bin/false make
+--- status 0
+--- stdout
+/bin/sh
+--- stderr
+
+=== files
+Makefile: "all: ; @echo $(SHELL)\n"
+##### automatic
+=== make
+--- status 0
+--- stdout
+@=out/x.o <=src/a.c ^=src/a.c src/b.h +=src/a.c src/b.h src/a.c |=order
+@D=out @F=x.o <D=src <F=a.c ^D=src src ^F=a.c b.h
+*=out/x ?=src/a.c src/b.h
+--- stderr
+
+=== files
+Makefile: "all: out/x.o\nout/x.o: src/a.c src/b.h src/a.c | order\n\t@echo '@=$@ <=$< ^=$^ +=$+ |=$|'\n\t@echo '@D=$(@D) @F=$(@F) <D=$(<D) <F=$(<F) ^D=$(^D) ^F=$(^F)'\n\t@echo '*=$* ?=$?'\norder:\n"
+src/
+src/a.c: "\n"
+src/b.h: "\n"
+##### automatic-question
+=== touch -d '2001-01-01' old
+--- status 0
+--- stdout
+--- stderr
+
+=== touch -d '2001-01-02' out
+--- status 0
+--- stdout
+--- stderr
+
+=== touch new
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+new
+--- stderr
+
+=== touch -d '2000-01-01' out
+--- status 0
+--- stdout
+--- stderr
+
+=== make
+--- status 0
+--- stdout
+new old
+--- stderr
+
+=== files
+Makefile: "out: new old\n\t@echo '$?'\n\t@touch out\n"
+new: ""
+old: ""
+out: ""
+##### automatic-star-explicit
+=== make
+--- status 0
+--- stdout
+[foo]
+[]
+--- stderr
+
+=== files
+Makefile: "all: foo.c bar.zz\nfoo.c bar.zz: ; @echo '[$*]'\n"
+##### warn-undefined
+=== make --warn-undefined-variables 2>&1 | grep -v GNUMAKEFLAGS
+--- status 0
+--- stdout
+Makefile:2: warning: undefined variable 'UNDEF_ONE'
+Makefile:2: warning: undefined variable 'UNDEF_TWO'
+
+--- stderr
+
+=== files
+Makefile: "A = $(UNDEF_ONE)\nall: ; @echo $(A)$(UNDEF_TWO)\n"
+##### spaces-in-names
+=== make
+--- status 0
+--- stdout
+dot dash one
+--- stderr
+
+=== files
+Makefile: "a.b = dot\na-b = dash\n1 = one\nall: ; @echo $(a.b) $(a-b) $(1)\n"
+##### newline-variable
+=== make
+--- status 0
+--- stdout
+a|b
+--- stderr
+
+=== files
+Makefile: "define nl\n\n\nendef\nX = a$(nl)b\nall: ; @printf '%s\\n' '$(subst $(nl),|,$(X))'\n"
+##### cmdline-var-colon
+=== make 'A:=x y' B=z
+--- status 0
+--- stdout
+[x y] [z]
+--- stderr
+
+=== make "A=a b" -- B=b
+--- status 0
+--- stdout
+[a b] [b]
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$(A)] [$(B)]\"\n"
+##### recipe-prefix-in-makeflags
+=== make
+--- status 0
+--- stdout
+[] []
+--- stderr
+
+=== make -k
+--- status 0
+--- stdout
+[k] [-k]
+--- stderr
+
+=== make -k -s -i
+--- status 0
+--- stdout
+[iks] [-iks]
+--- stderr
+
+=== make -n
+--- status 0
+--- stdout
+echo "[n] [-n]"
+--- stderr
+
+=== make V=1
+--- status 0
+--- stdout
+[ -- V=1] []
+--- stderr
+
+=== make -k V=1 W=2
+--- status 0
+--- stdout
+[k -- W=2 V=1] [-k]
+--- stderr
+
+=== make -r -R
+--- status 0
+--- stdout
+[rR] [-rR]
+--- stderr
+
+=== make -B
+--- status 0
+--- stdout
+[B] [-B]
+--- stderr
+
+=== make -e
+--- status 0
+--- stdout
+[e] [-e]
+--- stderr
+
+=== make --no-print-directory
+--- status 0
+--- stdout
+[ --no-print-directory] [--no-print-directory]
+--- stderr
+
+=== make -I inc
+--- status 0
+--- stdout
+[ -Iinc] [-Iinc]
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$(MAKEFLAGS)] [$(MFLAGS)]\"\n"
+##### makeflags-set-in-makefile
+=== make
+--- status 0
+--- stdout
+quiet
+--- stderr
+
+=== files
+Makefile: "MAKEFLAGS += -s\nall: ; echo quiet\n"
+##### makeflags-r-in-makefile
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'foo.o', needed by 'all'.  Stop.
+
+=== files
+Makefile: "MAKEFLAGS += -r\nall: foo.o\n"
+foo.c: "\n"
+##### env-makeflags
+=== MAKEFLAGS=s make
+--- status 0
+--- stdout
+unset
+--- stderr
+
+=== MAKEFLAGS='-- V=fromflags' make -s
+--- status 0
+--- stdout
+fromflags
+--- stderr
+
+=== MAKEFLAGS=n make
+--- status 0
+--- stdout
+echo unset
+--- stderr
+
+=== files
+Makefile: "V ?= unset\nall: ; echo $(V)\n"
+##### empty-var-ref
+=== make
+--- status 0
+--- stdout
+[] [] [xy]
+--- stderr
+
+=== files
+Makefile: "all: ; @echo \"[$()] [$( )] [x$(empty)y]\"\n"
+##### define-continuation
+=== make
+--- status 0
+--- stdout
+one two
+three four
+echo one two|echo three
+four
+--- stderr
+
+=== files
+Makefile: "define D\necho one \\\n\t  two\necho 'three \\\nfour'\nendef\nX = $(D)\nall:\n\t@$(D)\n\t@printf '%s\\n' '$(subst $(nl),|,$(value D))'\ndefine nl\n\n\nendef\n"

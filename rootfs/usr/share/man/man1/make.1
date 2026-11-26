@@ -1,0 +1,78 @@
+MAKE(1)                   UC.OS Manual                   MAKE(1)
+
+NAME
+       make - keep files up to date by running recipes
+
+SYNOPSIS
+       make [options] [variable=value...] [target...]
+
+DESCRIPTION
+       make reads a makefile (GNUmakefile, makefile or Makefile, or
+       the one named with -f) and remakes each target whose file is
+       missing or older than one of its prerequisites. It reads the
+       makefiles people write for GNU Make 4.4: the same syntax, the
+       same functions and the same messages.
+
+              $ cat Makefile
+              hello: hello.o
+              $ make
+              cc    -c -o hello.o hello.c
+              cc   hello.o   -o hello
+
+OPTIONS
+       -B         remake every target
+       -C dir     change to dir first
+       -e         environment variables win over the makefile
+       -f file    read file as the makefile (- is standard input)
+       -i         ignore errors from recipes
+       -I dir     look for included makefiles in dir
+       -j [N]     run up to N recipes at once (no N: no limit)
+       -k         go on with other targets after an error
+       -n         print the recipes without running them
+       -o file    treat file as very old; never remake it
+       -p         print the rules and variables
+       -q         run nothing; exit status 1 if something is out
+                  of date
+       -r, -R     no built-in rules, no built-in variables
+       -s         do not echo recipes
+       -t         touch targets instead of running their recipes
+       -w         print the working directory
+       -W file    treat file as just modified
+       --trace    say why each target is remade
+       --eval=text, --no-print-directory, --warn-undefined-variables
+                  as in GNU Make
+       -E -h -l -L -O -R -S -v
+                  also accepted, with GNU Make's meaning; -d, -b and -m
+                  are accepted and print or do nothing extra
+
+WHAT IS THERE
+       Rules with several targets, pattern rules, static pattern
+       rules, double-colon rules, order-only prerequisites, grouped
+       targets (&:), old-style suffix rules, the built-in rules for
+       C, C++, assembler, lex and yacc (CC is cc), VPATH and vpath,
+       archive members lib(member), .SECONDEXPANSION and the other
+       special targets. Variables of both flavours (= := ::= :::=
+       ?= += !=), override, export, define, target-specific and
+       pattern-specific variables, automatic variables. Every GNU
+       Make function except guile. include and -include, with
+       remaking of included makefiles. Conditionals. Recursive make
+       with $(MAKE) and MAKEFLAGS.
+
+NOTES
+       Recipes run through /bin/sh. A line with no shell syntax is
+       started directly. UC.OS keeps file times in whole seconds: a
+       prerequisite changed in the same second as its target does
+       not count as newer.
+
+       There is no jobserver: a sub-make given -jN runs its own N
+       jobs. With one CPU thread, -j gives no speed-up.
+
+       Ctrl-C stops make and its recipe together; a target the recipe
+       was writing is not deleted.
+
+EXIT STATUS
+       0 when everything is up to date or was remade, 1 with -q when
+       something is out of date, 2 on an error.
+
+SEE ALSO
+       sh(1)

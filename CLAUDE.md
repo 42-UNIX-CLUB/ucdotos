@@ -106,15 +106,15 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | Path | What | Lines (approx.) |
 |---|---|---|
 | `abi/abi.h` | syscall numbers, errno, structs shared by kernel and programs | 230 |
-| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c` | 1,850 |
-| `boot/` | `host.mjs` (the machine), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 390 |
+| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c` | 2,000 |
+| `boot/` | `host.mjs` (the machine), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 420 |
 | `lib/` | `string.c`, `fmt.c` (vsnprintf): shared by kernel and libc; `mem.s` (kernel) and `umem.s` (libc): memcpy, memmove, memset | 530 |
-| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 2,860 |
+| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 3,980 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
-| `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 16,700 + Doom |
+| `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 48,000 + Doom (without tests) |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
-| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 960 |
+| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 1,120 (plus the suites under `tests/`) |
 | `docs/` | the detailed context files listed below | |
 
 ## Traps that have already cost time (details in `docs/DEVELOPMENT.md`)
@@ -138,6 +138,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | File | Read it when |
 |---|---|
 | `docs/ARCHITECTURE.md` | you touch the kernel, the host, the ABI, or need to know how anything works |
+| `docs/LINUX-BINARIES.md` | you work on running Linux programs (`bin/lx/`): architecture study, interfaces, what the engine needs from the kernel |
 | `docs/DEVELOPMENT.md` | you build, test, add a program, add a syscall, debug, or run several agents |
 | `docs/DECISIONS.md` | before proposing anything: what the owners decided, what was assumed, what is still open |
 | `docs/STATUS.md` | to know what works today, what is broken, what is not built, and what is in flight |

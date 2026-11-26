@@ -71,15 +71,27 @@ Notes that go with these:
 | Which settings each dotfile has (see ARCHITECTURE.md section 11); the built-in key bindings stay unless `defaults = false`; `$mod` is the built-in bindings' modifier; the WM border colours can override the theme's. | A start; more settings are easy to add. | The program's `load_conf` or `config_load`. |
 | `~/.config/ucos/theme` stays a one-word file, not `.uconf`. | The window manager writes it when the theme changes; rewriting a user-edited `.uconf` file would lose its comments. | `bin/wm/main.c` (`theme_set`) and every reader of the file. |
 | Themes name the terminal colours black, red, green, yellow, blue, magenta, cyan, white and `bright { ... }`; fetch, vi, htop and sysbench still keep their own colours per theme name. | The ANSI names are what other terminals use; those four programs never read theme files. | `libui/theme.c`; the programs' `term.h`. |
+| Shell: `~name` becomes `/home/name` without a user database; exit status 2 for expansion errors and special-builtin errors (and a `.` file not found in a script), 127 for `command -v` of an unknown name (as dash); `umask` is kept by the shell and succeeds, passed to the kernel when it has the call (the POSIX-faithful choice, after the owner asked which that was); a stopped foreground job does not stop the rest of the line; no warning when exiting with stopped jobs; `kill` is also a builtin; `exec CMD` inside a subshell runs `CMD` as a child; there is no `/bin/[` (a program cannot be named `[` under `bin/`), only `/bin/test`. | Choices made while closing POSIX gaps (2026-11-26). | `bin/sh/`. |
+| Regular expressions and `fnmatch` live in the C library (`libc/src/regex.c`, `fnmatch.c`), not inside the tools. | They are POSIX C library functions other programs can use. | Move the files. |
+| Linux programs: riscv64 as the first guest architecture; the engine is called `lx`; the guest root is `/debian` if it exists, else `/`; guests see `uname` Linux 6.12.0-lx riscv64; the guest user id is the host's unless `LX_UID` is set; memory protection is recorded, not enforced; `fork` in a guest is emulated until the kernel has a clone call. | Listed with reasons in `docs/LINUX-BINARIES.md` section 1. | The same section says where each one lives. |
 | OS identity strings: `uname` reports `UC.OS`, release `0.1.0`, machine `wasm32`, host name `42lisboa`, user `user`. | Needed something. | `kernel/kernel.h`, `kernel/syscall.c`, `bin/init.c`. |
+| make: the program is called `make`; no `gmake` alias. | The conventional name; makefiles call `$(MAKE)`. | Add `gmake` to the image as a copy, or rename `bin/make/`. |
+| make: `MAKE_VERSION` is `4.4.1` and `.FEATURES` lists what is implemented. | Makefiles test these to pick GNU Make features. | `main.c`. |
+| make: built-in rules and variables are GNU Make's C, C++, assembler, lex and yacc subset; `CC = cc`, `AR = ar`, `ARFLAGS = -rv`. | What C projects rely on; `cc` is what the compiler stream provides. | `bin/make/builtin.c`. |
+| make: no jobserver; `-jN` is passed to sub-makes in MAKEFLAGS and each runs up to N jobs. | One CPU thread today, so the total gives no speed-up either way. | Add a pipe-based jobserver in `run.c`/`sys.c`. |
 
 ## 3. Open: an owner needs to choose
 
 | Topic | Options | Blocks |
 |---|---|---|
+| **Shell: reference for conformance** | bash 5.3 in POSIX mode with 26 overrides written from knowledge of dash (now; dash is not installed on the build machine), or dash itself (`node tools/tests/sh-posix.mjs --gen --shell=dash`) | |
+| **Core tools in the image** | 28 separate programs, 759 KB together: keep all in the default image (now); one multi-call program under many names once the kernel has links (saves about 12 KB per tool); leave rarely used tools out of the default image | Image size |
+| **`/etc/passwd` and `/etc/group`** | none (now: `whoami` fails, `id` prints numbers); add files naming uid 1000 `user`; make `whoami` fall back to `$USER`; wait for Debian's base-passwd from the package manager | |
+| **Where the core tools' test data lives** | in the image under `/usr/share/tests` (now, about 298 KB); in a separate test image | Image size |
 | **Compressed image** | `make dist` writes `initrd.tar.gz` and the page prefers it (built, in the tree): ship it as built; drop it and let the web server compress; plain tar only. It saves 4 MB of download (3.2 s at 10 Mbit/s) and costs 135 to 175 ms of unpacking (PERFORMANCE.md section 6) | Hosting |
 | **`-Oz` instead of `-O2`** | Kernel 21% and programs 26% smaller, image 2.6% smaller; speed the same within noise except `fib` (faster) and 16-byte `memset` (slower); not measured in Chromium (PERFORMANCE.md section 7) | |
 | **Time-slice check cost** | The check costs about 2.5 ns per `getppid` in Chromium, not explained: keep it (now); skip it for trivial calls (a program looping only on those would never yield); a clock in shared memory written by a Worker (needs cross-origin isolation headers) | |
+| **Guest architecture for Linux programs** | amd64, arm64 or riscv64 (now: riscv64, chosen by an agent as the measurement vehicle). Debian 13 riscv64 programs run; Ubuntu 26.04 riscv64 programs need vector instructions; the package counts, instruction census and costs per architecture are in `docs/LINUX-BINARIES.md` section 2. Also open there: guest root layout, guest user id (dpkg wants 0), threads model | Which Debian and Ubuntu programs can run |
 | **Doom game data** | Shareware `doom1.wad` (4.2 MB; free to distribute unmodified, proprietary content) or `freedoom1.wad` (28.8 MB, BSD). Both are in `bin/doom/wads/` on the build machine, neither is in git or in the image. | Doom being playable in the hosted build |
 | **Doom A/D keys** | turn (now) or strafe | |
 | **Hosting** for dux.ensui.dev and the colleagues' subdomains | Any static host works (`make dist`). Each domain could be an independent copy, redirect to one canonical domain, or show a different machine. No special headers are needed today. | Going live |
@@ -93,6 +105,9 @@ Notes that go with these:
 | **Brand theme colours** | approve or replace the placeholder blue, purple and aqua | |
 | **The 42 glyphs in public** | The club's own brief says to clear public use of the 42 logo with the campus. The mark (which contains the 42 glyphs) is drawn by fetch and the wallpaper. | Public launch |
 | **Browser floor** | JSPI needs Chrome/Edge 137+, Firefox 153+, Safari 27+. Accept, or add a fallback (a compile-time stack transform) for older browsers. | |
+| **make: name and alias** | `make` only (now); also `gmake`; another name | |
+| **make: Ctrl-C** | leave as is (make dies with the recipe; the target may be half-written); make calls `setsid()` so the kernel spares it and it can delete the target (relies on the kernel not refusing `setsid` for a group leader, which Linux would refuse); a kernel change so a process can catch Ctrl-C | deleting half-made targets on Ctrl-C in UC.OS |
+| **make: jobserver** | none (now); a pipe-based jobserver like GNU Make's | limiting the total of jobs across recursive makes |
 
 ## 4. Background: the research that led here
 

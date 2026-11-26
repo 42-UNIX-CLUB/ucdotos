@@ -1,0 +1,24 @@
+{"cmd":"comm a b","out":"apple\n\t\tbanana\n\t\tcherry\ndate\n\tfig\n","status":0,"err":false}
+{"cmd":"comm -1 a b","out":"\tbanana\n\tcherry\nfig\n","status":0,"err":false}
+{"cmd":"comm -2 a b","out":"apple\n\tbanana\n\tcherry\ndate\n","status":0,"err":false}
+{"cmd":"comm -3 a b","out":"apple\ndate\n\tfig\n","status":0,"err":false}
+{"cmd":"comm -12 a b","out":"banana\ncherry\n","status":0,"err":false}
+{"cmd":"comm -13 a b","out":"fig\n","status":0,"err":false}
+{"cmd":"comm -23 a b","out":"apple\ndate\n","status":0,"err":false}
+{"cmd":"comm -123 a b","out":"","status":0,"err":false}
+{"cmd":"comm a empty","out":"apple\nbanana\ncherry\ndate\n","status":0,"err":false}
+{"cmd":"comm empty b","out":"\tbanana\n\tcherry\n\tfig\n","status":0,"err":false}
+{"cmd":"comm --output-delimiter=: a b","out":"apple\n::banana\n::cherry\ndate\n:fig\n","status":0,"err":false}
+{"cmd":"comm --total a b","out":"apple\n\t\tbanana\n\t\tcherry\ndate\n\tfig\n2\t1\t2\ttotal\n","status":0,"err":false}
+{"cmd":"comm --total -12 a b","out":"banana\ncherry\n2\t1\t2\ttotal\n","status":0,"err":false}
+{"cmd":"comm a a","out":"\t\tapple\n\t\tbanana\n\t\tcherry\n\t\tdate\n","status":0,"err":false}
+{"cmd":"comm - b < a","out":"apple\n\t\tbanana\n\t\tcherry\ndate\n\tfig\n","status":0,"err":false}
+{"cmd":"comm a nonl","out":"apple\nbanana\ncherry\ndate\n\tx\n\ty\n","status":0,"err":false}
+{"cmd":"comm unsorted a; echo \"st=$?\"","out":"\tapple\nb\na\n\tbanana\n\tcherry\n\tdate\nst=1\n","status":0,"err":true}
+{"cmd":"comm --nocheck-order unsorted a; echo \"st=$?\"","out":"\tapple\nb\na\n\tbanana\n\tcherry\n\tdate\nst=0\n","status":0,"err":false}
+{"cmd":"comm a; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"comm a b a; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"comm a missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"comm -4 a b; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"comm -z a b | od -c | head -3","out":"0000000   a   p   p   l   e  \\n   b   a   n   a   n   a  \\n   c   h   e\n0000020   r   r   y  \\n   d   a   t   e  \\n  \\0  \\t   b   a   n   a   n\n0000040   a  \\n   c   h   e   r   r   y  \\n   f   i   g  \\n  \\0\n","status":0,"err":false}
+{"cmd":"seq 1 100 | sort > s1; seq 50 150 | sort > s2; comm -12 s1 s2 | wc -l","out":"51\n","status":0,"err":false}

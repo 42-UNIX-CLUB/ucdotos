@@ -359,6 +359,32 @@ authors before this pass.
 | Doom, engine time per frame | 1.1 to 1.5 ms in game; timedemo 680 to 850 fps |
 | Doom memory after loading a level | 22 MiB (25 MiB in a window) |
 
+### make
+
+Measured 2026-11-26 by the author of `make`, on the 8-thread build laptop with a load
+average of 7 to 11 from other builds, so every figure is noisy; not repeated by anyone else. `bin/make/tests/perf/gen.mk N=10000` writes a makefile
+with 10,000 objects from 10,000 sources through a pattern rule, 10,000 `+=` lines, 1,000
+target-specific variables and a 1,000-step chain (12,000 lines). Native figures are wall
+time of `/usr/bin/time`; UC.OS figures come from time stamps on the console under Node
+(`bin/make/tests/perf/stamp.mjs`).
+
+| What | GNU Make 4.4.1, native | ours, native | ours, in UC.OS |
+|---|---|---|---|
+| read and evaluate big.mk (`parse-only`) | 0.77 to 0.86 s | 0.02 to 0.04 s | 0.04 s |
+| no-op build, sources spread over small directories (`DEEP=1`) | 1.31 to 1.38 s | 0.18 to 0.24 s | 0.19 to 0.20 s |
+| no-op build, 10,000 sources in one directory | 0.53 to 0.61 s | 0.35 to 0.43 s (before the `+=` fix) | 6.6 s, 95% in the kernel |
+| `make -t`, create all 22,000 files, one directory | 1.9 s | 1.1 s | 30.7 s, 95% in the kernel |
+| `make -t`, `DEEP=1` | | | 0.52 s |
+
+- Both makes do about 21,000 `stat` calls for the no-op build.
+- GNU Make's parse time comes from appending to a simple variable 10,000 times (each `+=`
+  copies the whole value). Ours appends in place. Before that fix our parse took 2.0 s in
+  UC.OS, 86% of it in `strlen`.
+- With 10,000 files in one directory, UC.OS spends its time in the kernel's `walk` and
+  `vfs_create`, which search a directory's linked list of entries (CPU profile with
+  `node --cpu-prof`). Directory size, not make, dominates there.
+
+
 ## 11. How to measure properly
 
 1. Put the timed loop in a `noinline` function and call it many times. V8 does not

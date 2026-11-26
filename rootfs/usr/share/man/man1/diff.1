@@ -1,0 +1,32 @@
+DIFF(1)                   UC.OS Manual                   DIFF(1)
+
+NAME
+       diff - compare files line by line
+
+SYNOPSIS
+       diff [-abBiNqrsTwZ] [-u | -U N | -c | -C N | -e |
+          --normal] [--label L] [--strip-trailing-cr] [-x PAT]
+          [--minimal] file1 file2
+
+DESCRIPTION
+       Compare files line by line. Exit status: 0 same, 1
+       different, 2 trouble.  The edit script comes from
+       Myers' O(ND) algorithm in its linear-space form: find
+       the middle snake of an optimal path from both ends at
+       once, then solve the two halves the same way. Runs of
+       changes are then slid as far towards the end as the
+       text allows, as GNU diff does, so ambiguous changes are
+       reported in the same place. When the edit distance gets
+       very large (two mostly different big files) the search
+       stops early and splits at the furthest point reached,
+       which keeps the time bounded but may report a longer
+       script than the shortest one; --minimal turns that off.
+
+NOTES
+       Long comparisons yield to the kernel every million
+       steps, so the system stays responsive.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                DIFF(1)

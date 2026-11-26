@@ -1,0 +1,6 @@
+echo making b
+making b
+touch b
+all all from b
+all all from b
+echo all all from b

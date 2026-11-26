@@ -1,0 +1,98 @@
+1 apple red one
+2 banana yellow two
+5 fig purple five
+5 fig purple cinq
+1 one apple red
+2 two banana yellow
+5 five fig purple
+5 cinq fig purple
+1 apple red one
+2 banana yellow two
+3 cherry red
+5 fig purple five
+5 fig purple cinq
+1 apple red one
+2 banana yellow two
+4 four
+5 fig purple five
+5 fig purple cinq
+1 apple red one
+2 banana yellow two
+3 cherry red
+4 four
+5 fig purple five
+5 fig purple cinq
+3 cherry red
+4 four
+3 cherry red
+4 four
+apple one
+banana two
+fig five
+fig cinq
+1 one red
+2 two yellow
+5 five purple
+5 cinq purple
+1 apple one
+2 banana two
+3 cherry NONE
+5 fig five
+5 fig cinq
+1 apple one
+2 banana two
+4 - four
+5 fig five
+5 fig cinq
+a:1:x:10
+c:3:z:30
+a:1:x:10
+b:2:y
+c:3:z:30
+d:40
+x:10
+z:30
+a:1:x:10
+c:3:z:30
+k v1 w1
+k v1 w2
+k v2 w1
+k v2 w2
+k v1 w1
+k v1 w2
+k v2 w1
+k v2 w2
+m v3
+n w3
+1 spaced out one
+2 x two
+A 1 X
+b 2 Y
+id name val
+1 x p
+1 apple red
+2 banana yellow
+3 cherry red
+5 fig purple
+1 apple red one
+2 banana yellow two
+5 fig purple five
+5 fig purple cinq
+1 apple red one
+2 banana yellow two
+5 fig purple five
+5 fig purple cinq
+1 apple red one
+2 banana yellow two
+3 cherry red 
+5 fig purple five
+5 fig purple cinq
+st=1
+st=1
+st=1
+st=1
+st=1
+st=1
+st=1
+st=1
+st=0

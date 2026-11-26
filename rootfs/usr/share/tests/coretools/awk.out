@@ -1,0 +1,593 @@
+alice 30 paris
+bob 25 london
+carol 35 paris
+dave 40 berlin
+eve 22 london
+alice
+bob
+carol
+dave
+eve
+paris
+london
+paris
+berlin
+london
+30
+25
+35
+40
+22
+1 3 alice 30 paris
+2 3 bob 25 london
+3 3 carol 35 paris
+4 3 dave 40 berlin
+5 3 eve 22 london
+alice paris
+bob london
+carol paris
+dave berlin
+eve london
+aliceparis
+boblondon
+carolparis
+daveberlin
+evelondon
+14
+13
+14
+14
+13
+14
+13
+14
+14
+13
+5
+3
+5
+4
+3
+bob 25 london
+alice 30 paris
+carol 35 paris
+eve 22 london
+bob 25 london
+carol 35 paris
+carol 35 paris
+dave 40 berlin
+alice
+carol
+dave
+alice 30 paris
+carol 35 paris
+bob 25 london
+eve 22 london
+alice 30 paris
+carol 35 paris
+dave 40 berlin
+alice 30 paris
+bob 25 london
+bob 25 london
+eve 22 london
+bob 25 london
+carol 35 paris
+dave 40 berlin
+2
+3
+eve 22 london
+5
+eve 22 london
+152 30.4
+3
+65 47 40
+dave 40
+alice 31 paris
+bob 26 london
+carol 36 paris
+dave 41 berlin
+eve 23 london
+alice 30 paris  X
+5
+bob 25 london  X
+5
+carol 35 paris  X
+5
+dave 40 berlin  X
+5
+eve 22 london  X
+5
+alice 30
+bob 25
+carol 35
+dave 40
+eve 22
+ALICE
+BOB
+CAROL
+DAVE
+EVE
+ 30 paris
+ 25 london
+ 35 paris
+ 40 berlin
+ 22 london
+alice | 30|
+bob   | 25|
+carol | 35|
+dave  | 40|
+eve   | 22|
+re: alice 30 paris
+re: bob 25 london
+re: carol 35 paris
+re: dave 40 berlin
+re: eve 22 london
+alice 30 paris
+bob 25 london
+carol 35 paris
+dave 40 berlin
+eve 22 london
+alice
+bob
+carol
+dave
+eve
+eve 22 london
+dave 40 berlin
+carol 35 paris
+bob 25 london
+alice 30 paris
+alice
+bob
+carol
+dave
+eve
+done
+alice-30-paris
+bob-25-london
+carol-35-paris
+dave-40-berlin
+eve-22-london
+alice-30
+bob-25
+carol-35
+dave-40
+eve-22
+alice;bob;carol;dave;eve;
+
+bob 25 london
+c
+d
+eve 22 london
+3 paris
+3 london
+3 paris
+3 berlin
+3 london
+_l_c_ 30 p_r_s
+b_b 25 l_nd_n
+c_r_l 35 p_r_s
+d_v_ 40 b_rl_n
+_v_ 22 l_nd_n
+Alice 30 paris
+bob 25 london
+cArol 35 paris
+dAve 40 berlin
+eve 22 london
+2 aalice 30 paaris
+0 bob 25 london
+2 caarol 35 paaris
+1 daave 40 berlin
+0 eve 22 london
+&lice 30 p&ris
+bob 25 london
+c&rol 35 p&ris
+d&ve 40 berlin
+eve 22 london
+7 7 2
+5 5 2
+7 7 2
+6 6 2
+5 5 2
+0
+2
+4
+0
+9
+ice 30 paris
+b 25 london
+rol 35 paris
+ve 40 berlin
+e 22 london
+li
+ob
+ar
+av
+ve
+Alice
+Bob
+Carol
+Dave
+Eve
+1: alice 30 paris
+2: bob 25 london
+3: carol 35 paris
+4: dave 40 berlin
+5: eve 22 london
+bob 25 london
+carol 35 paris
+dave 40 berlin
+eve 22 london
+alice 30 paris
+bob 25 london
+3
+3
+3
+3
+3
+old
+young
+old
+old
+young
+alicebobcaroldaveeve
+60 10 2 900 -30
+50 8.33333 4 625 -25
+70 11.6667 0 1225 -35
+80 13.3333 5 1600 -40
+44 7.33333 1 484 -22
+eve
+dave
+carol
+bob
+alice
+b
+2
+x
+3
+3
+3
+a;b;c
+1;2;3
+;x;
+y
+2
+
+
+key=value
+# comment
+name = test
+
+empty=
+3
+3.5 3 -3 1 -1
+1024 8 512 -4
+1000000 1e-06 123456789012 0.3 0.333333
+10000000000 9007199254740992 9007199254740992
+1 1
+3.14
+3.14159
+3.14
+3.14159
+5 0 5
+hello hel ello he
+o   
+1 0 2
+ABC1 xyz
+3 a c
+4 a b d
+2 [a]
+0 0
+3 b
+2
+3 b
+3 c
+3 bbb
+he[l][l]o
+-h-e-l-l-o-
+-a-b-c-
+XXXXX
+aXbXc
+aXbXc
+f\oo
+file
+>x
+x<
+b
+2 2 2
+0 0 -1
+1 1 0
+42 42 10 ff FF 3
+   42|42   |00042|+42| 42
+3.142       2.50 2.50      | 1.234500e+03 0.0001 1E+20
+abc        abc abc       | ab
+Hi!
+   42|42   |3.14
+%|%|
+12 0
+no newline007-x 5
+A
+0 1 3.14159 1 0 4
+2.7183 2.3026 1.4142
+1 1
+1
+5
+1 0 1
+1 1 0
+1 2
+1
+0
+5 2
+18
+5
+1
+9876543210
+16
+5 6 7 7 5
+1 0 1 1 0
+1 1 1
+1 0 1 0 1
+0 1 0 1
+yes
+0 1 1
+1 2 12 33 a1
+-1-1
+0 0 1-1
+1 0
+a
+got hello
+2
+two 2
+-1
+5
+alice 0
+3
+from system
+a
+b
+after
+x
+-1
+
+ello
+end runs
+end
+1
+1 awk
+0 awk
+0 0 
+1 1 1
+a	b\c"d/eA
+xyz
+aaa
+8 10 16
+1 0 1
+3 -2 0
+2
+12345 
+6765
+[] 1
+1
+v
+b
+y
+4
+3 4
+3 b
+a X c
+a b c  |
+3 [  c]
+2 [lead]
+[lead trail]
+3 []
+2
+3 c
+3 b
+x | 1
+1
+2
+3
+A
+a-b
+paren
+12
+1 2
+0
+123
+50%
+x
+1 0
+in
+not in
+1
+1 0
+20
+0 0
+b
+    a|
+8
+0.3 0
+1 1 0
+first: alice 30 paris
+5 5
+ 0 |
+15 5
+max 40
+30 10
+6
+a	b
+1 alice
+1 bob
+1 carol
+1 dave
+1 eve
+2 alice
+2 bob
+2 carol
+2 dave
+2 eve
+people 1 1
+people 2 2
+people 3 3
+people 4 4
+people 5 5
+csv 1 6
+csv 2 7
+csv 3 8
+csv 8
+people
+csv
+nums
+alice 30 paris
+bob 25 london
+carol 35 paris
+dave 40 berlin
+eve 22 london
+1: one|2
+2: three|3
+3: six|1
+1
+1
+2
+1 alic
+2  30 paris
+bob 25 london
+carol 35 paris
+dav
+3  40 b
+4 rlin
+
+5 v
+6  22 london
+
+[alice ]
+[ paris
+bob ]
+[ london
+carol ]
+0
+0
+0
+0
+0
+0
+0
+0
+1
+0
+1
+0
+0
+1
+0
+1
+148.5
+10
+10
+0
+1
+0
+0
+1
+0
+1
+0
+2
+no newline
+key
+# comment
+name
+
+empty
+key=value
+name = test
+empty=
+key->value
+name->test
+empty->
+alice 30 paris
+bob 25 london
+carol 35 paris
+dave 40 berlin
+eve 22 london
+alice 30 paris
+5
+alice
+a,b,c
+alice bob carol dave eve 
+3
+3
+3
+3
+3
+
+both
+paris 30 alice
+london 25 bob
+paris 35 carol
+berlin 40 dave
+london 22 eve
+berlin 1
+london 2
+paris 2
+alice 30 paris
+bob 25 london
+r no newline
+ab
+3 eve
+paris
+london
+paris
+berlin
+london
+alice 30 paris
+bob 25 london
+carol 35 paris
+dave 40 berlin
+eve 22 london
+bob 25 london
+alice
+carol
+  4 the
+  3 cat
+  2 a
+  2 end
+  1 and
+  1 dog
+  1 is
+5: [a] [b,c] [say "hi"] [] [d]
+1: [x]
+city         n   avg
+berlin       1  40.0
+london       2  23.5
+paris        2  32.5
+all          5  30.4
+7
+14
+8
+div0
+top=1
+core.name=demo ; not a comment
+paths.root=/usr
+paths.lib=/usr/lib
+alice bob carol dave eve
+30 25 35 40 22
+paris london paris berlin london
+main.c
+main.o
+util.c
+util.o
+prog
+doc
+all
+17 21 11 A  5.67 1.700000e+04
+a|    b|c    | 14
+-2:-1:0 -1:0:-1 0:0:0 1:0:1 2:1:0 
+10000000000000000525047602552044202487044685811081591549158541155118024579889081957863713750804478640437044438328838781769425232353604305756447921847867069828483872009265758037378302337947880900593689532349707999450811190389676408800746527427801424945792587888200568428381156694721963868654594005401600 -10000000000000000525047602552044202487044685811081591549158541155118024579889081957863713750804478640437044438328838781769425232353604305756447921847867069828483872009265758037378302337947880900593689532349707999450811190389676408800746527427801424945792587888200568428381156694721963868654594005401600 1
+st=3
+st=4
+st=1
+st=2
+50005000 10000
+428 429 429 429 429 428 428 
+6000 3000 3000

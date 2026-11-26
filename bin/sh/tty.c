@@ -4,6 +4,7 @@
 #include "sh.h"
 #include "lineedit.h"
 #include <dirent.h>
+#include <termios.h>
 
 static struct termios orig;
 static int have_tty, raw_on, cur_row;
@@ -20,6 +21,8 @@ static void raw_mode(void) {
   orig.c_iflag |= ICRNL;
   orig.c_oflag |= OPOST | ONLCR;
   orig.c_cc[VINTR] = orig.c_cc[VINTR] ? orig.c_cc[VINTR] : 3;
+  /* job control: Ctrl-Z stops the foreground job (the kernel leaves VSUSP off by default) */
+  if (job_control_active() && !orig.c_cc[VSUSP]) orig.c_cc[VSUSP] = 26;
   t = orig;
   t.c_lflag &= ~(ICANON | ECHO | ISIG | IEXTEN);
   t.c_iflag &= ~ICRNL;

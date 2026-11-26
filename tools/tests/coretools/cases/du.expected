@@ -1,0 +1,22 @@
+{"cmd":"du -ab d/ten","out":"10\td/ten\n","status":0,"err":false}
+{"cmd":"du -ab d/sub/three d/ten","out":"3\td/sub/three\n10\td/ten\n","status":0,"err":false}
+{"cmd":"du -b --apparent-size d/ten","out":"10\td/ten\n","status":0,"err":false}
+{"cmd":"du -ab d | sort -k2","out":"5013\td\n0\td/empty\n0\td/empty/zero\n5003\td/sub\n5000\td/sub/deep\n5000\td/sub/deep/big\n3\td/sub/three\n10\td/ten\n","status":0,"err":false}
+{"cmd":"du -sb d/sub/deep","out":"5000\td/sub/deep\n","status":0,"err":false}
+{"cmd":"du -ab -d 1 d | sort -k2 | cut -f2","out":"d\nd/empty\nd/sub\nd/ten\n","status":0,"err":false}
+{"cmd":"du -ab --max-depth=0 d | cut -f2","out":"d\n","status":0,"err":false}
+{"cmd":"du -s d | cut -f2","out":"d\n","status":0,"err":false}
+{"cmd":"du d | sort -k2 | cut -f2","out":"d\nd/empty\nd/sub\nd/sub/deep\n","status":0,"err":false}
+{"cmd":"du -a d | sort -k2 | cut -f2","out":"d\nd/empty\nd/empty/zero\nd/sub\nd/sub/deep\nd/sub/deep/big\nd/sub/three\nd/ten\n","status":0,"err":false}
+{"cmd":"du -c -b d/ten d/sub/three","out":"10\td/ten\n3\td/sub/three\n13\ttotal\n","status":0,"err":false}
+{"cmd":"du -abc d/ten d/sub/three | tail -1","out":"13\ttotal\n","status":0,"err":false}
+{"cmd":"du -b -S d | sort -k2 | cut -f2","out":"d\nd/empty\nd/sub\nd/sub/deep\n","status":0,"err":false}
+{"cmd":"du -h -b d/sub/deep/big","out":"5000\td/sub/deep/big\n","status":0,"err":false}
+{"cmd":"du -h --apparent-size d/sub/deep/big","out":"4.9K\td/sub/deep/big\n","status":0,"err":false}
+{"cmd":"du -as d; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"du missing; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"du -d x d; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"du -Q d; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"du -0 -b d/ten | od -c","out":"0000000   1   0  \\t   d   /   t   e   n  \\0\n0000011\n","status":0,"err":false}
+{"cmd":"cd d && du -ab ten","out":"10\tten\n","status":0,"err":false}
+{"cmd":"cd d/sub && du -b . | sort -k2 | cut -f2","out":".\n./deep\n","status":0,"err":false}
