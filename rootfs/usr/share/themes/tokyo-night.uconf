@@ -1,0 +1,57 @@
+# tokyo-night: Tokyo Night. Deep navy with the neon blues and purples of Tokyo at night.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = tokyo night
+
+[colors]
+bg      = #1a1b26
+fg      = #c0caf5
+accent  = #7aa2f7
+dim     = #565f89
+desktop = #16161e
+panel   = #24283b
+surface = #292e42
+bar {
+    bg = #16161e
+    fg = #a9b1d6
+}
+border {
+    focus  = #7aa2f7
+    normal = #3b4261
+    float  = #bb9af7
+}
+
+[terminal]
+black   = #15161e
+red     = #f7768e
+green   = #9ece6a
+yellow  = #e0af68
+blue    = #7aa2f7
+magenta = #bb9af7
+cyan    = #7dcfff
+white   = #a9b1d6
+bright {
+    black   = #414868
+    red     = #f7768e
+    green   = #9ece6a
+    yellow  = #e0af68
+    blue    = #7aa2f7
+    magenta = #bb9af7
+    cyan    = #7dcfff
+    white   = #c0caf5
+}
+
+[font]
+name    = JetBrains Mono
+regular = JetBrainsMonoNerdFontMono-Regular.ttf
+bold    = JetBrainsMonoNerdFontMono-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 14
+border = 2
+radius = 12

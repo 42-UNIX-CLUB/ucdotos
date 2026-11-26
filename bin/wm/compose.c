@@ -208,13 +208,14 @@ static void add_solid(const client *c, const rect *D) {
 /* Draw the windows of workspace ws that fall inside D, shifted dx pixels to the right, from
  * bottom to top: tiles, bars, the fullscreen window, floating windows. with_bars = 0 leaves
  * the bars out. only_list = 1 draws nothing and adds what would be covered to solid[]. */
+static int sliding; /* compose_anim draws sticky windows itself, fixed in place */
 static void draw_windows(int ws, int dx, const rect *D, int with_bars, int only_list) {
   int keep = cur_ws;
   cur_ws = ws; /* visible() and focused() answer for the current workspace */
   for (int pass = 0; pass < 4; pass++)
     for (int i = 0; i < nclients; i++) {
       client *c = order[i];
-      if (!visible(c) || (c->role == UI_BAR && !with_bars)) continue;
+      if (!visible(c) || (c->role == UI_BAR && !with_bars) || (sliding && c->sticky)) continue;
       int kind = c->floating ? 3 : c->fullscreen ? 2 : c->role == UI_BAR ? 1 : 0;
       if (kind != pass) continue;
       c->r.x += dx;
@@ -366,6 +367,7 @@ static int compose_anim(void) {
   }
   int fixed_bar = bar_shown_on(anim_from) && bar_shown_on(anim_to);
   double paint_ms = 0, put_ms = 0;
+  sliding = 1;
   for (int y0 = 0; y0 < scr_h; y0 += strip_rows) { /* one band of the strip at a time */
     rect band = {0, y0, scr_w, scr_h - y0 < strip_rows ? scr_h - y0 : strip_rows};
     rect oc = old_clip, nc = new_clip;
@@ -382,6 +384,8 @@ static int compose_anim(void) {
           if (order[i]->role != UI_BAR || !visible(order[i])) continue;
           if (!round) add_solid(order[i], &band); else draw_window(order[i], &band);
         }
+      for (int i = 0; i < nclients; i++) /* sticky windows stay where they are, on top */
+        if (order[i]->sticky && visible(order[i])) { if (!round) add_solid(order[i], &band); else draw_window(order[i], &band); }
       /* The wallpaper is the same on both workspaces, so panning it is a rotation of each row. */
       if (!round) for (int y = band.y; y < band.y + band.h; y++) wall_row(y, shift);
     }
@@ -392,6 +396,7 @@ static int compose_anim(void) {
     paint_ms += t1 - t0; put_ms += t2 - t1;
     t0 = t2;
   }
+  sliding = 0;
   stats_frames++;
   stats_compose_ms += paint_ms;
   write_ms += put_ms;

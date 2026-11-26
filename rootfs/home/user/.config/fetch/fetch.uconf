@@ -1,0 +1,26 @@
+# ~/.config/fetch/fetch.uconf: what fetch shows.
+#
+# fetch reads this every time it runs: change it and run fetch again.
+# The format is .uconf: see ~/.config/wm/wm.uconf for a summary.
+
+[fetch]
+logo = mark          # mark (the club's prompt mark), cube, torus, or text
+                     # (text draws /usr/share/fetch/logo.txt)
+# font = Fira Code   # what the Font line says; leave it out to use the theme's
+                     # font name (the FONT variable wins over both)
+
+[info]
+# The lines next to the logo, top to bottom. Delete a line to hide it, move it
+# to change the order. A second field renames it: line = Uptime, Up
+line = OS
+line = Kernel
+line = Uptime
+line = Shell
+line = Terminal
+line = Theme
+line = Font
+line = Memory
+line = Processes
+line = Syscall
+
+palette = true       # the colour blocks under the lines
