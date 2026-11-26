@@ -347,7 +347,7 @@ authors before this pass.
 
 | What | Figure |
 |---|---|
-| window manager, full-screen composite | 1.0 to 1.3 ms |
+| window manager, full-screen composite | 1.0 to 2.0 ms (2026-11-26, painted in bands: 0.95, 1.08, 1.99 ms in three runs of `perf.mjs`; 1.58 ms twice with the old full-screen buffer) |
 | a 600x400 window's `ui_present` until its pixels are in the framebuffer | about 1.1 ms (median) |
 | window manager when idle | 0 framebuffer writes per second with the bar hidden; 1 frame per second for the clock |
 | terminal, full repaint of 160x45 cells (native build) | 2.9 ms |
@@ -384,25 +384,29 @@ time of `/usr/bin/time`; UC.OS figures come from time stamps on the console unde
   `vfs_create`, which search a directory's linked list of entries (CPU profile with
   `node --cpu-prof`). Directory size, not make, dominates there.
 
+## 11. Memory
 
-## 11. How to measure properly
+Headless under Node at 1280x720, 2026-11-26: the default desktop, then two more terminals
+opened with Mod+Return, then `ps` in the last one. Each figure is the process's whole wasm
+memory (`ps` MEM); two runs each. The kernel's own memory was 16.3 MiB both times.
 
-1. Put the timed loop in a `noinline` function and call it many times. V8 does not
-   replace a running wasm loop with optimised code, so a loop entered once measures
-   baseline code forever. `bin/kbench.c` is the minimal example; `bin/sysbench.c` is the
-   full tool (`--json`, `--only NAME,NAME`), `bin/ubench.c` the user-code one.
-2. Report the best batch and the first batch.
-3. Make each batch much longer than the clock's resolution. Under Node the clock is fine;
-   in Chrome it ticks every 0.1 ms and in Firefox about every 1 ms.
-4. Compare A/B, never against a number from another day: `tools/bench/ab.mjs --a=TREE
-   --b=TREE --mode=node|browser` runs two builds alternately and prints best, median and
-   worst of each row. Keep the baseline in a separate copy of the tree.
-5. Say where you measured (Node or which browser), on what machine, and how loaded it was.
-6. The kernel forces a yield every 8 ms; a batch that spans one is a little slower. The
-   best-batch figure hides that.
-7. The other tools in `tools/bench/`: `callcost.mjs` (where a call's time goes),
-   `clockcost.mjs` (the clock import), `spawncost.mjs` (process start, step by step),
-   `frames-ab.mjs` and `present-check.mjs` (the screen), `boot-ab.mjs` (boot phases).
+| Process | Before | After | Why |
+|---|---|---|---|
+| wm | 14.9 MiB | 6.4 MiB | no full-screen back buffer or wallpaper; window buffers freed before the new size is allocated |
+| bar | 1.9 MiB | 1.9 MiB | |
+| welcome terminal | 10.1 MiB | 8.3 to 8.4 MiB | window buffer freed before the new size is allocated |
+| second terminal | 6.9 MiB | 6.1 MiB | same |
+| third terminal | 5.4 MiB | 2.9 MiB | same, and the Nerd fallback font is not read until a glyph needs it |
+| init, sh, ps, each | 1.4 MiB | 1.1 MiB | the heap grows one page at a time; the argument buffer is 4 KiB, not 64 |
+| all processes | 47.5 MiB | 32.4 to 32.6 MiB | |
+
+After `perf.mjs` opens and closes 20 windows three times, the wm holds 91 pages (5.7 MiB)
+instead of 215 (13.4 MiB).
+
+What is left: every program reserves a 1 MiB stack (the deepest use measured in the test
+suites is 54 KiB, in `sh`); every font a program uses is read whole into its memory; the
+kernel keeps the initrd (7.6 MiB then, 9.8 MiB on `35050ca`; 5.5 MiB of it fonts), the
+framebuffer (3.6 MiB) and two 512 KiB buffers for each window's socket.
 
 ## 12. Sound (2026-11-26)
 
@@ -451,3 +455,21 @@ Measured on the built system:
   fps, 33.7 / 33.6 / 33.6 ms, 34.0 / 35.0 / 33.9 ms; 0 underruns either way. The 99th
   percentile is about 0.8 ms higher on average with music, inside the spread between runs.
 
+## 13. How to measure properly
+
+1. Put the timed loop in a `noinline` function and call it many times. V8 does not
+   replace a running wasm loop with optimised code, so a loop entered once measures
+   baseline code forever. `bin/kbench.c` is the minimal example; `bin/sysbench.c` is the
+   full tool (`--json`, `--only NAME,NAME`), `bin/ubench.c` the user-code one.
+2. Report the best batch and the first batch.
+3. Make each batch much longer than the clock's resolution. Under Node the clock is fine;
+   in Chrome it ticks every 0.1 ms and in Firefox about every 1 ms.
+4. Compare A/B, never against a number from another day: `tools/bench/ab.mjs --a=TREE
+   --b=TREE --mode=node|browser` runs two builds alternately and prints best, median and
+   worst of each row. Keep the baseline in a separate copy of the tree.
+5. Say where you measured (Node or which browser), on what machine, and how loaded it was.
+6. The kernel forces a yield every 8 ms; a batch that spans one is a little slower. The
+   best-batch figure hides that.
+7. The other tools in `tools/bench/`: `callcost.mjs` (where a call's time goes),
+   `clockcost.mjs` (the clock import), `spawncost.mjs` (process start, step by step),
+   `frames-ab.mjs` and `present-check.mjs` (the screen), `boot-ab.mjs` (boot phases).

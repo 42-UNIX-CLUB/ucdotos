@@ -61,7 +61,10 @@ bind Mod+h master shrink
 bind Mod+l master grow
 
 bind Mod+f fullscreen
+# float: the window leaves the tiling and the others fill its place.
+# Hold Mod and drag a floating window with the left button to move it.
 bind Mod+Shift+space float
+bind Mod+y float
 
 bind Mod+t theme next
 bind Mod+Shift+r reload

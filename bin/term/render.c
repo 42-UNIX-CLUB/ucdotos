@@ -79,13 +79,23 @@ static int draw_block(gfx_surface *s, int x, int y, int w, int h, uint32_t c, un
 }
 
 /* which cache draws code point c: the regular/bold one, or the fallback if the glyph is missing */
+static void load_fallback(render *r) {
+  const ttf_font *(*load)(void) = r->load_fallback;
+  r->load_fallback = NULL; /* only ever once */
+  const ttf_font *f = load();
+  if (f && (r->cache[2] = ttf_cache_new(f, r->px, 256))) r->font[2] = f;
+}
 static ttf_cache *pick(render *r, uint32_t c, int bold) {
   ttf_cache *main = r->cache[bold ? 1 : 0];
-  if (c < 0x80 || !r->cache[2]) return main;
+  if (c < 0x80 || (!r->cache[2] && !r->load_fallback)) return main;
   int st = 0;
   if (c < 0x10000) st = (r->missing[c >> 2] >> ((c & 3) * 2)) & 3;
   if (!st) {
-    st = ttf_glyph_index(r->font[0], c) ? 1 : ttf_glyph_index(r->font[2], c) ? 2 : 1;
+    if (ttf_glyph_index(r->font[0], c)) st = 1;
+    else {
+      if (r->load_fallback) load_fallback(r);
+      st = r->font[2] && ttf_glyph_index(r->font[2], c) ? 2 : 1;
+    }
     if (c < 0x10000) r->missing[c >> 2] |= (uint8_t)(st << ((c & 3) * 2));
   }
   return st == 2 ? r->cache[2] : main;
