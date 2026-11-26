@@ -106,15 +106,15 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | Path | What | Lines (approx.) |
 |---|---|---|
 | `abi/abi.h` | syscall numbers, errno, structs shared by kernel and programs | 230 |
-| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c` | 1,850 |
-| `boot/` | `host.mjs` (the machine), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 390 |
+| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c` | 2,000 |
+| `boot/` | `host.mjs` (the machine), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 420 |
 | `lib/` | `string.c`, `fmt.c` (vsnprintf): shared by kernel and libc; `mem.s` (kernel) and `umem.s` (libc): memcpy, memmove, memset | 530 |
-| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 2,860 |
+| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 3,980 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
-| `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 16,700 + Doom |
+| `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 48,000 + Doom (without tests) |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
-| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 960 |
+| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 1,120 (plus the suites under `tests/`) |
 | `docs/` | the detailed context files listed below | |
 
 ## Traps that have already cost time (details in `docs/DEVELOPMENT.md`)
