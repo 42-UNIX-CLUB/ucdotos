@@ -28,6 +28,7 @@ Open http://localhost:8000 in Chrome or Edge 137+, Firefox 153+ or Safari 27+.
 | Alt+j / Alt+k | focus next / previous window |
 | Alt+1..4 | switch workspace |
 | Alt+t | switch theme |
+| Ctrl+= / Ctrl+- / Ctrl+0 | bigger / smaller / normal text in the focused terminal |
 | Alt+Shift+q | close window |
 
 ## Tests

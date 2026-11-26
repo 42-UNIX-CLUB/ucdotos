@@ -35,6 +35,7 @@ static struct {
   ttf_font font[3];
   char fpath[3][128];
   int font_size;          /* --font-size, 0 = theme */
+  int zoom;               /* zoom steps away from that size (see font_px) */
   int ptm, child, dead, hold, exit_status;
   int pad, swallow_text, title_fixed, mouse_buttons;
   int stats;
@@ -70,12 +71,22 @@ static int load_font(int i, const char *path) {
   return 0;
 }
 
+/* Zoom (UI_EV_ZOOM from the window manager) moves the text size in steps of ZOOM_STEP pixels. */
+#define ZOOM_STEP 2
+#define ZOOM_MIN_PX 8
+#define ZOOM_MAX_PX 72
+static int base_px(void) { return T.font_size > 0 ? T.font_size : T.th.font_size > 0 ? T.th.font_size : 16; }
+static int font_px(void) {
+  int px = base_px() + T.zoom * ZOOM_STEP;
+  return px < ZOOM_MIN_PX ? ZOOM_MIN_PX : px > ZOOM_MAX_PX ? ZOOM_MAX_PX : px;
+}
+
 static void setup_fonts(void) {
   if (load_font(0, T.th.font) && load_font(0, "/usr/share/fonts/FiraCode-Regular.ttf")) die("cannot load a font");
   int bold = load_font(1, T.th.font_bold) == 0;
   /* a Nerd Font supplies powerline and icon glyphs that Fira Code lacks */
   int fb = !strstr(T.fpath[0], "Nerd") && load_font(2, FALLBACK_FONT) == 0;
-  int px = T.font_size > 0 ? T.font_size : T.th.font_size > 0 ? T.th.font_size : 16;
+  int px = font_px();
   if (render_init(&T.r, &T.font[0], bold ? &T.font[1] : NULL, fb ? &T.font[2] : NULL, (float)px)) die("out of memory");
   render_colors(&T.r, T.th.fg, T.th.bg, T.th.accent, T.th.color);
   T.pad = 8; /* padding around the grid */
@@ -289,6 +300,19 @@ static void on_event(tevent *e) {
     apply_size();
     render_invalidate(&T.r);
     break;
+  case TE_ZOOM: {
+    int old = font_px(), was = T.zoom;
+    T.zoom = e->wheel ? T.zoom + e->wheel : 0;
+    if (font_px() == old) { /* nothing to redraw */
+      /* at a limit, keep the count where the size stops changing, so the other key works at once */
+      if (e->wheel) T.zoom = was;
+      return;
+    }
+    setup_fonts();
+    apply_size();
+    render_invalidate(&T.r);
+    break;
+  }
   case TE_FOCUS: case TE_BLUR:
     if (t->focus_events) send(e->type == TE_FOCUS ? "\x1b[I" : "\x1b[O", 3);
     t->dirty[t->y] = 1;

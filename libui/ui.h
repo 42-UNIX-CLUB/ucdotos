@@ -39,6 +39,8 @@ enum {
   UI_EV_BLUR,
   UI_EV_CLOSE,      /* the user asked to close the window */
   UI_EV_WM_STATE,   /* for bars: workspace state changed; see ui_wm_state() */
+  UI_EV_ZOOM,       /* the user pressed a zoom key (Ctrl+= Ctrl+- Ctrl+0 by default): wheel = +1 bigger,
+                     * -1 smaller, 0 back to normal. A program that has no use for it ignores it. */
 };
 typedef struct {
   int type;
@@ -81,6 +83,7 @@ int ui_wm_command(ui_window *win, const char *command);
 /* Commands the manager understands (the same words as the bind lines of ~/.config/wm/config):
  *   exec CMD ARGS...   workspace N   move N   focus next|prev   swap next|prev|master
  *   master grow|shrink   fullscreen   float   kill   theme next|NAME   reload   exit
+ *   zoom in|out|reset (sends UI_EV_ZOOM to the focused window)
  *   stats (prints counters to the console)   bench (times full-screen composites)
  *   animation MS (length of the workspace slide until the next reload; 0 = none)
  * A window opened with role UI_FLOATING gets the size it asked for; ui_open with

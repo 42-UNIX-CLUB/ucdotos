@@ -224,6 +224,13 @@ int run_command(client *src, const char *cmd) {
     }
     return 0;
   }
+  if (!strcmp(verb, "zoom")) { /* the focused window redraws its own content bigger or smaller */
+    int d = !strcmp(arg, "in") ? 1 : !strcmp(arg, "out") ? -1 : !strcmp(arg, "reset") ? 0 : 2;
+    client *f = focused();
+    if (d == 2 || !f) return -1;
+    send_event(f, UI_EV_ZOOM, 0, 0, 0, 0, 0, 0, 0, d);
+    return 0;
+  }
   if (!strcmp(verb, "theme")) return theme_set(*arg ? arg : "next");
   if (!strcmp(verb, "reload")) { config_load(0); theme_reload(); fprintf(stderr, "wm: configuration reloaded\n"); return 0; }
   if (!strcmp(verb, "exit")) { quit = 1; return 0; }

@@ -93,8 +93,8 @@ static void latency_probe(void) {
 
 static const char *evname(int t) {
   static const char *n[] = {"NONE", "KEY_DOWN", "KEY_UP", "TEXT", "MOUSE_MOVE", "MOUSE_DOWN", "MOUSE_UP", "WHEEL",
-                            "RESIZE", "FOCUS", "BLUR", "CLOSE", "WM_STATE"};
-  return t >= 0 && t <= UI_EV_WM_STATE ? n[t] : "?";
+                            "RESIZE", "FOCUS", "BLUR", "CLOSE", "WM_STATE", "ZOOM"};
+  return t >= 0 && t <= UI_EV_ZOOM ? n[t] : "?";
 }
 
 int main(int argc, char **argv) {
@@ -117,6 +117,7 @@ int main(int argc, char **argv) {
     case UI_EV_KEY_DOWN: case UI_EV_KEY_UP:
       printf("uidemo %d: %s key=%d mods=%d%s\n", getpid(), evname(ev.type), ev.key, ev.mods, ev.repeat ? " repeat" : ""); break;
     case UI_EV_TEXT: printf("uidemo %d: TEXT U+%04X\n", getpid(), ev.codepoint); break;
+    case UI_EV_ZOOM: printf("uidemo %d: ZOOM %d\n", getpid(), ev.wheel); break; /* told, and ignores it */
     case UI_EV_MOUSE_DOWN: case UI_EV_MOUSE_UP: case UI_EV_WHEEL:
       printf("uidemo %d: %s x=%d y=%d button=%d wheel=%d\n", getpid(), evname(ev.type), ev.x, ev.y, ev.button, ev.wheel); break;
     default: printf("uidemo %d: %s %dx%d\n", getpid(), evname(ev.type), ev.w, ev.h);
