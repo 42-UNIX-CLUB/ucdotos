@@ -40,6 +40,8 @@ with its date, the options that were on the table, and who chose.
 | 26 | 2026-11-26 | **The clipboard keeps a history with its own window** (and a `clip` command for the shell). | one item and a `clip` command; a history reached from the shell only |
 | 27 | 2026-11-26 | **Ctrl+V in the page brings the computer's clipboard in as the newest clipboard entry**, through a small kernel device, `/dev/hostclip`: the one place the clipboard touches the kernel. Ctrl+V no longer reaches programs. | type the pasted text straight into the focused window (no kernel change, no history); Ctrl+Alt+V or Ctrl+Shift+V with the browser's Clipboard API (permission prompt, secure page only) |
 | 28 | 2026-11-26 | **What is copied in UC.OS also goes to the computer's clipboard**, through the same `/dev/hostclip` and the browser's Clipboard API. | |
+| 29 | 2026-11-26 | **The web platform's admin pages are a UC.OS program**: a C program with a libui window inside the OS that calls the platform's admin API. The owner chose the option "UC.OS program" (about 19:56, a multiple-choice question from uc-os-web). | a web page at `/admin`; a command line over SSH on the server; decide later |
+| 30 | 2026-11-26 | **Programs' requests through the router carry no login; only the admin program may reach the platform with the session.** The owner, 20:00: "a, with the admin program as the only allowed one". Option a as put to the owner: "Programs' requests carry no login. The admin program reaches the platform through a separate channel that only allowed programs can use." The first half is built: the router's fetches omit credentials (NETWORKING.md). | a confirm dialog outside the OS for each admin change; a header programs cannot add, required for admin calls; accept the risk |
 
 Notes that go with these:
 
@@ -130,6 +132,7 @@ Notes that go with these:
 | **Terminal bell** | silent (now); a short tone; a flash; both | |
 | **minishell** | the owner will provide the repo; it must be adapted from `fork`+`execve` to `spawn` | |
 | **Linking exception** | Every program links our GPL libc statically, so third-party programs must be GPL-compatible unless the libc (and libgfx, libui) get a linking exception. | Non-GPL programs for UC.OS |
+| **The admin program** | who writes it, its name, and the separate channel it uses (a kernel and page path that only it may use, per decision 30) | the web platform's admin pages |
 | **Copyright holder** | the three authors, or the club | Licence headers |
 | **Brand theme colours** | approve or replace the placeholder blue, purple and aqua | |
 | **The 42 glyphs in public** | The club's own brief says to clear public use of the 42 logo with the campus. The mark (which contains the 42 glyphs) is drawn by fetch and the wallpaper. | Public launch |
