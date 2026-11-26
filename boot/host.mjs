@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// The "machine" the kernel runs on. This file is the only JavaScript in the
-// system besides the page itself. It does what firmware and a CPU would do:
-// load the kernel, start programs (a program is its own WebAssembly instance
-// with its own memory), and suspend/resume their stacks. It is never on the
-// path of a system call: programs call the kernel's wasm export directly. Sound
-// samples leave through boot/audio.mjs.
+// The "machine" the kernel runs on. This file, the page, boot/audio.mjs (where sound
+// samples leave) and boot/hostnet.mjs (the router's way out) are the only JavaScript in
+// the system. This file does what firmware and a CPU would do: load the kernel, start
+// programs (a program is its own WebAssembly instance with its own memory), and
+// suspend/resume their stacks. It is never on the path of a system call: programs call
+// the kernel's wasm export directly.
 import { audio } from './audio.mjs';
+import { hostnet } from './hostnet.mjs';
 
 const EXIT = Symbol('exit');
 const P_RUN = 1;
@@ -63,7 +64,7 @@ export function checkSupport() {
 // kernel gets instead (boot/worker-proto/ext.mjs uses it to run some processes in Workers).
 // remote(url): how remote files are fetched (kernel/remote.c); a Promise of a fetch Response.
 // The page passes fetch relative to its own folder; the Node tools read the build directory.
-export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onPointerLock = () => {}, debug = false, extend = null, sound = {}, remote = (url) => fetch(url) }) {
+export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onPointerLock = () => {}, debug = false, extend = null, sound = {}, net = {}, remote = (url) => fetch(url) }) {
   const dec = new TextDecoder();
   // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
   const deviceMemory = ((globalThis.navigator && globalThis.navigator.deviceMemory) || 4) * 2 ** 30;
@@ -91,6 +92,7 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   let k, table;
   const mem = () => new Uint8Array(k.memory.buffer);
   const rnd = new Uint32Array(1);
+  let ktimer = 0, kgen = 0;
 
   function stop(P) {              // let a parked stack unwind
     P.dead = true;
@@ -115,6 +117,17 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     // The window manager captured (1) or released (0) the mouse for a fullscreen game: the
     // page locks or unlocks the browser's pointer (boot/page.mjs).
     pointer_lock(on) { onPointerLock(!!on); },
+    // /dev/hostnet: what the page can do on the router's behalf (boot/hostnet.mjs)
+    ...hostnet(() => k, net),
+    // The kernel's timers (TCP retransmission, loopback delivery): call timer_fire in ms
+    // milliseconds, 0 = on the next turn of the event loop, <0 = cancel. One at a time.
+    timer(ms) {
+      clearTimeout(ktimer);
+      const g = ++kgen;
+      if (ms < 0) return;
+      const fire = () => { if (g === kgen) k.timer_fire(); };
+      if (ms === 0) yieldTask(fire); else ktimer = setTimeout(fire, ms);
+    },
     wake(pid) {
       const P = procs.get(pid);
       if (P && P.wake) { const w = P.wake; P.wake = null; w(); }

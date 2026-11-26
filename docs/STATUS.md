@@ -11,7 +11,9 @@ in Chromium to a tiling desktop.
 
 | Area | State | Evidence |
 |---|---|---|
-| Kernel | processes, files, pipes, poll, ptys with line discipline and Ctrl-C, unix sockets, framebuffer, input, time slicing, CPU accounting; audited and fuzzed on 2026-11-26 (branch `fix/kernel-hardening`, not merged yet): inodes are freed, many crash, hang and leak bugs fixed | `ktest`: 109 of 109; `kfuzz` (system call fuzzer, `--init=/bin/kfuzz --args="SEED ITERATIONS"`, or `--args=regress` for the kept seeds): 82 campaign runs, 5.6 million calls; one trap inside the kernel seen once and not reproduced (see below) |
+| Kernel | processes, files, pipes, poll, ptys with line discipline and Ctrl-C, unix sockets, framebuffer, input, time slicing, CPU accounting, timers; audited and fuzzed on 2026-11-26 (branch `fix/kernel-hardening`, not merged yet): inodes are freed, many crash, hang and leak bugs fixed | `ktest`: 109 of 109; `kfuzz` (system call fuzzer, `--init=/bin/kfuzz --args="SEED ITERATIONS"`, or `--args=regress` for the kept seeds): 82 campaign runs, 5.6 million calls; one trap inside the kernel seen once and not reproduced (see below) |
+| Network stack (loopback only) | our own IPv4, ICMP, UDP and TCP in the kernel (ARCHITECTURE.md section 16): TCP with retransmission, flow control, zero-window probes, slow start, fast retransmit and NewReno, delayed ACKs, TIME_WAIT; BSD socket calls; raw and packet sockets; simulated loss and delay on `lo`. 4 MiB over TCP in about 20 ms under Node; 512 KiB arrives intact with 5% loss and 5 ms delay. Tools: `ping`, `nc`, `netstat`, `ifconfig`, `tcpdump`, checked in the shell and in a desktop terminal | `nettest`: 89 of 89, part of `make test` |
+| Router (`routerd`, started by `init` at boot) | the way out of the machine (NETWORKING.md): DNS everywhere; in a browser, HTTP on port 80 sent as https with `fetch()` where the site allows cross-origin reads; under Node, TCP to any port | `routertest`: 24 of 24, part of `make test` (HTTP path, offline, browser behaviour); by hand: example.com through `nc` under Node; Wikipedia's API in headless Chromium |
 | Host and page | boots in Chromium 158 and under Node 26; real keyboard and mouse verified through the DevTools protocol | `tools/tests/browser-desktop.mjs` |
 | C library | stdio, scanf, math, time, termios, getopt and the rest; `malloc` and `calloc` refuse sizes that would overflow | `libctest`: 298 of 298 |
 | Shell and 30 tools, `bc` | POSIX shell: every `set` option (errexit with POSIX's exceptions, noclobber, nounset, allexport, pipefail and the rest), `trap`, `command`, `getopts`, `readonly`, `times`, `kill` with job names, `exec CMD`, `umask` with symbolic modes, `$LINENO`, `$PPID`, `$-`; `/bin/test` as a program sharing the builtin's code; job control (`jobs`, `fg`, `bg`, `disown`, Ctrl-Z) on a kernel with signals, refused with a message on today's kernel; pipelines, redirections, control flow, functions, substitution, globbing; line editor, history, Tab completion, Ctrl-C (also stops shell loops) and Ctrl-D verified in the desktop | `sh-tests`: 238 of 238; `bin/sh/test/interactive.mjs`: 33 of 33; conformance (`tools/tests/sh-posix.mjs`): 858 of 859 cases against bash in POSIX mode with 26 written overrides (the one failure, umask-effect, needs file modes in the kernel; the shell's author, 2026-11-26); job control (`bin/sh/test/jobs.mjs`): 10 of 10 on a kernel with signals, 2 of 2 without. Repeated on `main` with the shell change and its follow-up (2026-11-26): conformance 858 of 859 (the same umask-effect failure), `interactive.mjs` 33 of 33, and by hand `echo a | read v` leaving `v` empty, `/bin/test`, `umask 027` then `umask -S`, and `.` not searching the current directory; `jobs.mjs` without signals (2 of 2) was repeated before the follow-up; the shell's author only: job control on a kernel with signals, and the survey in which all 74 Debian maintainer scripts parse with `sh -n` and 26 run to exit 0 |
@@ -40,6 +42,10 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 | A trap inside the kernel looks like a program crash | The host reports it as the calling process dying with signal 11; the kernel's state after it is unknown. Nothing says so loudly. |
 | One kernel trap from kfuzz is not understood | Seed 306 (4 workers, 20,000 calls) once trapped in `copy_from_user` with "function signature mismatch": the calling process's copy functions were not attached (a null table entry). Not reproduced in 3 reruns or 41 further runs with lifecycle checks on the host calls. |
 | ktest's preemption check is sensitive to load | "a spinning process is preempted" failed after 5 fuzz runs out of about 120 (the parent slept 150 to 257 ms instead of about 40), always while several fuzz runs shared the machine; the same seeds passed when rerun. Cause not proven. |
+| The network reaches the world only through `routerd`, and only partly | In a browser: DNS, and HTTP to sites that allow cross-origin reads. Under Node: TCP to any port. No UDP or ping beyond the machine, no TLS, no web client program. What a full connection still needs is NETWORKING.md section 3. |
+| TCP has no window scaling | At most 64 KiB in flight per connection. No SACK or timestamps either, so recovery from several losses in one window is slow. |
+| Ctrl-C ends `ping` and `tcpdump` without a summary | No signals are delivered to programs. With `-c` they print it. |
+| A background job reads the terminal | `sh` does not give `&` jobs `/dev/null` as input, so `nc -l 8000 &` takes what you type. Redirect it: `nc -l 8000 < /dev/null &`. |
 | A pure CPU loop freezes the tab | Time slicing only works at system calls. Shell loops are covered (the shell calls `intr()` in every loop iteration, and Ctrl-C stops them). A C program that computes without calling the kernel still freezes everything. |
 | Ctrl-C in a non-interactive script is untested | The code path exists (exit status 130); the test runners cannot send Ctrl-C to it. Also untested: Ctrl-C while the `read` builtin waits. |
 | Speed figures in a browser are noisier and higher than under Node | Reading the clock costs about 120 ns in Chrome (330 ns before the performance pass) and it ticks every 0.1 ms. sysbench reports the resolution, shows `n/a` for the cold column there, and times rows on the process CPU clock. Run-to-run spread in Chromium is about 20%. See PERFORMANCE.md. |
@@ -79,7 +85,8 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
   Worker) and measurements is in `docs/WORKER-PROCESSES.md`; nothing is integrated, and the
   choice is waiting for the owners.
 - `fork`, signals, threads, shared memory.
-- Persistence, networking. Sound input (recording), a volume control, OPL3 (SOUND.md section 5).
+- Persistence. Networking beyond the machine itself (see the network row above). Sound input
+  (recording), a volume control, OPL3 (SOUND.md section 5).
 - `/proc` contents, users and permissions, time zones, a clipboard.
 - The minishell port (waiting for the repo from an owner).
 - Linux programs for amd64 or arm64, Ubuntu's riscv64 programs (vector instructions), and automatic start of ELF files (see the `lx` rows above).
@@ -88,7 +95,7 @@ Committed: one commit on `main` (the first), pushed by an owner. Everything afte
 ## 4. Waiting for an owner
 
 See DECISIONS.md section 3: Doom game data, Doom A/D keys, hosting, persistence,
-networking, when to build the Worker path, the terminal bell, the minishell repo, a linking
+when to build the Worker path, the terminal bell, the minishell repo, a linking
 exception for the libraries, the copyright holder line, the brand theme's placeholder
 colours, clearing public use of the 42 glyphs, and the browser floor.
 

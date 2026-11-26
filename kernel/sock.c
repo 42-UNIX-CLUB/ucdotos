@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* AF_UNIX stream sockets: how programs talk to the window manager.
  * A connection is two byte queues, one per direction. */
-#include "kernel.h"
+#include "net.h"
 
 #define SOCK_BUF (512 * 1024)
 #define BACKLOG 16
@@ -84,6 +84,7 @@ static void sock_destroy(struct sock *s) {
 }
 static void sock_close(struct file *f) { sock_destroy(f->priv); }
 static const struct fops sock_fops = {sock_read, sock_write, sock_poll, sock_close, NULL};
+int unix_sock(struct file *f) { return f->ops == &sock_fops; }
 
 static struct sock *fd_sock(int fd, struct file **fp) {
   struct file *f = fd_get(fd);
@@ -103,7 +104,8 @@ static long get_path(u32 uaddr, u32 len, char *path) {
 }
 long sys_socket(int domain, int type, int proto) {
   (void)proto;
-  if (domain != 1 /* AF_UNIX */ || (type & 0xf) != 1 /* SOCK_STREAM */) return -EINVAL;
+  if (domain != AF_UNIX) return inet_socket(domain, type, proto);
+  if ((type & 0xf) != SOCK_STREAM) return -EINVAL;
   struct sock *s = kzalloc(sizeof *s);
   if (!s) return -ENOMEM;
   struct file *f = file_new(&sock_fops, NULL, O_RDWR | ((type & O_NONBLOCK) ? O_NONBLOCK : 0), s);
@@ -114,7 +116,7 @@ long sys_socket(int domain, int type, int proto) {
 }
 long sys_bind(int fd, u32 uaddr, u32 len) {
   struct sock *s = fd_sock(fd, NULL);
-  if (!s) return -ENOTSOCK;
+  if (!s) return inet_bind(fd, uaddr, len);
   if (s->state != S_NEW) return -EINVAL;
   char path[108];
   long e = get_path(uaddr, len, path);
@@ -136,14 +138,14 @@ long sys_bind(int fd, u32 uaddr, u32 len) {
 long sys_listen(int fd, int backlog) {
   (void)backlog;
   struct sock *s = fd_sock(fd, NULL);
-  if (!s) return -ENOTSOCK;
+  if (!s) return inet_listen(fd, backlog);
   if (s->state != S_BOUND) return -EINVAL;
   s->state = S_LISTEN;
   return 0;
 }
 long sys_connect(int fd, u32 uaddr, u32 len) {
   struct sock *c = fd_sock(fd, NULL);
-  if (!c) return -ENOTSOCK;
+  if (!c) return inet_connect(fd, uaddr, len);
   if (c->state != S_NEW) return -EINVAL;
   char path[108];
   long e = get_path(uaddr, len, path);
@@ -163,10 +165,10 @@ long sys_connect(int fd, u32 uaddr, u32 len) {
   wq_wake(&l->accept_wq);
   return 0;
 }
-long sys_accept(int fd) {
+long sys_accept(int fd, u32 uaddr, u32 ulen) {
   struct file *lf;
   struct sock *l = fd_sock(fd, &lf);
-  if (!l) return -ENOTSOCK;
+  if (!l) return inet_accept(fd, uaddr, ulen);
   if (l->state != S_LISTEN) return -EINVAL;
   if (!l->nq) {
     if (lf->flags & O_NONBLOCK) return -EAGAIN;
@@ -179,5 +181,11 @@ long sys_accept(int fd) {
   if (nfd < 0) { if (f) kfree(f); return nfd; } /* leave it queued */
   l->nq--;
   memmove(l->queue, l->queue + 1, l->nq * sizeof l->queue[0]);
+  if (uaddr && ulen) { /* an unnamed peer: just the family */
+    u32 room, size = 2;
+    u16 fam = AF_UNIX;
+    if (copy_from_user(&room, ulen, 4) == 0 && room >= 2) copy_to_user(uaddr, &fam, 2);
+    copy_to_user(ulen, &size, 4);
+  }
   return nfd;
 }
