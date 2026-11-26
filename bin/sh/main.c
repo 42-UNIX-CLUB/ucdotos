@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* sh: start-up, the read-eval loop, variables, functions, aliases, history. */
 #include "sh.h"
+#include <signal.h>
 
 char *shell_name = "sh";
 static struct frame top_frame;
@@ -392,6 +393,7 @@ static void source_if_exists(const char *path) {
 }
 
 int main(int argc, char **argv) {
+  signal(SIGPIPE, SIG_IGN); /* builtins write in this process: a closed pipe must not kill the shell */
   extern char **environ;
   for (char **e = environ; e && *e; e++) {
     char *eq = strchr(*e, '=');

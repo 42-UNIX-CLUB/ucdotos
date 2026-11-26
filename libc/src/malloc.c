@@ -77,3 +77,13 @@ void *realloc(void *p, size_t n) {
   free(p);
   return q;
 }
+
+/* For migration (libc/src/migrate.c): the free blocks of at least `min` bytes, as address-sorted
+ * (start, length) pairs of their contents (their 8-byte headers stay live: the free list runs
+ * through them). Returns how many were written (at most cap; the rest are then simply kept). */
+int __malloc_holes(unsigned *out, int cap, unsigned min) {
+  int n = 0;
+  for (struct blk *b = free_list; b && n < cap; b = b->next_free)
+    if (b->size - HDR >= min) { out[2 * n] = (unsigned)(size_t)b + HDR; out[2 * n + 1] = b->size - HDR; n++; }
+  return n;
+}

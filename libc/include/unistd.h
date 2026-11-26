@@ -68,4 +68,24 @@ int fchown(int, uid_t, gid_t);
 int fsync(int);
 void sync(void);
 char *ttyname(int);
+/* fork and exec (libc/src/fork.c, exec.c). fork() and vfork() work only in programs built
+ * with the stack transform (USE_FORK; see docs/ARCHITECTURE.md section 5); elsewhere they
+ * fail with ENOSYS. fork_call(fn, arg) works everywhere: the child runs fn(arg) and exits. */
+pid_t fork(void);
+pid_t vfork(void);
+pid_t fork_call(int (*fn)(void *), void *arg);
+int execve(const char *, char *const[], char *const[]);
+int execv(const char *, char *const[]);
+int execvp(const char *, char *const[]);
+int execvpe(const char *, char *const[], char *const[]);
+int execl(const char *, const char *, ...);
+int execlp(const char *, const char *, ...);
+int execle(const char *, const char *, ...);
+unsigned alarm(unsigned);
+int pause(void);
+/* Move this process into a fresh memory that holds only its live data (libc/src/migrate.c):
+ * on success the call stack is dropped and fn() runs in the new instance; -1 on failure. */
+int migrate_call(void (*fn)(void));
+int migrate(void); /* the same, carrying on where it was called: needs the stack transform (USE_FORK) */
+int __migrate_ranges(unsigned *out, int cap, unsigned low);
 #endif

@@ -14,7 +14,8 @@ LIBC_SRC := $(wildcard libc/src/*.c) lib/string.c lib/fmt.c
 LIBC_OBJ := $(patsubst %.c,$(B)/obj/%.o,$(LIBC_SRC)) $(B)/obj/lib/mem.o
 LIBC_HDR := $(wildcard libc/include/*.h libc/include/sys/*.h) abi/abi.h
 UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui
-ULDFLAGS := -Wl,--entry=_start -Wl,-z,stack-size=1048576 -Wl,--stack-first -Wl,--fatal-warnings
+ULDFLAGS := -Wl,--entry=_start -Wl,-z,stack-size=1048576 -Wl,--stack-first -Wl,--fatal-warnings -Wl,--export=__stack_pointer
+# (the stack pointer is exported so that the clone primitive can copy it into a forked child)
 CRT     := $(B)/obj/crt0_2.o $(B)/obj/crt0_3.o
 
 # A program is bin/NAME.c (single file) or bin/NAME/*.c (a directory; an optional
@@ -60,18 +61,28 @@ $(B)/libgfx.a: $(patsubst %.c,$(B)/obj/%.o,$(GFX_SRC))
 
 # Link with the crt0 that matches main's signature: try (argc, argv) first, then (argc, argv, envp).
 gfx_lib = $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a)
+# A program directory containing a file named USE_FORK goes through the stack transform
+# after linking, which makes fork() work in it (tools/wasmfork.c, ARCHITECTURE.md section 5).
+fork_tool = $(if $(wildcard bin/$(1)/USE_FORK),$(B)/wasmfork)
 define LINK
 	@mkdir -p $(B)/bin
 	@echo "  LINK  $(1)"
 	@$(CC) $(UCFLAGS) $(3) $(ULDFLAGS) -o $(B)/bin/$(1) $(B)/obj/crt0_2.o $(2) $(call gfx_lib,$(1)) $(B)/libc.a 2>/dev/null || \
 	 $(CC) $(UCFLAGS) $(3) $(ULDFLAGS) -o $(B)/bin/$(1) $(B)/obj/crt0_3.o $(2) $(call gfx_lib,$(1)) $(B)/libc.a
+	$(if $(call fork_tool,$(1)),@echo "  FORK  $(1)" && $(B)/wasmfork $(B)/bin/$(1) $(B)/bin/$(1))
 endef
+# The transform runs on the build machine; it is plain C and needs only a C compiler.
+HOSTCC  ?= cc
+$(B)/wasmfork: tools/wasmfork.c
+	@mkdir -p $(B)
+	@echo "  HOSTCC wasmfork"
+	@$(HOSTCC) -O2 -o $@ $<
 define SINGLE_RULE
 $(B)/bin/$(1): bin/$(1).c $(B)/libc.a $(CRT) $(call gfx_lib,$(1))
 	$(call LINK,$(1),bin/$(1).c,)
 endef
 define DIR_RULE
-$(B)/bin/$(1): $(wildcard bin/$(1)/*.c bin/$(1)/*.h bin/$(1)/CFLAGS) $(B)/libc.a $(CRT) $(call gfx_lib,$(1))
+$(B)/bin/$(1): $(wildcard bin/$(1)/*.c bin/$(1)/*.h bin/$(1)/CFLAGS bin/$(1)/USE_FORK) $(B)/libc.a $(CRT) $(call gfx_lib,$(1)) $(call fork_tool,$(1))
 	$(call LINK,$(1),$(wildcard bin/$(1)/*.c),$(shell cat bin/$(1)/CFLAGS 2>/dev/null))
 endef
 $(foreach p,$(PROG_SINGLE),$(eval $(call SINGLE_RULE,$(p))))
