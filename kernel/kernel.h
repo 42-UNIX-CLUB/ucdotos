@@ -23,6 +23,8 @@ HOST(random) u32 host_random(void);
 HOST(memory) double host_memory(void);                   /* bytes of memory the device reports */
 #define SLICE_MS 8.0 /* longest a process runs before the kernel makes it yield at a system call */
 HOST(fb_dirty) void host_fb_dirty(void);                 /* framebuffer changed, present it */
+/* one piece of text for the computer's clipboard; flags: 1 first piece, 2 last, 4 abandon */
+HOST(clip_out) void host_clip_out(const u8 *p, u32 len, int flags);
 
 /* klib */
 void *memcpy(void *, const void *, usize);
@@ -93,7 +95,7 @@ struct file *file_new(const struct fops *ops, struct inode *ino, int flags, void
 void file_put(struct file *f);
 extern const struct fops reg_fops, dir_fops;
 const struct fops *dev_fops(int dev);
-enum { DEV_NULL = 1, DEV_ZERO, DEV_CONSOLE, DEV_RANDOM, DEV_FB, DEV_INPUT, DEV_PTMX, DEV_PTS0 = 100 };
+enum { DEV_NULL = 1, DEV_ZERO, DEV_CONSOLE, DEV_RANDOM, DEV_FB, DEV_INPUT, DEV_PTMX, DEV_HOSTCLIP, DEV_PTS0 = 100 };
 struct file *pty_open_master(struct inode *ino, int flags);
 struct file *pty_open_slave(struct inode *ino, int flags);
 struct file *fb_open(struct inode *ino, int flags);

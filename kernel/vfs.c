@@ -205,6 +205,7 @@ void vfs_init(void) {
   vfs_mkdev("/dev/zero", DEV_ZERO);
   vfs_mkdev("/dev/console", DEV_CONSOLE);
   vfs_mkdev("/dev/urandom", DEV_RANDOM);
+  vfs_mkdev("/dev/hostclip", DEV_HOSTCLIP);
 }
 
 /* ---- regular files ---- */

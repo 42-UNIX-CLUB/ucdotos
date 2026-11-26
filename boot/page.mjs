@@ -56,6 +56,13 @@ async function main() {
     screen: s,
     log: (text) => { say(text); console.log(text.replace(/\n$/, '')); },
     onFrame: () => { dirty = true; },
+    // What is copied in UC.OS goes to the computer's clipboard too. Browsers allow this
+    // only on a secure page (https or localhost) that has the focus; Firefox and Safari
+    // also want it soon after a key press (Ctrl+Shift+C is one).
+    onClipboard: (text) => {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { console.warn('UC.OS: this page cannot write the computer\'s clipboard (it needs https or localhost)'); return; }
+      navigator.clipboard.writeText(text).catch((e) => console.warn(`UC.OS: could not copy to the computer's clipboard: ${e.message}`));
+    },
     onIdle: () => { logEl.classList.remove('hidden'); say('\nSystem halted: every process has exited. Reload to boot again.\n'); },
     debug: params.has('debug'),
   });
@@ -107,8 +114,10 @@ async function main() {
   }
   canvas.addEventListener('keydown', (e) => {
     const code = K.KEY[e.code];
-    // Let the browser keep a few keys: reload, devtools, fullscreen.
-    const browserKey = e.code === 'F5' || e.code === 'F11' || e.code === 'F12' || (e.ctrlKey && e.shiftKey && (e.code === 'KeyI' || e.code === 'KeyJ'));
+    // Let the browser keep a few keys: reload, devtools, fullscreen, and its own paste
+    // (Ctrl+V, Cmd+V on a Mac), which brings the computer's clipboard in (see 'paste').
+    const browserPaste = e.code === 'KeyV' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey;
+    const browserKey = browserPaste || e.code === 'F5' || e.code === 'F11' || e.code === 'F12' || (e.ctrlKey && e.shiftKey && (e.code === 'KeyI' || e.code === 'KeyJ'));
     if (!browserKey) e.preventDefault();
     if (code === undefined || browserKey) return;
     held.add(code);
@@ -130,6 +139,13 @@ async function main() {
       sys.input(K.EV_KEY, KEY_UNKNOWN, 1); sys.input(K.EV_MSC, K.MSC_UNICODE, ch.codePointAt(0)); syn();
       sys.input(K.EV_KEY, KEY_UNKNOWN, 0); syn();
     }
+  });
+  // Ctrl+V: the computer's clipboard goes to the clipboard program (clipd) as its newest
+  // entry, through /dev/hostclip. Ctrl+Shift+V in a terminal then pastes it.
+  document.addEventListener('paste', (e) => {
+    const text = e.clipboardData && e.clipboardData.getData('text/plain');
+    if (text && !sys.hostPaste(text)) console.warn('UC.OS: paste not taken (the clipboard takes at most 1 MiB)');
+    e.preventDefault();
   });
   const releaseAll = () => { for (const code of held) { sys.input(K.EV_KEY, code, 0); } if (held.size) syn(); held.clear(); };
   addEventListener('blur', releaseAll);

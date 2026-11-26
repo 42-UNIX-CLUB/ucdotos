@@ -59,8 +59,10 @@ export function checkSupport() {
 
 // extend: research hook, off by default. extend(hostImports, ctx) returns the imports the
 // kernel gets instead (boot/worker-proto/ext.mjs uses it to run some processes in Workers).
-export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, debug = false, extend = null }) {
+// onClipboard(text): the clipboard (clipd) has text for the computer's clipboard.
+export async function boot({ kernel, initrd, cmdline = '', screen = null, log = () => {}, onIdle = () => {}, onFrame = () => {}, onClipboard = () => {}, debug = false, extend = null }) {
   const dec = new TextDecoder();
+  let clipParts = null, clipLast = null; // pieces of the text on its way out, and the last whole one
   // What the device reports, for sysinfo. Browsers that do not say get a 4 GiB default.
   const deviceMemory = ((globalThis.navigator && globalThis.navigator.deviceMemory) || 4) * 2 ** 30;
   // yieldTask(f): run f after one turn of the event loop, without the 4 ms clamp that
@@ -101,6 +103,19 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     random() { crypto.getRandomValues(rnd); return rnd[0]; },
     memory: () => deviceMemory,
     fb_dirty() { onFrame(); },
+    clip_out(p, n, flags) {
+      if (flags & 1) clipParts = [];
+      if (!clipParts) return;
+      if (flags & 4) { clipParts = null; return; }
+      if (n) clipParts.push(mem().slice(p, p + n));
+      if (!(flags & 2)) return;
+      const all = new Uint8Array(clipParts.reduce((s, a) => s + a.length, 0));
+      let o = 0;
+      for (const a of clipParts) { all.set(a, o); o += a.length; }
+      clipParts = null;
+      clipLast = new TextDecoder().decode(all);
+      onClipboard(clipLast);
+    },
     wake(pid) {
       const P = procs.get(pid);
       if (P && P.wake) { const w = P.wake; P.wake = null; w(); }
@@ -203,5 +218,17 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     input(type, code, value) { k.input_event(type, code, value); },
     consoleInput(str) { for (const b of new TextEncoder().encode(str)) k.console_input(b); },
     consoleEOF() { k.console_input(-1); },
+    // The last text the clipboard sent out for the computer's clipboard (tests read it).
+    get clipboardOut() { return clipLast; },
+    // Text pasted into the page: becomes /dev/hostclip's next record (clipd adds it to the
+    // clipboard). At most 1 MiB of UTF-8. Returns false if it was not taken.
+    hostPaste(str) {
+      const bytes = new TextEncoder().encode(str);
+      const p = k.hostclip_buf(bytes.length);
+      if (!p) return false;
+      mem().set(bytes, p);
+      k.hostclip_ready(bytes.length);
+      return true;
+    },
   };
 }
