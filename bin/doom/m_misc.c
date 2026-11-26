@@ -65,6 +65,14 @@ void M_MakeDirectory(char *path)
 
 boolean M_FileExists(char *filename)
 {
+#ifdef UCOS
+    // UC.OS: look without opening. Opening a remote file fetches it (kernel/remote.c),
+    // which the IWAD search must not do for every name it tries; the file that is
+    // really used is fetched, with a progress bar, by W_StdC_OpenFile.
+    struct stat st;
+
+    return stat(filename, &st) == 0;
+#else
     FILE *fstream;
 
     fstream = fopen(filename, "r");
@@ -81,6 +89,7 @@ boolean M_FileExists(char *filename)
 
         return errno == EISDIR;
     }
+#endif
 }
 
 //

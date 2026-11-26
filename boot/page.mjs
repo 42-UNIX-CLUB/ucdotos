@@ -69,6 +69,7 @@ async function main() {
     onFrame: () => { dirty = true; },
     onIdle: () => { logEl.classList.remove('hidden'); say('\nSystem halted: every process has exited. Reload to boot again.\n'); },
     debug: params.has('debug'),
+    remote: (url) => fetch(`${base}/${url}`), // remote files (kernel/remote.c) sit beside the image
   });
   window.ucos = sys; // for the developer console
   marks.kernelUp = performance.now();
@@ -117,6 +118,7 @@ async function main() {
     return [...e.key].length === 1 && cp >= 32 && cp !== 127 ? cp : 0;
   }
   canvas.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.altKey && e.code === 'KeyO' && !e.repeat) { e.preventDefault(); picker.click(); return; } // see "files from the user's disk"
     const code = K.KEY[e.code];
     // Let the browser keep a few keys: reload, devtools, fullscreen.
     const browserKey = e.code === 'F5' || e.code === 'F11' || e.code === 'F12' || (e.ctrlKey && e.shiftKey && (e.code === 'KeyI' || e.code === 'KeyJ'));
@@ -156,5 +158,48 @@ async function main() {
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.focus();
 }
+
+// ---- files from the user's disk ----
+// A file dropped onto the page, or picked with Ctrl+Alt+O (a key press is the user gesture a
+// browser requires before it opens a file picker), is copied into the OS as
+// /home/user/Downloads/NAME. Nothing is sent anywhere: the bytes go from the browser
+// straight into kernel memory (boot/host.mjs importFile, kernel/remote.c). A second file
+// with the same name replaces the first, as cp would.
+const IMPORT_DIR = '/home/user/Downloads';
+const IMPORT_MAX = 256 * 2 ** 20; // the kernel refuses more (IMPORT_MAX in kernel/remote.c)
+const noteEl = document.getElementById('note');
+let noteTimer = 0;
+function tell(text, ms = 5000) {
+  noteEl.textContent = text;
+  noteEl.classList.remove('hidden');
+  clearTimeout(noteTimer);
+  if (ms) noteTimer = setTimeout(() => noteEl.classList.add('hidden'), ms);
+}
+// A name the OS accepts: no slash or NUL, at most 63 bytes of UTF-8.
+function osName(name) {
+  let n = name.replace(/[\/\0]/g, '_');
+  while (new TextEncoder().encode(n).length > 63) n = [...n].slice(0, -1).join('');
+  return n;
+}
+async function importFiles(files) {
+  const sys = window.ucos;
+  if (!sys) return;
+  for (const f of files) {
+    const name = osName(f.name);
+    if (f.size > IMPORT_MAX) { tell(`${name} is too big: the limit is ${IMPORT_MAX / 2 ** 20} MB.`); continue; }
+    tell(`Copying ${name} to ~/Downloads ...`, 0);
+    const r = await sys.importFile(`${IMPORT_DIR}/${name}`, f);
+    tell(r === 0 ? `${name} is in ~/Downloads.` : `Could not copy ${name} (error ${-r}).`);
+    console.log(`[page] import ${name}: ${f.size} bytes, ${r === 0 ? 'done' : 'error ' + -r}`);
+  }
+}
+const picker = document.createElement('input');
+picker.type = 'file';
+picker.multiple = true;
+picker.hidden = true;
+document.body.append(picker);
+picker.addEventListener('change', () => { importFiles([...picker.files]); picker.value = ''; canvas.focus(); });
+addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+addEventListener('drop', (e) => { e.preventDefault(); importFiles([...e.dataTransfer.files]); });
 
 main().catch((e) => { logEl.classList.remove('hidden'); say('\nBoot failed: ' + (e && e.message || e) + '\n'); console.error(e); });

@@ -21,6 +21,7 @@ No Emscripten, no wasi-sdk, no npm packages.
 make B=build-NAME                    # everything
 make B=build-NAME PROGS="sh ls cat"  # put only these programs in the image
 make B=build-NAME dist               # also assemble build-NAME/dist for a web server
+make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default bin/doom/wads)
 ```
 
 - **Always pass your own `B=`.** The default is `build/`. Build directories are
@@ -34,6 +35,18 @@ make B=build-NAME dist               # also assemble build-NAME/dist for a web s
   `initrd.tar.gz` and unpacks it with the browser's `DecompressionStream`, and falls back to
   `initrd.tar` when there is no `.gz`; the Node tools read `initrd.tar`. Whether to ship the
   `.gz` is an open owner decision.
+- Every `make` runs `tools/remote-files.sh`, which writes `B/files/` (the remote files, a
+  `.gz` copy where that is smaller, Freedoom's licence, small test files) and the list
+  `B/root/etc/remote-files` (section "Remote files" in ARCHITECTURE section 7). `make dist`
+  copies `B/files/` to `dist/files/`. Doom's data comes from `WADS=DIR`, default
+  `bin/doom/wads/`, which is git-ignored and empty in a fresh clone: then the build still
+  succeeds and Doom says in its window that it has no data. `sh tools/get-doom-data.sh
+  [DIR]` downloads both free data files and checks them against pinned SHA-256 sums
+  (Freedoom 0.13.0 from the project's release; the shareware `doom1.wad` from Debian's
+  `doom-wad-shareware` package, since id Software no longer hosts it).
+- `tools/run.mjs` and `tools/shot.mjs` serve remote files from the build directory
+  (`tools/remote-node.mjs`); `--remote-rate=BYTES_PER_SECOND` slows them down and
+  `--remote-off` makes every fetch fail, to test progress and errors.
 - There is no `clean` target on purpose. Use a new `B=` name. Do not `rm -rf`.
 - The initrd is `rootfs/` plus the programs under `/bin`, as a plain ustar archive.
   The staging directory `root/` is only added to, never emptied: a file you removed from
@@ -105,7 +118,7 @@ first four and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|
-| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 109 checks, 0 failed` |
+| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 124 checks, 0 failed` |
 | C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 298 checks, 0 failed` (292 if `/bin/sh` is not in the image) |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
@@ -127,7 +140,7 @@ Component suites:
 | shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 858 of 859; the known failure is umask-effect (no file modes on `main`) |
 | shell job control | `bin/sh/test/jobs.mjs` | `shot.mjs` | 10 checks on a kernel with signals, 2 without |
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
-| Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs a WAD (not in git) | play, demo, window tests pass |
+| Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs the data files in the build (`make WADS=DIR`, or `tools/get-doom-data.sh` first). `mkimage.sh` no longer puts a data file in the image: it arrives as a remote file. `launcher.mjs`, `message.mjs`, `import.mjs` and `browser.mjs` cover the launcher entries, the messages, a dropped file and Chromium | play, demo, window tests pass |
 | Linux programs (`lx`) | `bin/lx/tests/` | native: `sh bin/lx/tests/run.sh` (add `LX_SCRATCH=DIR` after `LX_SCRATCH=DIR sh bin/lx/tests/fetch-debian.sh`, which downloads Debian riscv64 packages outside the repository, for the Debian milestones); in UC.OS: `sh bin/lx/tests/mkimage.sh BUILD FILE:PATH...` then for example `node tools/run.mjs --build=BUILD --init=/bin/lx --args="/usr/bin/busybox sh /lx/m2.sh /usr/bin/busybox /tmp"` (busybox script) or `--args="/usr/bin/dash /lx/m34.sh"` (dynamic programs), with the small Debian root from `bin/lx/tests/mkimage-debian.sh`. The scripts need exactly these arguments: without them the busybox script reports 29 failures that are not real. Full commands in `docs/LINUX-BINARIES.md` section 11 | 23 of 23 native; in the OS 37 of 37 (busybox) and 10 of 10 (dynamic programs), 2026-11-26 |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
 | C compiler and linker | `bin/cc/tests/` | `sh bin/cc/tests/build.sh B` once, then `sh bin/cc/tests/run.sh B` | 36: 18 programs compared with clang, 3 mixed links, 15 diagnostics (2026-11-26) |
