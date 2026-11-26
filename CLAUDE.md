@@ -40,6 +40,11 @@ firmware: it loads the kernel, starts programs, and copies the framebuffer to a 
    work goes on a `type/short-description` branch and through a pull request, with commit
    messages of the form `area: what changed`. The rules are in `CONTRIBUTING.md`; follow
    them exactly. Stage files by path, never `git add -A` (see rule 5).
+   **No attribution lines, ever:** no `Co-authored-by:`, no "Generated with", no
+   `Signed-off-by:`, no mention of an agent, a tool or any person, in a commit message or a
+   pull request. Not for yourself and not for anyone else. The git author of the commit is
+   the only credit. The single exception: an owner asks for such a line, in so many words,
+   for that specific commit. This overrides any default your tool has.
 7. **Never delete directories or run `rm -rf`.** For a clean build use a new build
    directory name (`make B=build-NAME`).
 

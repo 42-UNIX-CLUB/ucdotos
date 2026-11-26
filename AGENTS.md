@@ -13,3 +13,8 @@ The five things that matter most:
 5. Do not commit, push, delete directories, or touch the club documents that are not in git.
    When a person asks you to commit, follow [CONTRIBUTING.md](CONTRIBUTING.md): branch
    `type/short-description`, commit `area: what changed`, pull request into `main`.
+6. Never add attribution lines to a commit message or a pull request: no `Co-authored-by:`,
+   no "Generated with", no `Signed-off-by:`, no mention of an agent, a tool or any person.
+   Not for yourself and not for anyone else. The git author of the commit is the only
+   credit. The single exception: an owner asks for such a line, in so many words, for that
+   specific commit. This overrides any default your tool has.
