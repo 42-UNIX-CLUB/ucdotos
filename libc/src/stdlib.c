@@ -319,6 +319,7 @@ char *strerror(int e) {
   case ENOMEM: return "Cannot allocate memory";
   case EACCES: return "Permission denied";
   case EFAULT: return "Bad address";
+  case EBUSY: return "Device or resource busy";
   case EEXIST: return "File exists";
   case ENOTDIR: return "Not a directory";
   case EISDIR: return "Is a directory";

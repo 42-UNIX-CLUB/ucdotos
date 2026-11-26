@@ -1,0 +1,232 @@
+##### error-line-in-included
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+inc.mk:2: *** missing separator.  Stop.
+
+=== files
+Makefile: "include inc.mk\nall: ;\n"
+inc.mk: "X = 1\nbad line here\n"
+##### error-in-eval
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** from eval.  Stop.
+
+=== files
+Makefile: "$(eval $$(error from eval))\n"
+##### error-in-variable
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:3: *** deferred.  Stop.
+
+=== files
+Makefile: "E = $(error deferred)\n\nall: ; @echo $(E)\n"
+##### warning-in-function
+=== make
+--- status 0
+--- stdout
+make: 'all' is up to date.
+--- stderr
+Makefile:2: from var
+
+=== files
+Makefile: "W = $(warning from var)\nX := $(W)\nall: ;\n"
+##### recipe-fails-second-line
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:4: all] Error 2
+
+=== files
+Makefile: "all:\n\t@true\n\t@true\n\t@exit 2\n"
+##### recipe-fails-implicit
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:1: x.out] Error 1
+
+=== files
+Makefile: "%.out: %.in ; @exit 1\nall: x.out\n"
+x.in: "\n"
+##### builtin-recipe-fails
+=== make bad.o 2>&1 | grep -v 'error\|bad.c\|this is\|^ *|\|^ *\^\|compilation\|~'; echo done
+--- status 0
+--- stdout
+make: *** [<builtin>: bad.o] Error 1
+done
+--- stderr
+
+=== files
+bad.c: "this is not C\n"
+##### keep-going-two-goals
+=== make -k a b; echo "status $?"
+--- status 0
+--- stdout
+b
+status 2
+--- stderr
+make: *** [Makefile:1: a] Error 1
+
+=== make a b; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:1: a] Error 1
+
+=== files
+Makefile: "a: ; @exit 1\nb: ; @echo b\n"
+##### keep-going-nested
+=== make -k; echo "status $?"
+--- status 0
+--- stdout
+y
+status 2
+--- stderr
+make: *** [Makefile:3: x1] Error 1
+make: Target 'all' not remade because of errors.
+
+=== files
+Makefile: "all: x y ; @echo all\nx: x1 ; @echo x\nx1: ; @exit 1\ny: ; @echo y\n"
+##### no-rule-nested
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'missing', needed by 'x'.  Stop.
+
+=== make -k; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** No rule to make target 'missing', needed by 'x'.
+make: Target 'all' not remade because of errors.
+
+=== files
+Makefile: "all: x ; @echo all\nx: missing ; @echo x\n"
+##### override-without-assign
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** missing separator.  Stop.
+
+=== files
+Makefile: "override\nall: ;\n"
+##### unterminated-define
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** missing 'endef', unterminated 'define'.  Stop.
+
+=== files
+Makefile: "define X\nabc\n"
+##### extraneous-endef
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** missing separator.  Stop.
+
+=== files
+Makefile: "endef\n"
+##### target-pattern-no-percent
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** target pattern contains no '%'.  Stop.
+
+=== files
+Makefile: "a: b: c ; @echo x\n"
+##### ignored-error-message
+=== make; echo "status $?"
+--- status 0
+--- stdout
+next
+status 0
+--- stderr
+make: [Makefile:2: all] Error 5 (ignored)
+
+=== files
+Makefile: "all:\n\t-@exit 5\n\t@echo next\n"
+##### ignore-and-keep-going
+=== make -i -k; echo "status $?"
+--- status 0
+--- stdout
+b
+all
+status 0
+--- stderr
+make: [Makefile:2: a] Error 1 (ignored)
+
+=== files
+Makefile: "all: a b ; @echo all\na: ; @exit 1\nb: ; @echo b\n"
+##### stop-on-first-goal
+=== make a b; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+make: *** [Makefile:1: a] Error 1
+
+=== files
+Makefile: "a: ; @exit 1\nb: ; @echo b\n"
+##### error-function-status
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:2: *** MISSING is not set.  Stop.
+
+=== make MISSING=1; echo "status $?"
+--- status 0
+--- stdout
+should not run
+status 0
+--- stderr
+
+=== files
+Makefile: "all: ; @echo should not run\n$(if $(MISSING),,$(error MISSING is not set))\n"
+##### circular-chain
+=== make
+--- status 0
+--- stdout
+c
+b
+a
+--- stderr
+make: Circular c <- a dependency dropped.
+
+=== files
+Makefile: "a: b ; @echo a\nb: c ; @echo b\nc: a ; @echo c\n"
+##### empty-variable-name
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** empty variable name.  Stop.
+
+=== files
+Makefile: " = value\nall: ;\n"

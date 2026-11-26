@@ -1,0 +1,33 @@
+AWK(1)                    UC.OS Manual                    AWK(1)
+
+NAME
+       awk - pattern scanning and processing language
+
+SYNOPSIS
+       awk [-F fs] [-v var=value]... [-f progfile | 'program']
+          [file | var=value]...
+
+DESCRIPTION
+       The POSIX awk language: patterns and actions, BEGIN and
+       END, ranges, fields and records (FS as a blank, a
+       single character or an extended regular expression; RS
+       as a character, "" for paragraphs, or a regular
+       expression), associative arrays, user functions,
+       getline in all its forms, print and printf with > >>
+       and | redirections, close, fflush, system, and the
+       built-in functions length substr index split sub gsub
+       match sprintf sin cos atan2 exp log sqrt int rand srand
+       tolower toupper, plus systime. Regular expressions come
+       from the C library (extended syntax). Not implemented:
+       gawk's other extensions (gensub, strftime, arrays of
+       arrays, @include, BEGINFILE...), and NUL bytes in
+       records.
+
+NOTES
+       Long loops yield to the kernel every 65,536 iterations,
+       so the system stays responsive.
+
+SEE ALSO
+       sh(1)
+
+UC.OS                          November 2026                 AWK(1)

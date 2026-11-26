@@ -2,7 +2,7 @@
 
 State on 2026-11-26. The decisions behind this are DECISIONS.md 18 (our own TCP/IP stack
 in the kernel) and 19 (loopback only, other ways out to be added later). How the stack
-works inside is ARCHITECTURE.md section 15.
+works inside is ARCHITECTURE.md section 16.
 
 ## 1. The picture
 

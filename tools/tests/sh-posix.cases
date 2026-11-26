@@ -1,0 +1,1955 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Conformance cases for /bin/sh against the POSIX Shell Command Language.
+#
+# Each case starts with a line "@ name" and its snippet is every line up to
+# the next "@ " line. The snippet runs as  sh -c 'SNIPPET' </dev/null 2>/dev/null
+# in a scratch directory; the case passes when standard output and the exit
+# status are those of the reference shell.
+#
+# The expected values are not written here: tools/tests/sh-posix.mjs --gen runs
+# every snippet with a reference shell on the host and stores the results in
+# rootfs/usr/share/tests/sh-posix.sh, which then runs inside UC.OS on its own.
+# A case may override the reference with lines placed after its snippet:
+#   @out TEXT       one line of expected output (repeat for more lines)
+#   @empty          expected output is empty
+#   @status N       expected exit status
+#   @why TEXT       why the reference shell's own answer is not used
+# Lines starting with "#" outside a snippet are comments.
+# Snippets write only to files whose names start with the case's own prefix.
+
+# ---------------------------------------------------------------- quoting
+@ quote-single
+echo 'a  $HOME `x` \n "b"'
+@ quote-single-adjacent
+echo 'a'b'c'
+@ quote-double-spaces
+echo "x   y"
+@ quote-double-dollar
+v=1; echo "v=$v \$v"
+@ quote-double-backslash
+echo "a\\b \"q\" \`x\` \$ \z"
+@ quote-double-newline-continuation
+echo "a\
+b"
+@ quote-backslash-space
+echo a\ \ b
+@ quote-backslash-newline
+echo a\
+b
+@ quote-backslash-meta
+echo \; \& \| \< \> \( \) \$ \` \" \' \\
+@ quote-empty-arg
+set -- '' "" x; echo $#
+@ quote-mixed
+x=v; echo 'a'"$x"\$x"'"
+@ quote-hash-in-word
+echo a#b
+@ quote-hash-comment
+echo a #b c
+@ quote-hash-after-quote
+echo 'x'#y
+@ quote-keyword-quoted
+'if' 2>/dev/null; echo $?
+@ quote-dq-single-inside
+echo "it's"
+@ quote-sq-dq-inside
+echo 'say "hi"'
+@ quote-tab
+printf '%s|\n' "a	b"
+@ quote-glob-quoted
+echo "*" '?' \[a]
+
+# ---------------------------------------------------------------- parameters
+@ param-simple
+x=hello; echo $x ${x}
+@ param-braced-suffix
+x=hello; echo ${x}_world
+@ param-unset-empty
+echo "[$nope]"
+@ param-default-unset
+echo ${nope-dflt} ${nope:-dflt2}
+@ param-default-empty
+e=; echo "[${e-dflt}]" "[${e:-dflt}]"
+@ param-default-set
+x=v; echo ${x-d} ${x:-d}
+@ param-assign-unset
+echo ${a1=one} $a1
+@ param-assign-empty
+a2=; echo "[${a2=two}]" "[${a2:=three}]" "$a2"
+@ param-error-unset
+(echo ${nope?gone}) 2>/dev/null; [ $? -ne 0 ] && echo failed
+@ param-error-set
+x=v; echo ${x:?no}
+@ param-error-empty
+e=; (echo ${e:?empty}) 2>/dev/null || echo failed
+@ param-error-colonless-empty
+e=; echo "[${e?x}]"
+@ param-error-exits-shell
+echo ${nope?boom}; echo after
+@why dash: an expansion error exits a non-interactive shell with status 2
+@status 2
+@ param-error-message
+(: ${nope?custom message}) 2>&1 | grep -c 'custom message'
+@ param-alt
+x=v; e=; echo "[${x+alt}]" "[${e+alt}]" "[${e:+alt}]" "[${nope+alt}]"
+@ param-length
+x=hello; e=; echo ${#x} ${#e} ${#nope}
+@ param-length-utf8
+x=abc; echo ${#x}
+@ param-prefix-short
+f=a/b/c.tar.gz; echo ${f#*/}
+@ param-prefix-long
+f=a/b/c.tar.gz; echo ${f##*/}
+@ param-suffix-short
+f=a/b/c.tar.gz; echo ${f%.*}
+@ param-suffix-long
+f=a/b/c.tar.gz; echo ${f%%.*}
+@ param-pattern-nomatch
+f=abc; echo ${f#x} ${f%x} ${f##x} ${f%%x}
+@ param-pattern-quoted
+f='a*b*c'; echo "${f#*\*}" "${f%"*"*}"
+@ param-pattern-var
+f=foo.c; s=.c; echo ${f%$s}
+@ param-pattern-class
+f=abc123; echo ${f%%[0-9]*}
+@ param-pattern-whole
+f=abc; echo "[${f#abc}]" "[${f%%*}]"
+@ param-nested-default
+echo ${nope:-${nope2:-deep}}
+@ param-default-word-split
+set -- ${nope:-a b c}; echo $#
+@ param-default-quoted-nosplit
+set -- "${nope:-a b c}"; echo $#
+@ param-default-tilde
+HOME=/h; echo ${nope:-~}
+@ param-positional
+set -- a b c d e f g h i j k; echo $1 $9 ${10} ${11}
+@ param-positional-unset
+set -- a; echo "[$2]"
+@ param-dollar-ten
+set -- a b c d e f g h i j; echo $10
+@ param-hash
+set -- a b c; echo $#
+@ param-hash-zero
+echo $#
+@ param-star-unquoted
+set -- 'a b' c; for i in $*; do echo "<$i>"; done
+@ param-star-quoted
+set -- 'a b' c; for i in "$*"; do echo "<$i>"; done
+@ param-at-quoted
+set -- 'a b' c; for i in "$@"; do echo "<$i>"; done
+@ param-at-empty
+set --; for i in "$@"; do echo x; done; echo done
+@ param-at-prefix-suffix
+set -- a b; for i in "x$@y"; do echo "<$i>"; done
+@ param-at-empty-args
+set -- '' ''; for i in "$@"; do echo "<$i>"; done
+@ param-star-ifs
+set -- a b c; IFS=:; echo "$*"
+@ param-star-ifs-empty
+set -- a b c; IFS=; echo "$*"
+@ param-star-ifs-unset
+set -- a b c; unset IFS; echo "$*"
+@ param-at-in-assign
+set -- a b; x="$@"; echo "$x"
+@ param-at-count-nested
+set -- a 'b c'; f() { echo $#; }; f "$@"
+@ param-question
+false; echo $?; true; echo $?
+@ param-question-127
+nosuchcmd_xyz 2>/dev/null; echo $?
+@ param-dollar-numeric
+case $$ in *[!0-9]*|'') echo no;; *) echo yes;; esac
+@ param-dollar-same-in-subshell
+a=$$; b=$(echo $$); [ "$a" = "$b" ] && echo same
+@ param-dollar-subshell-paren
+a=$$; (b=$$; [ "$a" = "$b" ] && echo same)
+@ param-bang-empty
+echo "[$!]"
+@ param-bang
+sleep 0 & p=$!; case $p in ''|*[!0-9]*) echo bad;; *) echo ok;; esac; wait
+@ param-zero
+echo $0
+@ param-zero-name
+sh -c 'echo $0 $1' myname arg1
+@ param-dash-e
+set -e; case $- in *e*) echo has-e;; esac
+@ param-dash-f
+set -f; case $- in *f*) echo has-f;; esac
+@ param-dash-u
+set -u; case $- in *u*) echo has-u;; esac
+@ param-dash-x
+set -x; case $- in *x*) echo has-x;; esac 2>/dev/null
+@ param-dash-off
+set -e; set +e; case $- in *e*) echo has-e;; *) echo no-e;; esac
+@ param-ppid
+p=$PPID; case $p in ''|*[!0-9]*) echo bad;; *) echo ok;; esac
+@ param-ppid-child
+sh -c 'echo $PPID' > ppid.out; [ "$(cat ppid.out)" = "$$" ] && echo match
+@ param-lineno
+echo $LINENO
+echo $LINENO
+
+echo $LINENO
+@ param-ifs-default
+printf '%s' "$IFS" | od -c 2>/dev/null | head -1 >/dev/null; case "$IFS" in "
+") echo default;; *) echo other;; esac
+@ param-ifs-unset-split
+unset IFS; x='a b	c'; set -- $x; echo $#
+@ param-optind-initial
+echo $OPTIND
+@ param-pwd-set
+cd /; echo $PWD
+@ param-name-underscore
+_a_1=x; echo $_a_1
+@ param-name-stops
+x=a; echo $x-y $x.z $x/w
+@ param-dollar-alone
+echo $ a$ "$"
+@ param-dollar-brace-special
+set -- a b; echo ${#} ${?} ${1}
+
+# ---------------------------------------------------------------- command substitution
+@ subst-dollar
+echo $(echo abc)
+@ subst-backquote
+echo `echo def`
+@ subst-nested
+echo $(echo a$(echo b$(echo c)))
+@ subst-nested-backquote
+echo `echo a\`echo b\``
+@ subst-in-dq
+echo "[$(echo 'a  b')]"
+@ subst-split
+set -- $(echo 'a  b   c'); echo $#
+@ subst-nosplit-dq
+set -- "$(echo 'a  b   c')"; echo $#
+@ subst-trailing-newlines
+x=$(printf 'a\n\n\n'); echo "[$x]"
+@ subst-inner-newlines
+x=$(printf 'a\n\nb\n'); echo "$x"
+@ subst-status
+x=$(exit 3); echo $?
+@ subst-status-assign-only
+x=$(false); echo $?
+@ subst-case-paren
+echo $(case a in a) echo yes;; esac)
+@ subst-comment
+echo $(echo x # comment )
+)
+@ subst-quotes-inside
+echo "$(echo "in "quotes"")"
+@ subst-backslash-backquote
+echo `echo '\$x'`
+@ subst-var-changes-isolated
+x=1; y=$(x=2; echo $x); echo $x $y
+@ subst-cd-isolated
+cd /; y=$(cd /tmp; pwd); pwd; echo $y
+@ subst-exit-isolated
+y=$(exit 5; echo no); echo "[$y] $?"
+@ subst-function
+f() { echo fn$1; }; echo $(f 1)
+@ subst-heredoc-inside
+x=$(cat <<EOF
+in here
+EOF
+); echo $x
+@ subst-pipeline
+echo $(printf 'b\na\n' | sort | head -n 1)
+@ subst-empty
+x=$(); echo "[$x]"
+@ subst-big
+x=$(i=0; while [ $i -lt 2000 ]; do echo line; i=$((i+1)); done); echo ${#x}
+@ subst-arith-inside
+echo $(echo $((1+2)))
+@ subst-stderr-not-captured
+x=$(echo out; echo err >&2); echo "[$x]"
+
+# ---------------------------------------------------------------- arithmetic
+@ arith-add
+echo $((1 + 2)) $((10 - 3)) $((6 * 7)) $((20 / 3)) $((20 % 3))
+@ arith-precedence
+echo $((2 + 3 * 4)) $(( (2 + 3) * 4 ))
+@ arith-unary
+echo $((-5)) $((+5)) $((!0)) $((!3)) $((~0)) $((- -1))
+@ arith-compare
+echo $((1 < 2)) $((2 < 1)) $((2 <= 2)) $((3 > 2)) $((2 >= 3)) $((2 == 2)) $((2 != 2))
+@ arith-logic
+echo $((1 && 0)) $((1 && 2)) $((0 || 0)) $((0 || 3))
+@ arith-bitwise
+echo $((6 & 3)) $((6 | 3)) $((6 ^ 3)) $((1 << 4)) $((256 >> 2))
+@ arith-ternary
+echo $((1 ? 10 : 20)) $((0 ? 10 : 20)) $((0 ? 1 : 0 ? 2 : 3))
+@ arith-assign
+x=5; echo $((x = 7)) $x
+@ arith-assign-ops
+x=10; : $((x += 5)); echo $x; : $((x -= 3)); echo $x; : $((x *= 2)); echo $x; : $((x /= 4)); echo $x; : $((x %= 4)); echo $x
+@ arith-assign-bitops
+x=12; : $((x &= 10)); echo $x; : $((x |= 1)); echo $x; : $((x ^= 3)); echo $x; : $((x <<= 2)); echo $x; : $((x >>= 1)); echo $x
+@ arith-vars
+a=3 b=4; echo $((a * a + b * b))
+@ arith-dollar-vars
+a=3; echo $(($a + 1))
+@ arith-unset-var
+echo $((nope + 1))
+@ arith-empty-var
+e=; echo $((e + 1))
+@ arith-var-expression
+x='1 + 2'; echo $(($x * 2))
+@ arith-hex-octal
+echo $((0x10)) $((0X1f)) $((010)) $((0))
+@ arith-negative-div
+echo $((-7 / 2)) $((-7 % 2))
+@ arith-short-circuit
+x=0; : $((0 && (x = 1))); : $((1 || (x = 2))); echo $x
+@ arith-ternary-noeval
+x=0; : $((1 ? 1 : (x = 5))); echo $x
+@ arith-nested-parens
+echo $((((1 + 2)) * 3))
+@ arith-spaces
+echo $((  1+2  ))
+@ arith-div-zero
+echo $((1 / 0)) 2>/dev/null; echo after
+@why dash: division by zero is an expansion error, the shell exits with status 2
+@status 2
+@ arith-in-dq
+echo "$((2 * 21))"
+@ arith-nested-subst
+echo $(( $(echo 3) + 1 ))
+@ arith-increment-posix
+i=0; i=$((i + 1)); i=$((i + 1)); echo $i
+@ arith-comma-free
+echo $((5 > 3 && 2 > 1))
+@ arith-large
+echo $((2147483647 + 1))
+@ arith-shift-precedence
+echo $((1 + 1 << 2))
+@ arith-equality-precedence
+echo $((1 == 1 & 0))
+@ arith-unary-not-precedence
+echo $((!1 + 1))
+@ arith-var-recursive
+a=b; b=7; echo $((a + 1))
+@ arith-var-in-subscript
+x=4; echo $(( x<5 ? x : 5 ))
+
+# ---------------------------------------------------------------- field splitting
+@ split-default
+x='  a  b	c
+d  '; set -- $x; echo $#
+@ split-ifs-colon
+IFS=:; x=a:b::c; set -- $x; echo $#; for i in "$@"; do echo "<$i>"; done
+@ split-ifs-trailing
+IFS=:; x=a:b:; set -- $x; echo $#
+@ split-ifs-leading
+IFS=:; x=:a; set -- $x; echo $#
+@ split-ifs-mixed-ws
+IFS=' :'; x=' a : b '; set -- $x; echo $#; echo "$1|$2"
+@ split-ifs-empty
+IFS=; x='a b c'; set -- $x; echo $#
+@ split-literal-not-split
+IFS=:; set -- a:b; echo $#
+@ split-quoted-not-split
+x='a b'; set -- "$x"; echo $#
+@ split-empty-var-vanishes
+e=; set -- $e; echo $#
+@ split-empty-quoted-stays
+e=; set -- "$e"; echo $#
+@ split-concat
+x='a b'; set -- pre$x; echo $# $1
+@ split-ifs-restored
+IFS=:; x=a:b; set -- $x; unset IFS; y='c d'; set -- $y; echo $#
+@ split-subst
+IFS=,; set -- $(echo 1,2,3); echo $#
+@ split-read-ifs
+echo 'a:b:c' | { IFS=: read x y z; echo $y; }
+@ split-ifs-local-to-cmd
+x='a:b'; IFS=: set -- $x; echo $#
+@why POSIX: IFS=: in front of a special builtin stays set, but splitting happens before it: one field in every shell
+@ split-ifs-nonws-adjacent
+IFS=:; x='a::b'; set -- $x; echo $#
+@ split-ifs-backslash
+IFS=\\; x='a\b'; set -- $x; echo $#
+
+# ---------------------------------------------------------------- pathname expansion
+@ glob-star
+mkdir -p gs; touch gs/a.c gs/b.c gs/c.h; echo gs/*.c
+@ glob-question
+mkdir -p gq; touch gq/a1 gq/a2 gq/a10; echo gq/a?
+@ glob-bracket
+mkdir -p gb; touch gb/a gb/b gb/c; echo gb/[ab]
+@ glob-bracket-range
+mkdir -p gr; touch gr/a gr/m gr/z; echo gr/[a-m]
+@ glob-bracket-negate
+mkdir -p gn; touch gn/a gn/b gn/c; echo gn/[!a]
+@ glob-nomatch
+echo gnone/*.zz
+@ glob-quoted
+mkdir -p gqq; touch gqq/a; echo "gqq/*" 'gqq/*' gqq/\*
+@ glob-dotfiles
+mkdir -p gd; touch gd/.h gd/v; echo gd/*; echo gd/.*h
+@ glob-sorted
+mkdir -p gso; touch gso/c gso/a gso/b; echo gso/*
+@ glob-dirs
+mkdir -p gdd/x gdd/y; touch gdd/f; echo gdd/*/
+@ glob-multilevel
+mkdir -p gm/a gm/b; touch gm/a/1 gm/b/2; echo gm/*/*
+@ glob-noglob
+mkdir -p gng; touch gng/a; set -f; echo gng/*; set +f; echo gng/*
+@ glob-in-var
+mkdir -p gv; touch gv/a gv/b; p='gv/*'; echo $p; echo "$p"
+@ glob-no-in-assignment
+mkdir -p ga; touch ga/a ga/b; x=ga/*; echo "$x"
+@ glob-case-pattern
+case abc in a*) echo star;; esac
+@ glob-bracket-literal-close
+case ']' in []]) echo yes;; esac
+@ glob-bracket-class
+case a in [[:alpha:]]) echo alpha;; *) echo no;; esac
+@ glob-bracket-class-digit
+case 5 in [[:digit:]]) echo digit;; *) echo no;; esac
+@ glob-slash-not-matched
+mkdir -p gsl/d; touch gsl/d/f; echo gsl*f
+@ glob-escaped-in-pattern
+mkdir -p ge; touch 'ge/a*'; touch ge/ab; echo ge/a\*
+
+# ---------------------------------------------------------------- tilde
+@ tilde-home
+HOME=/hh; echo ~ ~/x
+@ tilde-quoted
+HOME=/hh; echo "~" '~' \~
+@ tilde-middle
+HOME=/hh; echo a~ x=~
+@ tilde-assign
+HOME=/hh; x=~/a; echo $x
+@ tilde-assign-colon
+HOME=/hh; x=a:~/b:~; echo $x
+@ tilde-in-default
+HOME=/hh; echo ${nope-~/q}
+
+# ---------------------------------------------------------------- here-documents
+@ heredoc-basic
+cat <<EOF
+line 1
+line 2
+EOF
+@ heredoc-expand
+x=5; cat <<EOF
+x=$x $(echo sub) $((1+1)) \$x
+EOF
+@ heredoc-quoted
+x=5; cat <<'EOF'
+x=$x $(echo sub) \$x
+EOF
+@ heredoc-dquoted-delim
+x=5; cat <<"EOF"
+x=$x
+EOF
+@ heredoc-partial-quote
+x=5; cat <<E\OF
+x=$x
+EOF
+@ heredoc-tabs
+cat <<-EOF
+	tabbed
+		twice
+	EOF
+@ heredoc-backslash-newline
+cat <<EOF
+a\
+b
+EOF
+@ heredoc-backslash-kept
+cat <<EOF
+a\tb \" \'
+EOF
+@ heredoc-quotes-literal
+x=v; cat <<EOF
+"$x" '$x'
+EOF
+@ heredoc-two
+cat <<A; cat <<B
+one
+A
+two
+B
+@ heredoc-to-fd
+cat 3<<EOF <&3
+fd three
+EOF
+@ heredoc-in-function
+f() { cat <<EOF
+in $1
+EOF
+}; f fn
+@ heredoc-in-loop
+for i in 1 2; do cat <<EOF
+i=$i
+EOF
+done
+@ heredoc-pipe
+cat <<EOF | sort
+b
+a
+EOF
+@ heredoc-empty
+cat <<EOF
+EOF
+echo end
+@ heredoc-builtin-read
+read a b <<EOF
+one two three
+EOF
+echo "$a|$b"
+@ heredoc-delim-with-spaces-not-end
+cat <<EOF
+ EOF
+EOF
+@ heredoc-large
+i=0; while [ $i -lt 300 ]; do echo "line $i"; i=$((i+1)); done > hl.in; eval "cat <<EOF
+$(cat hl.in)
+EOF" | tail -n 1
+
+# ---------------------------------------------------------------- redirections
+@ redir-out
+echo hi > ro.f; cat ro.f
+@ redir-append
+echo 1 > ra.f; echo 2 >> ra.f; cat ra.f
+@ redir-in
+echo hi > ri.f; cat < ri.f
+@ redir-err
+ls /nonexistent_dir 2> re.f; [ -s re.f ] && echo has-error
+@ redir-dup-out
+{ echo out; echo err >&2; } > rd.f 2>&1; cat rd.f
+@ redir-order
+{ echo err >&2; } 2>&1 >/dev/null
+@ redir-dup-in
+echo hi > rdi.f; exec 3< rdi.f; cat <&3
+@ redir-close
+{ echo x >&3; } 3>&- 2>/dev/null; echo $?
+@ redir-close-stdout
+(echo x >&-) 2>/dev/null; echo done
+@ redir-rdwr
+echo abc > rw.f; cat <> rw.f
+@ redir-rdwr-create
+: <> rwc.f; [ -f rwc.f ] && echo created
+@ redir-clobber
+echo a > rc.f; echo b >| rc.f; cat rc.f
+@ redir-noclobber
+echo a > rn.f; set -C; (echo b > rn.f) 2>/dev/null; echo $?; cat rn.f
+@ redir-noclobber-override
+echo a > rno.f; set -C; echo b >| rno.f; cat rno.f
+@ redir-noclobber-devnull
+set -C; echo x > /dev/null && echo ok
+@ redir-noclobber-append
+echo a > rna.f; set -C; echo b >> rna.f; cat rna.f
+@ redir-fd-number
+echo x 3>r3.f >&3; cat r3.f
+@ redir-fd-high
+exec 7>r7.f; echo seven >&7; exec 7>&-; cat r7.f
+@ redir-before-cmd
+> rb.f echo before; cat rb.f
+@ redir-middle
+echo a > rm.f b; cat rm.f
+@ redir-var-target
+f=rv.f; echo v > $f; cat rv.f
+@ redir-missing-file
+cat < /nonexistent_file 2>/dev/null; echo $?
+@ redir-failure-skips-cmd
+echo should-not > /nonexistent_dir/x 2>/dev/null; echo $?
+@ redir-compound
+{ echo a; echo b; } > rcmp.f; cat rcmp.f
+@ redir-if
+if true; then echo in-if; fi > rif.f; cat rif.f
+@ redir-while-in
+printf '1\n2\n' > rw2.f; while read l; do echo "l=$l"; done < rw2.f
+@ redir-for-out
+for i in a b; do echo $i; done > rfo.f; cat rfo.f
+@ redir-subshell
+(echo sub) > rs.f; cat rs.f
+@ redir-function
+f() { echo fn; }; f > rfn.f; cat rfn.f
+@ redir-function-def
+f() { echo in-f; } > rfd.f; f; cat rfd.f
+@ redir-builtin-restored
+echo x > /dev/null; echo visible
+@ redir-exec-persistent
+exec 4>&1; exec > rep.f; echo one; echo two; exec >&4; cat rep.f
+@ redir-exec-persistent2
+exec 3> rep2.f; echo a >&3; echo b >&3; exec 3>&-; cat rep2.f
+@ redir-exec-stdin
+printf 'l1\nl2\n' > resi.f; exec < resi.f; read a; read b; echo $b $a
+@ redir-exec-dup-save
+exec 3>&1; exec > reds.f; echo hidden; exec 1>&3 3>&-; echo shown; cat reds.f
+@ redir-dup-to-closed-fd
+echo x >&5 2>/dev/null; echo $?
+@ redir-assign-only
+x=1 > rao.f; [ -f rao.f ] && echo $x
+@ redir-dup-same
+echo same 1>&1
+@ redir-stderr-to-stdout-pipe
+ls /nonexistent_dir 2>&1 | grep -c nonexistent_dir
+@ redir-ampersand-word
+echo x >& rz.f 2>/dev/null; cat rz.f 2>/dev/null; echo end
+@why ">& word" with a non-number is not POSIX; the check is only that the shell does not crash
+@out x
+@out end
+
+# ---------------------------------------------------------------- simple commands and assignments
+@ cmd-assign-multiple
+a=1 b=2 c=3; echo $a$b$c
+@ cmd-assign-prefix-env
+x=out; x=in sh -c 'echo $x'; echo $x
+@ cmd-assign-prefix-builtin-regular
+x=out; x=in true; echo $x
+@ cmd-assign-prefix-special
+x=out; x=in :; echo $x
+@why POSIX: assignments before a special builtin stay; dash keeps them too
+@ cmd-assign-prefix-function
+f() { echo "in:$x"; }; x=out; x=in f; echo $x
+@why dash keeps the assignment local to the function call
+@out in:in
+@out out
+@ cmd-assign-order
+a=1 b=$a; echo $b
+@ cmd-assign-subst-status
+x=$(exit 4); echo $?
+@ cmd-assign-no-split
+x='a   b'; y=$x; echo "$y"
+@ cmd-assign-tilde-not-in-quotes
+HOME=/h; x="~"; echo $x
+@ cmd-empty-subst-status
+$(exit 3); echo $?
+@ cmd-not-found
+nosuchcmd_q 2>/dev/null; echo $?
+@ cmd-path-search
+PATH=/nonexistent; echo builtin-echo; ls 2>/dev/null; echo $?
+@ cmd-slash-path
+./nonexistent_q 2>/dev/null; echo $?
+@ cmd-script-without-shebang
+printf 'echo from-script $1\n' > csw.sh; sh csw.sh arg
+@ cmd-script-run-directly
+printf 'echo direct $1\n' > csd.sh; chmod +x csd.sh 2>/dev/null; ./csd.sh arg
+@ cmd-exit-status-range
+sh -c 'exit 255'; echo $?; sh -c 'exit 256'; echo $?
+@ cmd-export-to-child
+export EX1=v; sh -c 'echo $EX1'
+@ cmd-unexported-not-in-child
+NX1=v; sh -c 'echo "[$NX1]"'
+@ cmd-export-later
+EX2=a; export EX2; EX2=b; sh -c 'echo $EX2'
+
+# ---------------------------------------------------------------- lists and pipelines
+@ list-and
+true && echo a; false && echo b; echo $?
+@ list-or
+false || echo a; true || echo b; echo $?
+@ list-and-or-chain
+false && echo a || echo b
+@ list-or-and-chain
+true || echo a && echo b
+@ list-seq
+echo 1; echo 2; echo 3
+@ list-newline
+echo 1
+echo 2
+@ list-and-newline
+true &&
+echo after-and
+@ list-or-newline
+false ||
+echo after-or
+@ list-pipe-newline
+echo x |
+cat
+@ pipe-basic
+echo hello | cat
+@ pipe-status-last
+false | true; echo $?; true | false; echo $?
+@ pipe-negate
+! true; echo $?; ! false; echo $?
+@ pipe-negate-pipeline
+! echo x | grep -q y; echo $?
+@ pipe-three
+printf 'c\nb\na\n' | sort | head -n 1
+@ pipe-builtin-to-ext
+echo builtin | cat
+@ pipe-ext-to-builtin
+echo ext | { read x; echo "got $x"; }
+@ pipe-builtin-to-builtin
+echo bb | { read x; echo "got $x"; }
+@ pipe-function
+f() { echo from-f; }; f | cat
+@ pipe-loop-output
+for i in 1 2 3; do echo $i; done | sort -r
+@ pipe-while-read
+printf 'a\nb\n' | while read l; do echo "[$l]"; done
+@ pipe-group
+{ echo a; echo b; } | sort -r
+@ pipe-subshell
+(echo s1; echo s2) | cat
+@ pipe-stderr
+{ echo out; echo err >&2; } 2>&1 | sort
+@ pipe-large
+i=0; while [ $i -lt 3000 ]; do echo $i; i=$((i+1)); done | tail -n 1
+@ pipe-first-stage-var-lost
+x=1; x=2 | true; echo $x
+@ pipe-last-stage-var
+x=1; echo 2 | read x; echo $x
+@why POSIX allows either; dash runs every stage in a subshell and prints 1
+@out 1
+@ pipe-bang-space
+! false && echo negated
+
+# ---------------------------------------------------------------- compound commands
+@ if-true
+if true; then echo yes; fi
+@ if-false-else
+if false; then echo yes; else echo no; fi
+@ if-elif
+x=2; if [ $x = 1 ]; then echo one; elif [ $x = 2 ]; then echo two; else echo other; fi
+@ if-status-no-branch
+if false; then :; fi; echo $?
+@ if-status-branch
+if true; then (exit 3); fi; echo $?
+@ if-condition-list
+if false; true; then echo last-counts; fi
+@ if-multiline
+if true
+then
+  echo ml
+fi
+@ if-nested
+if true; then if false; then echo a; else echo b; fi; fi
+@ case-basic
+case foo in foo) echo matched;; esac
+@ case-alternatives
+case b in a|b|c) echo abc;; esac
+@ case-default
+case z in a) echo a;; *) echo default;; esac
+@ case-first-match
+case ab in a*) echo first;; *b) echo second;; esac
+@ case-no-match-status
+false; case x in y) echo y;; esac; echo $?
+@ case-status
+case x in x) (exit 4);; esac; echo $?
+@ case-paren-pattern
+case a in (a) echo open-paren;; esac
+@ case-last-no-dsemi
+case a in a) echo nodsemi
+esac
+@ case-empty-body
+case a in a) ;; esac; echo $?
+@ case-var-pattern
+p='a*'; case abc in $p) echo var;; esac
+@ case-quoted-pattern
+p='a*'; case abc in "$p") echo literal;; *) echo nomatch;; esac
+@ case-quoted-star
+case '*' in '*') echo star;; esac; case x in '*') echo bad;; *) echo good;; esac
+@ case-word-expansion
+x=hello; case $x in hel*) echo exp;; esac
+@ case-newlines
+case a
+in
+a)
+echo nl
+;;
+esac
+@ case-keyword-like
+case in in in) echo in;; esac
+@ case-empty-word
+case '' in '') echo empty;; esac
+@ case-bracket
+case b in [abc]) echo br;; esac
+@ case-escape
+case 'a?' in a\?) echo esc;; esac
+@ case-fallthrough-not-posix
+case a in a) echo one;; a) echo two;; esac
+@ case-tilde
+HOME=/hh; case /hh in ~) echo tilde;; esac
+@ for-basic
+for i in a b c; do echo $i; done
+@ for-no-in
+set -- x y; for i; do echo $i; done
+@ for-no-in-semicolon
+set -- x y; for i do echo $i; done
+@ for-empty
+for i in; do echo bad; done; echo $?
+@ for-glob
+mkdir -p fg; touch fg/1 fg/2; for f in fg/*; do echo $f; done
+@ for-var-kept
+for i in a b; do :; done; echo $i
+@ for-status
+for i in a; do (exit 2); done; echo $?
+@ for-newlines
+for i in a b
+do
+echo $i
+done
+@ for-split
+x='p q'; for i in $x; do echo $i; done
+@ for-keyword-name
+for do in 1; do echo $do; done
+@ while-basic
+i=0; while [ $i -lt 3 ]; do echo $i; i=$((i+1)); done
+@ while-false-status
+while false; do :; done; echo $?
+@ while-status-body
+i=0; while [ $i -lt 1 ]; do i=1; (exit 6); done; echo $?
+@ until-basic
+i=0; until [ $i -ge 2 ]; do echo $i; i=$((i+1)); done
+@ while-read-file
+printf 'x\ny\n' > wr.f; while read l; do echo "<$l>"; done < wr.f
+@ group-basic
+{ echo a; echo b; }
+@ group-vars-persist
+{ x=inside; }; echo $x
+@ group-newline
+{
+echo grouped
+}
+@ group-status
+{ false; }; echo $?
+@ group-brace-word
+echo {a,b} }
+@why bash expands {a,b} even in POSIX mode; POSIX and dash have no brace expansion
+@out {a,b} }
+@ group-redirect
+{ echo g1; echo g2; } > gr.f; cat gr.f
+@ subshell-basic
+(echo sub)
+@ subshell-vars-isolated
+x=out; (x=in; echo $x); echo $x
+@ subshell-cd-isolated
+cd /; (cd /tmp); pwd
+@ subshell-exit-isolated
+(exit 7); echo $?
+@ subshell-exit-stops-subshell
+(echo a; exit 3; echo b); echo "st=$?"
+@ subshell-function-isolated
+(f() { echo inner; }); f 2>/dev/null || echo no-f
+@ subshell-unset-isolated
+x=1; (unset x); echo $x
+@ subshell-export-isolated
+(export SX=1); sh -c 'echo "[$SX]"'
+@ subshell-set-isolated
+(set -- a b c); echo $#
+@ subshell-options-isolated
+(set -f); case $- in *f*) echo leaked;; *) echo isolated;; esac
+@ subshell-nested
+(x=1; (x=2; echo $x); echo $x)
+@ subshell-status
+(false); echo $?; (true); echo $?
+@ subshell-redirect-isolated
+(exec > si.f; echo inside); echo outside; cat si.f
+@ subshell-trap-isolated
+(trap 'echo sub-exit' EXIT; echo in); echo out
+@ subshell-shift-isolated
+set -- a b; (shift); echo $1
+@ subshell-umask-isolated
+umask 022 2>/dev/null; (umask 077 2>/dev/null); umask 2>/dev/null
+@ subshell-alias-isolated
+(alias zz='echo z'); echo ok
+@ subshell-readonly-isolated
+(readonly RO1=1); RO1=2 && echo assignable
+@ subshell-break-inside
+for i in 1 2 3; do (break); echo $i; done
+@why break inside ( ) has no loop to leave in that subshell
+@ subshell-return-inside
+f() { (return 3); echo after; }; f
+@ subshell-and-or
+(false) || echo or-ran
+@ subshell-bg
+(echo bg) & wait
+@ subshell-pipeline-isolated
+x=1; (x=2) | cat; echo $x
+
+# ---------------------------------------------------------------- functions
+@ func-basic
+f() { echo hello; }; f
+@ func-args
+f() { echo $# $1 $2; }; f a b
+@ func-args-restored
+set -- top; f() { echo $1; }; f inner; echo $1
+@ func-return
+f() { return 3; }; f; echo $?
+@ func-return-default
+f() { false; return; }; f; echo $?
+@ func-return-stops
+f() { echo a; return; echo b; }; f
+@ func-status-last
+f() { false; }; f; echo $?
+@ func-vars-global
+f() { g=set; }; f; echo $g
+@ func-recursive
+f() { if [ $1 -gt 0 ]; then echo $1; f $(($1 - 1)); fi; }; f 3
+@ func-redefine
+f() { echo one; }; f() { echo two; }; f
+@ func-over-builtin
+echo() { printf 'my-echo\n'; }; echo x
+@ func-over-external
+cat() { printf 'my-cat\n'; }; cat /dev/null
+@ func-unset
+f() { echo f; }; unset -f f; f 2>/dev/null || echo gone
+@ func-dollar-zero
+f() { echo $0; }; f
+@ func-nested-define
+outer() { inner() { echo inner; }; }; outer; inner
+@ func-body-subshell
+f() ( x=inside; echo $x ); x=out; f; echo $x
+@ func-body-if
+f() if true; then echo if-body; fi; f
+@ func-name-with-underscore
+my_func_1() { echo ok; }; my_func_1
+@ func-return-in-loop
+f() { for i in 1 2 3; do [ $i = 2 ] && return $i; done; }; f; echo $?
+@ func-return-from-dot
+printf 'echo in-dot; return 4; echo no\n' > frd.sh; . ./frd.sh; echo $?
+@ func-at-in-func
+f() { for a in "$@"; do echo "<$a>"; done; }; f 'x y' z
+@ func-local
+f() { local v=in; echo $v; }; v=out; f; echo $v
+@ func-local-unset-after
+f() { local lv=1; }; f; echo "[$lv]"
+@ func-local-nested
+g() { echo "g:$v"; }; f() { local v=f; g; }; v=top; f; echo $v
+@ func-local-noassign
+f() { local v; v=changed; }; v=orig; f; echo $v
+@ func-local-multiple
+f() { local a=1 b=2; echo $a$b; }; f; echo "[$a$b]"
+@ func-recursion-depth
+f() { [ $1 -le 0 ] && { echo bottom; return; }; f $(($1 - 1)); }; f 100
+@ func-exit-inside
+f() { exit 5; }; f; echo no
+@ func-in-pipeline
+f() { read x; echo "f:$x"; }; echo data | f
+@ func-redirect-at-call
+f() { echo out; echo err >&2; }; f 2>/dev/null
+@ func-keyword-function-not-posix
+f() { echo posix; }; f
+
+# ---------------------------------------------------------------- background and wait
+@ bg-wait
+sleep 0 & wait; echo $?
+@ bg-wait-pid-status
+sh -c 'exit 3' & p=$!; wait $p; echo $?
+@ bg-wait-two
+sh -c 'exit 1' & a=$!; sh -c 'exit 2' & b=$!; wait $a; echo $?; wait $b; echo $?
+@ bg-output
+echo bgout & wait
+@ bg-wait-unknown
+wait 99999 2>/dev/null; echo $?
+@ bg-list-continues
+sleep 1 & echo immediately; wait
+@ bg-group
+{ echo grp; } & wait
+@ bg-status-zero
+false & echo $?; wait
+
+# ---------------------------------------------------------------- special builtins: . : break continue eval exec exit export readonly return set shift times trap unset
+@ colon
+: ignored args; echo $?
+@ colon-expansion
+: ${cx:=assigned}; echo $cx
+@ dot-basic
+echo 'dv=dotted' > dot1.sh; . ./dot1.sh; echo $dv
+@ dot-path-search
+mkdir -p dotp; echo 'echo found-in-path' > dotp/dotscript; PATH="$PWD/dotp:$PATH"; . dotscript
+@ dot-not-found
+. ./nonexistent_dot 2>/dev/null; echo $?
+@why dash exits the shell (special builtin error), status 2 and no output
+@status 2
+@ dot-status
+echo 'false' > dots.sh; . ./dots.sh; echo $?
+@ dot-args
+echo 'echo $1' > dota.sh; set -- outer; . ./dota.sh; echo $1
+@ dot-functions
+echo 'df() { echo from-dot; }' > dotf.sh; . ./dotf.sh; df
+@ break-basic
+for i in 1 2 3; do [ $i = 2 ] && break; echo $i; done
+@ break-n
+for i in 1 2; do for j in a b; do [ $j = b ] && break 2; echo $i$j; done; done; echo end
+@ break-while
+i=0; while true; do i=$((i+1)); [ $i -ge 3 ] && break; done; echo $i
+@ continue-basic
+for i in 1 2 3; do [ $i = 2 ] && continue; echo $i; done
+@ continue-n
+for i in 1 2; do for j in a b; do [ $j = a ] && continue 2; echo no; done; echo no2; done; echo end
+@ continue-while
+i=0; while [ $i -lt 4 ]; do i=$((i+1)); [ $i = 2 ] && continue; echo $i; done
+@ break-status
+for i in 1; do break; done; echo $?
+@ eval-basic
+eval 'echo evaluated'
+@ eval-vars
+cmd='x=42'; eval $cmd; echo $x
+@ eval-args-joined
+eval echo a  b '  c'
+@ eval-status
+eval false; echo $?; eval; echo $?
+@ eval-nested-quotes
+eval "echo \"a  b\""
+@ eval-indirect
+name=val; val=deep; eval "echo \$$name"
+@ eval-multiline
+eval 'echo l1
+echo l2'
+@ eval-syntax-error
+eval 'if' 2>/dev/null; echo $?
+@why dash: a syntax error in eval is a special builtin error, the shell exits with status 2
+@status 2
+@ eval-define-function
+eval 'ef() { echo ef; }'; ef
+@ exec-redirect-only
+exec 3>exr.f; echo three >&3; exec 3>&-; cat exr.f
+@ exec-cmd
+exec echo replaced; echo not-reached
+@ exec-cmd-status
+sh -c 'exec sh -c "exit 7"'; echo $?
+@ exec-cmd-not-found
+exec nosuchcmd_e 2>/dev/null; echo after
+@ exec-no-args-status
+exec; echo $?
+@ exec-in-subshell
+(exec echo sub-exec); echo after
+@ exec-with-env
+exec env XV=1 sh -c 'echo $XV'
+@ exit-basic
+exit 3; echo no
+@ exit-default-last
+false; exit
+@ exit-in-subst
+x=$(exit 2); echo $?
+@ exit-in-group
+{ exit 4; }; echo no
+@ exit-in-loop
+for i in 1 2; do exit $i; done
+@ exit-in-and
+true && exit 6; echo no
+@ exit-big
+exit 300
+@ export-basic
+export E1=x; sh -c 'echo $E1'
+@ export-name-only
+E2=y; export E2; sh -c 'echo $E2'
+@ export-multiple
+export E3=a E4=b; sh -c 'echo $E3$E4'
+@ export-p
+export E5=val; export -p | grep -c 'E5='
+@ export-invalid
+export 1bad=x 2>/dev/null; echo $?
+@why dash: an invalid name for a special builtin exits the shell with status 2
+@status 2
+@ export-no-value-unset
+export E6; sh -c 'echo "${E6-unset}"'
+@why dash marks E6 for export but an unset variable is not passed
+@out unset
+@ readonly-basic
+readonly R1=v; echo $R1
+@ readonly-assign-fails
+readonly R2=v; (R2=w) 2>/dev/null; echo $?; echo $R2
+@why dash: assignment to a read-only variable is an error, status 2 in the subshell
+@out 2
+@out v
+@ readonly-assign-exits
+readonly R3=v; R3=w 2>/dev/null; echo after
+@why dash exits the shell with status 2 when a read-only variable is assigned
+@status 2
+@ readonly-unset-fails
+readonly R4=v; (unset R4) 2>/dev/null; echo $?
+@why dash: unset of a read-only variable fails with status 2 (a special builtin error exits the subshell)
+@out 2
+@ readonly-p
+readonly R5=x; readonly -p | grep -c R5
+@ readonly-name-only
+R6=z; readonly R6; (R6=q) 2>/dev/null || echo protected
+@ return-value
+f() { return 7; }; f; echo $?
+@ return-in-sourced
+echo 'return 3' > rsrc.sh; . ./rsrc.sh; echo $?
+@ return-outside
+return 2>/dev/null; echo $?
+@why dash: return outside a function or a dot script is an error that exits a non-interactive shell (status 2)
+@status 2
+@ set-positional
+set -- a b c; echo $# $2
+@ set-dashdash-empty
+set -- a; set --; echo $#
+@ set-dash-args
+set - x y; echo $# $1
+@why POSIX "set -" turns off -x and -v; the rest are positional parameters
+@ set-no-args-lists
+V1=listed; set | grep -c '^V1='
+@ set-e-basic
+set -e; echo a; false; echo b
+@ set-e-if-condition
+set -e; if false; then :; fi; echo survived
+@ set-e-and-left
+set -e; false && true; echo survived
+@ set-e-and-right
+set -e; true && false; echo not-reached
+@ set-e-or-left
+set -e; false || true; echo survived
+@ set-e-negated
+set -e; ! true; echo survived
+@ set-e-while-condition
+set -e; while false; do :; done; echo survived
+@ set-e-until-condition
+set -e; until true; do :; done; echo survived
+@ set-e-pipeline-last
+set -e; false | true; echo survived; true | false; echo not-reached
+@ set-e-subshell
+set -e; (false); echo not-reached
+@ set-e-inside-subshell
+set -e; (false; echo inner-not-reached) ; echo not-reached
+@ set-e-group
+set -e; { false; echo no; }; echo no2
+@ set-e-function
+set -e; f() { false; echo in-f; }; f; echo after
+@ set-e-function-in-condition
+set -e; f() { false; echo in-f; }; if f; then echo then; fi; echo after
+@ set-e-subst-assign
+set -e; x=$(false); echo not-reached
+@ set-e-subst-arg
+set -e; echo $(false) arg; echo reached
+@ set-e-exit-status
+sh -c 'set -e; sh -c "exit 3"; echo no'; echo $?
+@ set-e-for-body
+set -e; for i in 1 2; do false; echo no; done; echo no2
+@ set-e-case-body
+set -e; case a in a) false;; esac; echo no
+@ set-e-last-in-and-list
+set -e; f() { true && false; }; f || echo f-failed; echo after
+@ set-e-command-not-found
+set -e; nosuchcmd_se 2>/dev/null; echo no
+@ set-e-off
+set -e; set +e; false; echo survived
+@ set-e-option-o
+set -o errexit; false; echo no
+@ set-e-eval
+set -e; eval false; echo no
+@ set-e-dot
+echo false > sed.sh; set -e; . ./sed.sh; echo no
+@ set-e-in-cond-function-nested
+set -e; f() { false; echo cont; }; f && echo and; echo end
+@ set-e-elif
+set -e; if false; then :; elif false; then :; fi; echo survived
+@ set-e-bang-pipeline
+set -e; ! false | false; echo survived
+@ set-u-unset
+set -u; echo $nope_u; echo no
+@why dash exits with status 2
+@status 2
+@ set-u-set
+set -u; x=1; echo $x
+@ set-u-default-ok
+set -u; echo ${nope_u2-ok}
+@ set-u-positional
+set -u; set --; echo "${1-none}"
+@ set-u-at
+set -u; set --; echo "[$@]" "[$*]"
+@ set-u-in-subshell-status
+(set -u; echo $nope_u3) 2>/dev/null; echo $?
+@why dash: an unset variable with -u is an expansion error, status 2
+@out 2
+@ set-u-length
+set -u; (echo ${#nope_u4}) 2>/dev/null; [ $? -ne 0 ] && echo error
+@ set-x-trace
+set -x; echo traced 2>/dev/null
+@ set-x-to-stderr
+(set -x; echo t) 2>&1 | grep -c '^+ echo t'
+@ set-x-assign
+(set -x; v=1) 2>&1
+@ set-x-off
+(set -x; set +x; echo q) 2>&1
+@ set-f
+mkdir -p sfd; touch sfd/a; set -f; echo sfd/*
+@ set-f-option-o
+mkdir -p sfo; touch sfo/a; set -o noglob; echo sfo/*; set +o noglob; echo sfo/*
+@ set-n
+set -n; echo not-run
+@ set-v
+set -v; echo v-out 2>/dev/null
+@ set-v-stderr
+sh -c 'set -v
+echo line2' 2>&1
+@ set-a
+set -a; AX=exported; sh -c 'echo $AX'
+@ set-a-off
+set -a; set +a; AY=local; sh -c 'echo "[$AY]"'
+@ set-C
+echo 1 > sC.f; set -C; (echo 2 > sC.f) 2>/dev/null || echo refused
+@ set-o-names
+set -o errexit -o nounset; case $- in *e*u*|*u*e*) echo both;; esac
+@ set-plus-o
+set -o noglob; set +o noglob; case $- in *f*) echo still;; *) echo off;; esac
+@ set-o-list-has-errexit
+set -o | grep -c errexit
+@ set-plus-o-output-reusable
+set -e; o=$(set +o); set +e; eval "$o"; case $- in *e*) echo restored;; esac
+@ set-invalid-option
+(set -Q) 2>/dev/null; [ $? -ne 0 ] && echo invalid
+@ set-combined
+set -eu; case $- in *e*) case $- in *u*) echo eu;; esac;; esac
+@ set-dashdash-with-dash-arg
+set -- -x -y; echo $1 $2
+@ set-args-starting-with-plus
+set -- +x; echo $1
+@ shift-basic
+set -- a b c; shift; echo $# $1
+@ shift-n
+set -- a b c d; shift 2; echo $# $1
+@ shift-all
+set -- a b; shift 2; echo $#
+@ shift-too-many
+set -- a; shift 3 2>/dev/null; echo $?
+@why dash: shift past the end is an error that exits the shell (status 2)
+@empty
+@status 2
+@ shift-zero
+set -- a b; shift 0; echo $#
+@ shift-in-func
+set -- top; f() { shift; echo "$#:$1"; }; f a b; echo $1
+@ times-runs
+times > /dev/null; echo $?
+@ times-format
+times | head -n 1 | grep -c 'm.*s'
+@ trap-exit
+trap 'echo bye' EXIT; echo hi
+@ trap-exit-zero
+trap 'echo bye0' 0; echo hi
+@ trap-exit-on-exit
+trap 'echo bye' EXIT; exit 3
+@ trap-exit-status-preserved
+trap 'echo bye' EXIT; (exit 4); exit
+@ trap-exit-status-from-trap
+trap 'exit 9' EXIT; exit 1
+@ trap-exit-sees-status
+trap 'echo st=$?' EXIT; false
+@ trap-exit-set-e
+set -e; trap 'echo cleanup' EXIT; false; echo no
+@ trap-exit-in-func-def
+cleanup() { echo cleaned; }; trap cleanup EXIT; echo work
+@ trap-exit-reset
+trap 'echo bye' EXIT; trap - EXIT; echo hi
+@ trap-print
+trap 'echo x' EXIT; trap
+@ trap-print-quote
+trap "echo 'q'" EXIT; trap | head -n 1
+@ trap-int-recorded
+trap 'echo int' INT; trap | grep -c INT
+@ trap-signal-numbers
+trap 'echo t' 2 15; trap | grep -c -e INT -e TERM
+@ trap-sig-prefix
+trap 'echo t' SIGTERM 2>/dev/null; trap | grep -c TERM
+@ trap-ignore
+trap '' INT; trap
+@ trap-reset-signal
+trap 'x' INT; trap - INT; trap | grep -c INT
+@ trap-bad-signal
+trap 'x' NOSUCHSIG 2>/dev/null; echo $?
+@why dash: an invalid signal for trap is an error, status 1, and the shell goes on
+@out 1
+@ trap-exit-runs-once
+trap 'echo once' EXIT; exit 0
+@ trap-exit-in-subshell-only
+(trap 'echo sub' EXIT); echo main
+@ trap-exit-subst
+x=$(trap 'echo in-trap' EXIT; echo body); echo "$x"
+@ trap-kill-self-term
+trap 'echo got-term' TERM; kill -TERM $$; echo after
+@why needs signal delivery (fork stream); recorded but not fired on a system without signals
+@out got-term
+@out after
+@ trap-exit-after-error
+trap 'echo trapped' EXIT; nosuch_cmd_t 2>/dev/null
+@ unset-var
+x=1; unset x; echo "[${x-unset}]"
+@ unset-v
+x=1; unset -v x; echo "[${x-unset}]"
+@ unset-f
+f() { :; }; unset -f f; type f >/dev/null 2>&1 || echo gone
+@ unset-multiple
+a=1 b=2; unset a b; echo "[$a$b]"
+@ unset-nonexistent
+unset nothing_here; echo $?
+@ unset-exported
+export UE=1; unset UE; sh -c 'echo "[$UE]"'
+@ unset-positional-param
+x=1; unset x; echo ${x:-gone}
+
+# ---------------------------------------------------------------- regular builtins
+@ cd-basic
+cd /; pwd
+@ cd-home
+HOME=/tmp; cd; pwd
+@ cd-dash
+cd /; cd /tmp; cd - >/dev/null; pwd
+@ cd-dash-prints
+cd /; cd /tmp; cd -
+@ cd-oldpwd
+cd /; cd /tmp; echo $OLDPWD
+@ cd-pwd-var
+cd /tmp; echo $PWD
+@ cd-fail
+cd /nonexistent_dir 2>/dev/null; echo $?
+@ cd-relative
+mkdir -p cdr/sub; cd cdr; cd sub; basename_dir=${PWD##*/}; echo $basename_dir
+@ cd-dotdot
+mkdir -p cdd/s; cd cdd/s; cd ..; echo ${PWD##*/}
+@ cd-P
+cd -P / && pwd
+@ cd-L
+cd -L / && pwd
+@ cd-cdpath
+mkdir -p cdp/target; CDPATH=$PWD/cdp; cd target >/dev/null; echo ${PWD##*/}
+@ cd-file
+touch cdf.f; cd cdf.f 2>/dev/null; echo $?
+@ pwd-basic
+cd /tmp; pwd
+@ pwd-P
+cd /tmp; pwd -P
+@ pwd-L
+cd /tmp; pwd -L
+@ command-v-builtin
+command -v cd
+@ command-v-external
+command -v sh >/dev/null && echo found
+@ command-v-function
+f() { :; }; command -v f
+@ command-v-missing
+command -v nosuch_cmd_v || echo notfound
+@ command-v-keyword
+command -v if
+@ command-v-path
+command -v /bin/sh >/dev/null && echo path-ok
+@ command-V-builtin
+command -V cd | grep -c cd
+@ command-V-missing
+command -V nosuch_cmd_V >/dev/null 2>&1 || echo notfound
+@ command-bypass-function
+echo() { printf 'func\n'; }; command echo real
+@ command-run-external
+command sh -c 'echo ext'
+@ command-status
+command false; echo $?
+@ command-not-found
+command nosuch_cmd_x 2>/dev/null; echo $?
+@ command-p
+PATH=/nonexistent; command -p sh -c 'echo p-ok' 2>/dev/null || echo p-failed
+@why the default PATH differs between systems; both find sh
+@out p-ok
+@ command-special-no-exit
+command eval 'if' 2>/dev/null; echo survived
+@ command-assign-not-kept
+x=out; x=in command true; echo $x
+@ echo-basic
+echo a b c
+@ echo-n
+echo -n a; echo b
+@ echo-no-args
+echo; echo end
+@ echo-dashdash
+echo -- x
+@why dash prints "-- x" (echo takes no options other than -n there)
+@ echo-n-quoted
+echo "-n" x; echo y
+@ false-status
+false; echo $?
+@ true-status
+true; echo $?
+@ getopts-basic
+set -- -a -b arg file; while getopts ab: o; do echo "$o:${OPTARG-}"; done; shift $((OPTIND-1)); echo "rest=$*"
+@ getopts-combined
+set -- -ab -c x; while getopts abc: o; do echo "$o${OPTARG:+=$OPTARG}"; done
+@ getopts-attached-arg
+set -- -cvalue; while getopts c: o; do echo "$o=$OPTARG"; done
+@ getopts-unknown
+set -- -z; getopts ab o 2>/dev/null; echo "$o $?"
+@ getopts-unknown-silent
+set -- -z; getopts :ab o; echo "$o $OPTARG"
+@ getopts-missing-arg
+set -- -b; getopts :b: o; echo "$o $OPTARG"
+@ getopts-missing-arg-loud
+set -- -b; getopts b: o 2>/dev/null; echo "$o"
+@ getopts-end
+set -- file; getopts a o; echo "$? $o $OPTIND"
+@ getopts-dashdash
+set -- -a -- -b; while getopts ab o; do echo $o; done; echo $OPTIND
+@ getopts-explicit-args
+getopts x: o -x val; echo "$o $OPTARG"
+@ getopts-optind-reset
+set -- -a; getopts a o; OPTIND=1; set -- -b; getopts b o; echo $o
+@ getopts-in-function
+f() { OPTIND=1; while getopts n: o; do echo "f:$OPTARG"; done; }; f -n 1; f -n 2
+@ getopts-status-at-end
+set --; getopts a o; echo $?
+@ kill-zero
+kill -0 $$; echo $?
+@ kill-l
+kill -l 9
+@ kill-l-name
+kill -l 15
+@ kill-names
+sleep 5 & p=$!; kill -TERM $p; wait $p; echo $?
+@ kill-s
+sleep 5 & p=$!; kill -s KILL $p; wait $p; echo $?
+@ kill-number
+sleep 5 & p=$!; kill -9 $p; wait $p; echo $?
+@ kill-default-term
+sleep 5 & p=$!; kill $p; wait $p; echo $?
+@ kill-bad-pid
+kill 99999 2>/dev/null; echo $?
+@ kill-job
+sleep 5 & kill %1 2>/dev/null; wait; echo done
+@ local-basic
+f() { local x=1; echo $x; }; x=0; f; echo $x
+@ printf-s
+printf '%s\n' hello
+@ printf-reuse
+printf '%s-' a b c; echo
+@ printf-d
+printf '%d %i\n' 42 -7
+@ printf-o-x
+printf '%o %x %X\n' 8 255 255
+@ printf-u
+printf '%u\n' 3
+@ printf-c
+printf '%c%c\n' abc d
+@ printf-width
+printf '[%5s][%-5s]\n' ab cd
+@ printf-precision
+printf '[%.2s]\n' abcdef
+@ printf-zero-pad
+printf '%05d\n' 42
+@ printf-plus-space
+printf '%+d % d\n' 5 5
+@ printf-hash
+printf '%#o %#x\n' 8 255
+@ printf-star-width
+printf '[%*d]\n' 5 42
+@ printf-star-precision
+printf '[%.*s]\n' 2 abcdef
+@ printf-missing-args
+printf '%s|%d|\n'
+@ printf-percent
+printf '100%%\n'
+@ printf-escapes
+printf 'a\tb\\c\n'
+@ printf-octal-escape
+printf '\101\102\n'
+@ printf-b
+printf '%b\n' 'x\ty'
+@ printf-b-octal
+printf '%b\n' '\0101'
+@ printf-b-c
+printf '%b' 'ab\cdef'; echo
+@ printf-no-newline
+printf abc; echo
+@ printf-char-arg
+printf '%d\n' "'A"
+@ printf-invalid-number
+printf '%d\n' abc 2>/dev/null; echo $?
+@ printf-partial-number
+printf '%d\n' 12abc 2>/dev/null; echo $?
+@ printf-float
+printf '%.2f\n' 3.14159
+@ printf-e
+printf '%e\n' 1234.5
+@ printf-g
+printf '%g %g\n' 0.0001 1000000
+@ printf-hex-input
+printf '%d\n' 0x10
+@ printf-negative
+printf '%d\n' -0
+@ printf-dashdash
+printf -- '%s\n' x
+@ printf-format-only-args-extra
+printf 'x\n' a b
+@ printf-long-string
+printf '%s\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+@ pwd-builtin
+cd /; pwd
+@ read-basic
+echo 'a b c' | { read x y; echo "$x|$y"; }
+@ read-reply
+echo 'line here' | { read; echo "$REPLY"; }
+@ read-backslash
+printf 'a\\b\n' | { read x; echo "$x"; }
+@ read-r
+printf 'a\\b\n' | { read -r x; echo "$x"; }
+@ read-continuation
+printf 'a\\\nb\n' | { read x; echo "$x"; }
+@ read-eof-status
+printf 'noeol' | { read x; echo "$? $x"; }
+@ read-empty-status
+{ read x; echo $?; } < /dev/null
+@ read-leading-ws
+printf '   lead  \n' | { read x; echo "[$x]"; }
+@ read-ifs
+echo 'a:b:c' | { IFS=: read x y; echo "$x|$y"; }
+@ read-more-vars
+echo 'one' | { read x y z; echo "[$x][$y][$z]"; }
+@ read-loop
+printf '1\n2\n3\n' | { s=0; while read n; do s=$((s+n)); done; echo $s; }
+@ read-p
+echo val | { read -p 'prompt> ' x 2>/dev/null; echo "$x"; }
+@ read-ifs-empty
+printf '  ab  \n' | { IFS= read -r x; echo "[$x]"; }
+@ read-from-file
+echo filed > rff.f; read x < rff.f; echo $x
+@ read-tab-sep
+printf 'a\tb\n' | { read x y; echo "$y"; }
+@ test-string-eq
+test a = a; echo $?; test a = b; echo $?
+@ test-string-ne
+[ a != b ]; echo $?
+@ test-z-n
+[ -z "" ]; echo $?; [ -n "" ]; echo $?; [ -n x ]; echo $?
+@ test-one-arg
+[ x ]; echo $?; [ "" ]; echo $?
+@ test-no-args
+[ ]; echo $?
+@ test-num
+[ 1 -eq 1 ]; echo $?; [ 1 -ne 1 ]; echo $?; [ 1 -lt 2 ]; echo $?; [ 2 -le 1 ]; echo $?; [ 3 -gt 2 ]; echo $?; [ 3 -ge 4 ]; echo $?
+@ test-num-negative
+[ -5 -lt 0 ]; echo $?
+@ test-num-bad
+[ a -eq 1 ] 2>/dev/null; echo $?
+@ test-not
+[ ! a = b ]; echo $?
+@ test-and-or
+[ a = a -a b = b ]; echo $?; [ a = b -o b = b ]; echo $?
+@ test-parens
+[ \( a = a \) ]; echo $?
+@ test-file-e
+touch tfe.f; [ -e tfe.f ]; echo $?; [ -e tnope ]; echo $?
+@ test-file-f-d
+touch tfd.f; [ -f tfd.f ]; echo $?; [ -d tfd.f ]; echo $?; [ -d / ]; echo $?
+@ test-file-s
+: > tfs0.f; echo x > tfs1.f; [ -s tfs0.f ]; echo $?; [ -s tfs1.f ]; echo $?
+@ test-file-r-w
+touch trw.f; [ -r trw.f ]; echo $?; [ -w trw.f ]; echo $?
+@ test-file-x-dir
+[ -x / ]; echo $?
+@ test-file-c
+[ -c /dev/null ]; echo $?
+@ test-file-L
+touch tl.f; [ -L tl.f ]; echo $?; [ -h tl.f ]; echo $?
+@ test-nt-ot
+touch tnt1.f; sleep 1; touch tnt2.f; [ tnt2.f -nt tnt1.f ]; echo $?; [ tnt1.f -ot tnt2.f ]; echo $?
+@ test-t
+[ -t 0 ]; echo $?
+@ test-bracket-missing
+[ a = a 2>/dev/null; echo $?
+@ test-string-looks-like-op
+[ = ]; echo $?; [ -n = ]; echo $?
+@ test-two-args-not
+[ ! "" ]; echo $?; [ ! x ]; echo $?
+@ test-three-args-paren
+[ \( x \) ]; echo $?
+@ test-four-args-not
+[ ! a = b ]; echo $?
+@ test-string-lt
+[ a \< b ]; echo $?
+@ test-builtin
+type test | grep -c builtin
+@ type-builtin
+type cd >/dev/null; echo $?
+@ type-missing
+type nosuch_t >/dev/null 2>&1 || echo notfound
+@ type-function
+f() { :; }; type f | head -n 1 | grep -c function
+@ type-external
+type sh | grep -c 'sh is /'
+@ type-keyword
+type if | grep -c keyword
+@ umask-print
+umask 022; umask
+@ umask-set
+umask 077; umask
+@ umask-symbolic
+umask 022; umask -S
+@ umask-symbolic-set
+umask u=rwx,g=rx,o=; umask
+@ umask-effect
+umask 077; : > um.f; ls -l um.f | grep -c '^-rw-------'
+@why ls -l output differs; the check is the mode bits of a new file
+@out 1
+@ alias-define-use
+alias hi='echo alias-hi'
+hi
+@ alias-print
+alias ap='echo x'; alias ap
+@ alias-unalias
+alias ua='echo x'; unalias ua; alias ua 2>/dev/null; echo $?
+@ alias-unalias-a
+alias u1=x u2=y; unalias -a; alias
+@ alias-not-same-line
+alias zzsl1='echo same'; zzsl1 2>/dev/null; echo $?
+@why aliases defined on the same line are not used on that line: 127
+@ alias-trailing-space
+alias tr1='echo ' w2='word'
+tr1 w2
+@ wait-all
+sleep 0 & sleep 0 & wait; echo $?
+@ wait-pid
+sh -c 'exit 5' & wait $!; echo $?
+@ wait-no-jobs
+wait; echo $?
+
+# ---------------------------------------------------------------- shell invocation
+@ inv-c-args
+sh -c 'echo $0 $1 $2' zero one two
+@ inv-c-no-name
+sh -c 'echo $#'
+@ inv-e
+sh -e -c 'false; echo no'; echo $?
+@ inv-ec
+sh -ec 'echo a; false; echo b'; echo $?
+@ inv-ce
+sh -ce 'echo a; false; echo b'; echo $?
+@ inv-x
+sh -xc 'echo x' 2>&1
+@ inv-u
+sh -uc 'echo $nope_inv' 2>/dev/null; [ $? -ne 0 ] && echo failed
+@ inv-f
+mkdir -p invf; touch invf/a; sh -fc 'echo invf/*'
+@ inv-plus-option
+sh +e -c 'false; echo plus'
+@ inv-o
+sh -o errexit -c 'false; echo no'; echo $?
+@ inv-s
+echo 'echo from-stdin $1' | sh -s arg1
+@ inv-script-args
+printf 'echo $0 $# $1\n' > inv1.sh; sh inv1.sh a b
+@ inv-script-status
+printf 'exit 4\n' > inv2.sh; sh inv2.sh; echo $?
+@ inv-n-syntax-ok
+printf 'echo hi\n' > inv3.sh; sh -n inv3.sh; echo $?
+@ inv-n-syntax-bad
+printf 'if then\n' > inv4.sh; sh -n inv4.sh 2>/dev/null; echo $?
+@ inv-dashdash
+sh -c 'echo $1' -- x
+@why the first argument after the command string is $0
+@ inv-stdin-script
+printf 'echo piped\nexit 3\n' | sh; echo $?
+@ inv-missing-script
+sh ./nonexistent_script 2>/dev/null; echo $?
+@ inv-dash-only
+echo 'echo dash-alone' | sh -; echo $?
+@ inv-v
+sh -vc 'echo v' 2>/dev/null
+@ inv-syntax-error-status
+sh -c 'if' 2>/dev/null; echo $?
+@ inv-a
+sh -ac 'AV=1; sh -c "echo \$AV"'
+@ inv-script-nested-exit
+printf 'f() { exit 3; }\nf\necho no\n' > inv5.sh; sh inv5.sh; echo $?
+
+# ---------------------------------------------------------------- miscellaneous grammar
+@ gram-semicolon-newline
+echo a;
+echo b
+@ gram-comment-line
+# whole line comment
+echo after
+@ gram-keyword-as-arg
+echo if then else fi do done case esac
+@ gram-reserved-after-semicolon
+true; if true; then echo k; fi
+@ gram-bang-as-arg
+echo !
+@ gram-braces-as-args
+echo { }
+@ gram-nested-loops
+for i in 1 2; do for j in a b; do printf "%s%s " $i $j; done; done; echo
+@ gram-long-and-or
+true && true && false || true && echo end
+@ gram-assignment-looks-like-cmd
+a=b=c; echo $a
+@ gram-word-equals-not-assign
+echo a=b
+@ gram-quoted-assign-not-assign
+'x=1' 2>/dev/null; echo $?
+@ gram-dollar-in-word-middle
+x=v; echo pre${x}post pre$x
+@ gram-empty-command-line
+;
+@why ";" alone is a syntax error: status 2 and nothing printed
+@status 2
+@ gram-unterminated-quote
+echo 'abc
+@why unterminated quote: syntax error, status 2
+@status 2
+@ gram-function-body-group-newline
+f()
+{
+echo nlbody
+}
+f
+@ gram-case-in-subst-paren
+x=$(case y in y) echo cy;; esac); echo $x
+@ gram-while-with-pipe-cond
+i=0; while echo $i | grep -q 0; do i=1; echo looped; done
+@ gram-if-pipeline-cond
+if echo abc | grep -q b; then echo found; fi
+@ gram-time-not-required
+echo nothing
+@ gram-redirect-only-line
+> grol.f; [ -f grol.f ] && echo created
+@ gram-many-semicolons
+echo a ; ; echo b
+@why ";;" outside case is a syntax error: status 2 and nothing printed
+@status 2
+@ gram-backslash-at-eof
+echo end\
+@ gram-tab-separator
+echo	tabbed	words
+@ gram-nested-quotes-subst
+echo "$(echo "$(echo 'deep')")"
+@ gram-arith-in-for
+for i in $((1+1)) $((2+2)); do echo $i; done
+@ gram-function-and-call-same-line
+f() { echo same; }; f; f
+@ gram-cmd-after-done
+for i in 1; do echo $i; done; echo after
+@ gram-paren-subshell-no-space
+(echo nospace)
+@ gram-double-paren-subshells
+( (echo inner) )
+
+# ---------------------------------------------------------------- more, for the pieces added with them
+@ more-pipefail
+set -o pipefail; false | true; echo $?; true | true; echo $?
+@ more-star-unquoted-ifs
+IFS=:; set -- 'a b' c; for i in $*; do echo "<$i>"; done
+@ more-at-unquoted-ifs-empty
+IFS=; set -- 'a b' c; for i in $@; do echo "<$i>"; done
+@ more-at-unquoted-empty-arg
+set -- a '' b; for i in $@; do echo "<$i>"; done
+@ more-lineno-function
+f() {
+  echo $LINENO
+}
+f
+@ more-set-e-subst
+x=$(set -e; false; echo no); echo "[$x]"
+@ more-set-e-bang-group
+set -e; ! { false; echo inside; }; echo after
+@ more-kill-l-status
+kill -l 143
+@ more-printf-e-width
+printf '[%10.2e]\n' 31415.9
+@ more-subshell-readonly
+(readonly RS1=1; echo $RS1); RS1=2; echo $RS1
+@ more-subshell-function-redefine
+f() { echo outer; }; (f() { echo inner; }; f); f
+@ more-subshell-alias
+alias aa1='echo outer'
+(alias aa1='echo inner')
+aa1
+@ more-pipe-first-stage-cd
+cd /; cd /tmp | true; pwd
+@ more-pipe-last-stage-cd
+cd /; true | cd /tmp; pwd
+@why POSIX allows either; dash runs the last stage in a subshell and stays in /
+@out /
+@ more-pipe-last-stage-exit
+echo | exit 3; echo after $?
+@why POSIX allows either; dash runs the last stage in a subshell, so the shell goes on
+@out after 3
+@ more-exec-in-function-redirect
+f() { exec 3>mef.f; }; f; echo kept >&3; exec 3>&-; cat mef.f
+@ more-wait-reaped-status
+sh -c 'exit 7' & p=$!; sleep 1; wait $p; echo $?
+@ more-getopts-optarg-unset
+set -- -a; OPTARG=old; getopts a o; echo "[${OPTARG-unset}]"
+@ more-read-ifs-two-vars
+printf 'a:b:c\n' | { IFS=: read -r x y; echo "$x|$y"; }
+@ more-eval-keeps-status
+false; eval 'echo $?'
+@ more-command-special-assign
+x=out; x=in command :; echo $x
+@ more-export-p-unset
+export MEP1; export -p | grep -c 'MEP1$'
+@ more-unset-function-fallback
+f() { :; }; unset f; type f >/dev/null 2>&1 || echo gone
+@ more-noclobber-new-file
+set -C; echo new > mnn.f && cat mnn.f
+@ more-set-dash-x-off
+set -x; set -; case $- in *x*) echo still;; *) echo off;; esac
+@ more-heredoc-fd-closed-after
+cat <<EOF >/dev/null
+x
+EOF
+echo after
+@ more-shift-function-args
+f() { shift 2; echo "$*"; }; f a b c d
+@ more-trap-in-function
+f() { trap 'echo f-exit' EXIT; }; f; echo main
+@ more-trap-subst-prints-parent
+trap 'echo x' EXIT; t=$(trap); echo "$t"; trap - EXIT
+@ more-case-class
+case x1 in [[:alpha:]][[:digit:]]) echo ad;; esac
+@ more-cd-dash-twice
+cd /; cd /tmp; cd - >/dev/null; cd - >/dev/null; pwd
+@ more-local-in-subst
+f() { local v=in; echo $(echo $v); }; f
+
+# ---------------------------------------------------------------- the make survey (62 of its 63 cases; tr-sed needs tr)
+# from the make stream's rootfs/usr/share/tests/make/shell-survey.sh, made independent of each other
+@ make-and-or
+true && echo a; false && echo b; false || echo c
+@ make-semicolons
+echo 1; echo 2
+@ make-subshell
+(cd /; echo in); echo out
+@ make-subshell-cd
+cd /; (cd /tmp); pwd
+@ make-group
+{ echo g; }
+@ make-cmd-subst
+echo $(echo x) `echo y`
+@ make-nested-subst
+echo $(echo a$(echo b)c)
+@ make-for-loop
+for i in 1 2 3; do printf "%s " $i; done; echo
+@ make-for-glob
+mkdir -p sv; touch sv/a.c sv/b.c; for f in sv/*.c; do :; done; echo ok
+@ make-while-loop
+i=0; while [ $i -lt 3 ]; do i=$((i+1)); done; echo $i
+@ make-if-test
+if [ -d / ]; then echo yes; else echo no; fi
+@ make-test-builtin
+test -f /bin/sh && echo 1
+@ make-test-string
+[ "a" = "a" ] && echo eq
+@ make-test-not
+[ ! -f /nope ] && echo not
+@ make-test-z-n
+[ -z "" ] && [ -n x ] && echo zn
+@ make-case
+case x.c in *.c) echo c-file;; *) echo other;; esac
+@ make-heredoc
+cat <<EOF
+line1
+EOF
+@ make-heredoc-var
+v=5; cat <<EOF
+v=$v
+EOF
+@ make-heredoc-quoted
+cat <<"EOF"
+v=$v
+EOF
+@ make-set-e
+set -e; echo a; false; echo b
+@ make-set-x
+set -x; echo x 2>/dev/null
+@ make-redirect-out
+mkdir -p sv; echo hi > sv/r; cat sv/r
+@ make-redirect-append
+mkdir -p sv; echo 1 > sv/a; echo 2 >> sv/a; echo $(cat sv/a)
+@ make-redirect-err
+ls /nope 2>/dev/null || :
+@ make-redirect-both
+sh -c "echo e >&2" 2>&1
+@ make-redirect-in
+mkdir -p sv; echo hi > sv/r; cat < sv/r
+@ make-pipe
+printf "a\nb\nc\n" | tail -1
+@ make-pipe-status
+true | false; echo $?
+@ make-glob
+mkdir -p sv; touch sv/a.c sv/b.c; echo sv/*.c
+@ make-glob-nomatch
+mkdir -p sv; echo sv/*.zz
+@ make-dollar-var
+x=5; echo $x
+@ make-braces
+x=5; echo ${x}x
+@ make-default
+echo ${nope:-d}
+@ make-strip-suffix
+f=file.c; echo ${f%.c}
+@ make-arith
+echo $((3 + 4))
+@ make-exit-status
+sh -c "exit 3"; echo $?
+@ make-export-env
+export V=v; sh -c "echo \$V"
+@ make-assign-prefix
+W=w sh -c "echo \$W"
+@ make-cd-and
+cd / && pwd
+@ make-mkdir-p-and
+mkdir -p sv/x/y && echo ok
+@ make-test-newer
+mkdir -p sv; touch sv/old; sleep 1; touch sv/new; [ sv/new -nt sv/old ] && echo newer
+@ make-command-v
+command -v sh >/dev/null && echo found
+@ make-printf-format
+printf "%s-%02d\n" a 1
+@ make-echo-n
+echo -n a; echo b
+@ make-backslash-newline
+echo a \
+b
+@ make-single-quote-nl
+echo 'a\
+b'
+@ make-trap
+trap "echo bye" EXIT; true
+@ make-shift-args
+set -- a b; shift; echo $1
+@ make-dollar-hash
+set -- a b; echo $#
+@ make-functions
+f() { echo f$1; }; f 1
+@ make-exec
+exec echo e
+@ make-colon
+: && echo ok
+@ make-not-pipeline
+! false; echo $?
+@ make-or-group
+false || { echo b; }
+@ make-read
+echo x | { read v; echo $v; }
+@ make-eval
+eval "x=v"; echo $x
+@ make-dollar-dollar
+p=$$; [ -n "$p" ] && echo ok
+@ make-unset
+x=1; unset x; echo "[$x]"
+@ make-rm-f-missing
+mkdir -p sv; rm -f sv/none; echo $?
+@ make-cp-r
+mkdir -p sv; touch sv/a.c; cp -r sv sv2 && echo ok
+@ make-test-e
+[ -e /bin ] && echo e
+@ make-multiline-if
+if true
+then echo y
+fi
+
+# ---------------------------------------------------------------- added after review
+@ fix-status-in-assignment
+false
+v=$?
+echo v=$v
+@ fix-status-subshell-redirect-function
+f() {
+:
+printf 'x\n' > fsr.f
+}
+( f
+echo abc | nosuch_cmd_q
+) > fsr.out 2> fsr.err
+st=$?
+echo "st=$st"
+@ fix-dot-path-only
+echo 'echo in-cwd' > fdp.sh; PATH=/nonexistent_dir; (. fdp.sh) 2>/dev/null || echo not-found
+@ fix-dot-path-found
+mkdir -p fdpp; echo 'echo via-path' > fdpp/fdp2.sh; PATH="$PWD/fdpp:$PATH"; . fdp2.sh

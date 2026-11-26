@@ -1,0 +1,65 @@
+{"cmd":"od h","out":"0000000 062510 066154 026157 073440 071157 062154 005041\n0000016\n","status":0,"err":false}
+{"cmd":"od -c h","out":"0000000   H   e   l   l   o   ,       w   o   r   l   d   !  \\n\n0000016\n","status":0,"err":false}
+{"cmd":"od -b h","out":"0000000 110 145 154 154 157 054 040 167 157 162 154 144 041 012\n0000016\n","status":0,"err":false}
+{"cmd":"od -d h","out":"0000000 25928 27756 11375 30496 29295 25708  2593\n0000016\n","status":0,"err":false}
+{"cmd":"od -o h","out":"0000000 062510 066154 026157 073440 071157 062154 005041\n0000016\n","status":0,"err":false}
+{"cmd":"od -s h","out":"0000000  25928  27756  11375  30496  29295  25708   2593\n0000016\n","status":0,"err":false}
+{"cmd":"od -x h","out":"0000000 6548 6c6c 2c6f 7720 726f 646c 0a21\n0000016\n","status":0,"err":false}
+{"cmd":"od -i h","out":"0000000  1819043144  1998597231  1684828783        2593\n0000016\n","status":0,"err":false}
+{"cmd":"od -a bin","out":"0000000 nul soh stx etx del nul   ~ del\n0000010\n","status":0,"err":false}
+{"cmd":"od -c bin","out":"0000000  \\0 001 002 003 177 200 376 377\n0000010\n","status":0,"err":false}
+{"cmd":"od -An -tx1 h","out":" 48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21 0a\n","status":0,"err":false}
+{"cmd":"od -An -tx1 bin","out":" 00 01 02 03 7f 80 fe ff\n","status":0,"err":false}
+{"cmd":"od -t x1 h","out":"0000000 48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21 0a\n0000016\n","status":0,"err":false}
+{"cmd":"od -t x2 h","out":"0000000 6548 6c6c 2c6f 7720 726f 646c 0a21\n0000016\n","status":0,"err":false}
+{"cmd":"od -t x4 h","out":"0000000 6c6c6548 77202c6f 646c726f 00000a21\n0000016\n","status":0,"err":false}
+{"cmd":"od -t x8 h","out":"0000000 77202c6f6c6c6548 00000a21646c726f\n0000016\n","status":0,"err":false}
+{"cmd":"od -t d1 bin","out":"0000000    0    1    2    3  127 -128   -2   -1\n0000010\n","status":0,"err":false}
+{"cmd":"od -t d2 bin","out":"0000000    256    770 -32641     -2\n0000010\n","status":0,"err":false}
+{"cmd":"od -t d4 bin","out":"0000000    50462976      -98177\n0000010\n","status":0,"err":false}
+{"cmd":"od -t d8 bin","out":"0000000     -421666953756416\n0000010\n","status":0,"err":false}
+{"cmd":"od -t u1 bin","out":"0000000   0   1   2   3 127 128 254 255\n0000010\n","status":0,"err":false}
+{"cmd":"od -t u2 bin","out":"0000000   256   770 32895 65534\n0000010\n","status":0,"err":false}
+{"cmd":"od -t u4 bin","out":"0000000   50462976 4294869119\n0000010\n","status":0,"err":false}
+{"cmd":"od -t o1 bin","out":"0000000 000 001 002 003 177 200 376 377\n0000010\n","status":0,"err":false}
+{"cmd":"od -t o4 bin","out":"0000000 00300400400 37777500177\n0000010\n","status":0,"err":false}
+{"cmd":"od -t xC h","out":"0000000 48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21 0a\n0000016\n","status":0,"err":false}
+{"cmd":"od -t xS h","out":"0000000 6548 6c6c 2c6f 7720 726f 646c 0a21\n0000016\n","status":0,"err":false}
+{"cmd":"od -t dI bin","out":"0000000    50462976      -98177\n0000010\n","status":0,"err":false}
+{"cmd":"od -t x1 -t c h","out":"0000000  48  65  6c  6c  6f  2c  20  77  6f  72  6c  64  21  0a\n          H   e   l   l   o   ,       w   o   r   l   d   !  \\n\n0000016\n","status":0,"err":false}
+{"cmd":"od -t x2 -t d1 h","out":"0000000      6548      6c6c      2c6f      7720      726f      646c      0a21\n          72  101  108  108  111   44   32  119  111  114  108  100   33   10\n0000016\n","status":0,"err":false}
+{"cmd":"od -t c -t x1 -t o1 bin","out":"0000000  \\0 001 002 003 177 200 376 377\n         00  01  02  03  7f  80  fe  ff\n        000 001 002 003 177 200 376 377\n0000010\n","status":0,"err":false}
+{"cmd":"od -tx1z h","out":"0000000 48 65 6c 6c 6f 2c 20 77 6f 72 6c 64 21 0a        >Hello, world!.<\n0000016\n","status":0,"err":false}
+{"cmd":"od -A d h","out":"0000000 062510 066154 026157 073440 071157 062154 005041\n0000014\n","status":0,"err":false}
+{"cmd":"od -A x h","out":"000000 062510 066154 026157 073440 071157 062154 005041\n00000e\n","status":0,"err":false}
+{"cmd":"od -A n h","out":" 062510 066154 026157 073440 071157 062154 005041\n","status":0,"err":false}
+{"cmd":"od -A x -t x1 rep","out":"000000 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61\n*\n000030 61 61 61 61 62\n000035\n","status":0,"err":false}
+{"cmd":"od -v -A x -t x1 rep","out":"000000 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61\n000010 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61\n000020 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61 61\n000030 61 61 61 61 62\n000035\n","status":0,"err":false}
+{"cmd":"od -c rep","out":"0000000   a   a   a   a   a   a   a   a   a   a   a   a   a   a   a   a\n*\n0000060   a   a   a   a   b\n0000065\n","status":0,"err":false}
+{"cmd":"od -w8 -c h","out":"0000000   H   e   l   l   o   ,       w\n0000010   o   r   l   d   !  \\n\n0000016\n","status":0,"err":false}
+{"cmd":"od -w4 -t x1 h","out":"0000000 48 65 6c 6c\n0000004 6f 2c 20 77\n0000010 6f 72 6c 64\n0000014 21 0a\n0000016\n","status":0,"err":false}
+{"cmd":"od -w h","out":"0000000 062510 066154 026157 073440 071157 062154 005041\n0000016\n","status":0,"err":false}
+{"cmd":"od -j 7 -c h","out":"0000007   w   o   r   l   d   !  \\n\n0000016\n","status":0,"err":false}
+{"cmd":"od -N 5 -c h","out":"0000000   H   e   l   l   o\n0000005\n","status":0,"err":false}
+{"cmd":"od -j 2 -N 3 -t x1 h","out":"0000002 6c 6c 6f\n0000005\n","status":0,"err":false}
+{"cmd":"od -j 100 h; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"od odd","out":"0000000 061141 000143\n0000003\n","status":0,"err":false}
+{"cmd":"od -t d2 odd","out":"0000000  25185     99\n0000003\n","status":0,"err":false}
+{"cmd":"od -t x4 odd","out":"0000000 00636261\n0000003\n","status":0,"err":false}
+{"cmd":"od empty","out":"0000000\n","status":0,"err":false}
+{"cmd":"od -c empty","out":"0000000\n","status":0,"err":false}
+{"cmd":"od -c h odd","out":"0000000   H   e   l   l   o   ,       w   o   r   l   d   !  \\n   a   b\n0000020   c\n0000021\n","status":0,"err":false}
+{"cmd":"od -c - < odd","out":"0000000   a   b   c\n0000003\n","status":0,"err":false}
+{"cmd":"od -An -c < h","out":"   H   e   l   l   o   ,       w   o   r   l   d   !  \\n\n","status":0,"err":false}
+{"cmd":"od h missing; echo \"st=$?\"","out":"0000000 062510 066154 026157 073440 071157 062154 005041\n0000016\nst=1\n","status":0,"err":true}
+{"cmd":"od -t q h; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"od -t x3 h; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"od -A z h; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"od -w3 -t x2 h; echo \"st=$?\"","out":"0000000 6548\n0000002 6c6c\n0000004 2c6f\n0000006 7720\n0000010 726f\n0000012 646c\n0000014 0a21\n0000016\nst=0\n","status":0,"err":true}
+{"cmd":"od -Q h; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"od -t f4 h; echo \"st=$?\"","out":"0000000   1.1431391e+27    3.248706e+33    1.744671e+22       3.634e-42\n0000016\nst=0\n","status":0,"err":false}
+{"cmd":"printf '\\000\\000\\200\\077\\000\\000\\000\\000\\000\\000\\360\\077' | od -t f4 -t f8","out":"0000000               1               0           1.875\n                       5.263544247e-315                5.299808824e-315\n0000014\n","status":0,"err":false}
+{"cmd":"od -t fD -t x1 h","out":"0000000   6.518868500364789e+265      5.503167501994e-311\n         48 65 6c 6c 6f 2c 20 77  6f 72 6c 64 21 0a\n0000016\n","status":0,"err":false}
+{"cmd":"seq 1 300 | od -c | tail -3","out":"0002060   2   9   6  \\n   2   9   7  \\n   2   9   8  \\n   2   9   9  \\n\n0002100   3   0   0  \\n\n0002104\n","status":0,"err":false}
+{"cmd":"od -j 0x4 -N 010 -c h","out":"0000004   o   ,       w   o   r   l   d\n0000014\n","status":0,"err":false}
+{"cmd":"od --format=x1 --address-radix=d --read-bytes=4 h","out":"0000000 48 65 6c 6c\n0000004\n","status":0,"err":false}

@@ -6,7 +6,7 @@ How the system works, layer by layer. Everything here describes the code as it i
 Contents: 1 the big picture, 2 the host, 3 the system call path, 4 blocking and
 scheduling, 5 processes, 6 memory, 7 files and devices, 8 terminals, 9 sockets,
 10 screen and input, 11 the desktop stack, 12 the C library, 13 the toolchain,
-14 limits and what does not exist, 15 networking.
+14 limits and what does not exist, 15 sound, 16 networking.
 
 ## 1. The big picture
 
@@ -63,6 +63,9 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `random()` | 32 random bits |
    | `memory()` | bytes of memory the device reports (default 4 GiB) |
    | `fb_dirty()` | the framebuffer was written since the host last took the damage box (`fb_damage`); show it on the next animation frame. Called once per frame, not per write |
+   | `fetch(id, url, url_len, dst, size, gz)` | fetch a remote file (section 7) straight into the kernel buffer at `dst`, chunk by chunk through the kernel exports `remote_data(id, len)` and `remote_end(id, ok)`; never called back from inside the import (`queueMicrotask`). It uses the `remote(url)` option of `boot()` |
+   | `audio_rate audio_open audio_write audio_close audio_volume audio_reset` | the host half of `/dev/dsp` (`boot/audio.mjs`): samples go to the mixer on the browser's audio thread, or to a real-time stand-in under Node. See section 15 |
+   | `pointer_lock(on)` | the window manager captured (1) or released (0) the mouse (`EVIOCGRAB`); the page locks or unlocks the browser's pointer (section 10) |
    | `timer(ms)` | call the kernel export `timer_fire` in ms milliseconds (0: on the next turn of the event loop; below 0: cancel). One timeout at a time; each call replaces the last |
    | `hn_caps hn_open hn_send hn_done hn_more hn_close` | the host half of `/dev/hostnet` (`boot/hostnet.mjs`): DNS, HTTP through `fetch()`, and under Node real TCP. See NETWORKING.md |
 
@@ -74,12 +77,18 @@ Kernel command line: `init=/path/to/program -- arg1 arg2`. Default init is `/bin
 
 Kernel exports the host uses: `kmain boot_alloc syscall_pid proc_attach proc_state
 proc_crashed proc_account proc_resumed block_timeout console_input input_event fb_resize
-fb_addr fb_damage fb_width fb_height timer_fire hn_alloc hn_push hn_end memory __indirect_function_table`. (`set_current` still exists and is
+fb_addr fb_damage fb_width fb_height audio_played audio_underrun remote_data remote_end
+remote_buf remote_scratch import_begin timer_fire hn_alloc hn_push hn_end memory
+__indirect_function_table`. (`set_current` still exists and is
 harmless; the kernel no longer depends on it.)
 
 The object `boot()` returns: `k` (kernel exports), `memory`, `procs`, `frame()`,
 `damage()` (the rectangle written since the last call), `resize(w, h)`,
-`input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`.
+`input(type, code, value)`, `consoleInput(str)`, `consoleEOF()`, `importFile(path, blob)`
+(puts a file from the user's computer into the file system). `boot()` takes a `remote(url)`
+option, a function returning a Promise of a fetch Response: the page passes `fetch` relative
+to its own folder, the Node tools pass `tools/remote-node.mjs`, which reads the build
+directory.
 
 The host import `now` is `performance.now.bind(performance)`, not an arrow function:
 Chromium calls a bound function from wasm about 2.5 times faster (PERFORMANCE.md).
@@ -274,8 +283,10 @@ The host tells the kernel how long a process ran each time it parks
   kfree`. wasm memory never shrinks.
 - Each process has its own linear memory, exported as `memory`. Its `malloc`
   (`libc/src/malloc.c`) is the same allocator and grows its own memory with no system
-  call. The program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack
-  overflow traps instead of corrupting data.
+  call. A request above 0x7fffffff bytes (PTRDIFF_MAX, glibc's limit too), a `calloc` whose
+  product does not fit, or memory that cannot grow, returns NULL with `errno` ENOMEM. The
+  program stack is 1 MiB, placed first in memory (`--stack-first`), so a stack overflow
+  traps instead of corrupting data.
 - **User memory access.** The kernel cannot address another instance's memory directly.
   Per process, the host instantiates `SHIM`, a module that imports two memories (kernel
   `k`, process `p`) and exports `i(kdst, usrc, len)`, `o(udst, ksrc, len)` and `s()`
@@ -336,6 +347,20 @@ The host tells the kernel how long a process ran each time it parks
 | `/dev/input/event0` | keyboard and pointer (section 10) |
 | `/tmp`, `/run`, `/proc` | empty directories created at boot; `/proc` has nothing in it |
 
+**Remote files** (`kernel/remote.c`). Large files the image does not carry (Doom's game
+data) are listed in `/etc/remote-files`, one per line: `PATH SIZE SHA256 URL [gz]`, read
+at boot after the initrd. Such a file shows in `ls` and `stat` with its real size and
+`st_blocks` 0 until it arrives. The first `open` asks the host to fetch it (once: other
+processes opening it wait for the same fetch; with `O_NONBLOCK` the open starts the fetch
+and returns `EAGAIN` until it is done, and `st_blocks` shows the bytes received). The
+kernel computes the SHA-256 as the bytes arrive, in its own C code, and refuses a wrong
+size or hash. A failed fetch (offline, HTTP error, wrong size or hash) gives `EIO` once to
+each waiting process; the file stays as it was and the next open tries again. Opening it
+with `O_TRUNC` for writing skips the fetch. Once fetched it is an ordinary file. A file
+nobody opens is never fetched. With `gz` in the line the host tries `URL.gz` first and
+unpacks it with the browser's `DecompressionStream`. Files from the user's computer arrive
+through the same records (`import_begin`, section 10). Up to 32 records at a time.
+
 `sysinfo`: `totalram` = what the device reports, capped at 4 GiB; `freeram` = that minus
 everything the kernel and all processes have claimed; `bufferram` = kernel heap in use.
 
@@ -375,7 +400,7 @@ socket are `write` and `read`; `accept` reports the peer as an unnamed `AF_UNIX`
 
 `AF_INET` and `AF_PACKET` sockets go to `kernel/inet.c`: `sys_socket`, `sys_bind`,
 `sys_listen`, `sys_connect` and `sys_accept` hand over any descriptor that is not a unix
-socket. See section 15.
+socket. See section 16.
 
 ## 10. Screen and input (`kernel/fb.c`, `boot/page.mjs`, `boot/keys.mjs`)
 
@@ -390,6 +415,12 @@ sizes the framebuffer to the window times the device pixel ratio (capped at 2; `
 forces 1). `lseek` works on `/dev/fb0` (`SEEK_END` counts from 0, because the device node
 has no size).
 
+**Files from the user's computer.** A file dropped on the page, or picked with the
+browser's file picker opened by Ctrl+Alt+O, is copied into `/home/user/Downloads/NAME`
+(the directory is made on first use; a second file with the same name replaces the
+first). At most 256 MiB. Nothing leaves the browser. A short note at the bottom of the
+page says what happened.
+
 **Input.** `/dev/input/event0` delivers Linux evdev records
 `{ s64 sec; s64 usec; u16 type; u16 code; s32 value; }` (24 bytes):
 
@@ -399,10 +430,24 @@ has no size).
 | ...that typed a character | followed by `(EV_MSC=4, 0x10, Unicode code point)`: the browser already applied the keyboard layout |
 | key release | `(EV_KEY, code, 0)` |
 | pointer | `(EV_ABS=3, 0, x)`, `(EV_ABS, 1, y)` in framebuffer pixels |
+| pointer, while captured | `(EV_REL=2, 0, dx)`, `(EV_REL, 1, dy)`: how far it moved, in framebuffer pixels |
 | buttons | `EV_KEY` with `0x110` left, `0x111` right, `0x112` middle |
 | wheel | `(EV_REL=2, 8, +1 or -1)` |
 | screen resized | `(EV_MSC, 0x11, (w << 16) | h)` |
 | end of a batch | `(EV_SYN=0, 0, 0)` |
+
+**Mouse capture.** `ioctl(EVIOCGRAB, 1)` on `/dev/input/event0` (Linux's number; here it
+means "capture the mouse") calls `host.pointer_lock(1)`: the page locks the browser's
+pointer (Pointer Lock), which hides it and keeps it in the page, and sends movement as
+`EV_REL` instead of positions. A browser grants the lock only right after a click or key
+press; if it refuses, the next click on the page takes it and is not passed on. Esc
+always releases it (the browser's rule) and a click takes it again. A browser that
+refuses the lock outright (headless Firefox does) gets its clicks passed on as usual, so
+buttons keep working without movement. While locked the page never calls
+`setPointerCapture`, which browsers refuse with an exception then. `0` releases it.
+Only the window manager does this, for a window that asked with `ui_pointer_lock` while
+that window is fullscreen, focused and on the current workspace; the window then gets
+`UI_EV_MOUSE_REL` events and the cursor is not drawn.
 
 Use the code point for text and the key code for shortcuts. Text from dead keys and
 input methods arrives as key 240 with a code point. The page keeps F5, F11, F12 and
@@ -474,6 +519,22 @@ i3 style: `set mod Alt`, `gaps`, `border`, `border_thin`, `radius`, `workspace_c
 `animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default autostart: `exec bar`
 and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
 
+**sh** (`bin/sh/`, about 4,500 lines) is a POSIX shell for a system without `fork`.
+External programs are started with `spawn`. Builtins, functions, compound commands and
+subshells (`( list )`, `$(list)`, every stage of a multi-stage pipeline) run in the shell's own
+process: what a subshell changes is put back when it ends (variables, functions and
+aliases through a journal, positional parameters, options, traps, `$!`, and the umask,
+directory and descriptors, saved only when the subshell is about to change them).
+`exit`, `break`, `continue` and `return` in a subshell end only the subshell. `umask` is
+kept by the shell and passed to the kernel when the kernel has the call. `exec CMD` calls `execve`; on a kernel without it (`ENOSYS`, today's `main`) and
+inside a subshell, `CMD` runs as a child and the shell exits with its status (`exec_cmd()`
+in `bin/sh/exec.c`). `trap` installs a handler that only marks the signal; the action runs
+between commands. Job control is detected once with `rt_sigprocmask` (`jobs_init()` in
+`bin/sh/exec.c`): with kernel support, an interactive shell turns on `set -m`, sets VSUSP
+to Ctrl-Z for the commands it runs, gives every pipeline its own process group, hands the
+terminal to the foreground group and waits with `WUNTRACED`. Without it (today's `main`),
+`set -m` is refused with a message and the rest behaves as before.
+
 **Themes** (`libui/theme.h`). The active name is the first word of
 `~/.config/ucos/theme`. A theme is `/usr/share/themes/NAME.theme`, lines of
 `key = value`: colours `bg fg accent border_focus border_normal border_float bar_bg
@@ -507,6 +568,13 @@ fcntl inttypes libgen limits locale math poll signal stdio stdlib string strings
 time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait}.h`.
 `stddef.h`, `stdint.h`, `stdarg.h`, `stdbool.h` come from clang.
 
+- POSIX regular expressions (`libc/src/regex.c`, `regex.h`: `regcomp`, `regexec`,
+  `regerror`, `regfree`, basic and extended syntax, leftmost-longest, the GNU escapes
+  `\w \s \b \< \>` and `\| \+ \?` in basic syntax, `REG_STARTEND`). A pattern compiles to a
+  small program. Without back-references a Pike VM runs it in time proportional to
+  program size times text length; with back-references a backtracking search runs with a
+  budget of 20 million steps, then returns `REG_ESPACE`. It yields to the kernel every
+  262,144 steps. `fnmatch()` is in `libc/src/fnmatch.c`. grep still has its own matcher.
 - `lib/` is shared with the kernel: `string.c`, `fmt.c` (`vsnprintf` with exact `%e`/`%g`).
   `memcpy`/`memmove`/`memset`: the kernel uses `mem.s` (single bulk-memory instructions);
   the libc uses `umem.s` (the same above 16 bytes, plain loads and stores up to 16, because
@@ -519,6 +587,7 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
 - **Missing on purpose:** `setjmp`/`longjmp` (impossible in plain C on wasm), `fork`,
   `exec*`, threads. **Missing:** `long double` arithmetic and `%Lf`, `getopt_long`,
   `erf`/`gamma`, wide characters, locales other than "C", time zones (all times are UTC).
+- `make` (section 13) uses only what is here; it needed no new libc function.
 - `libc/crt/crt0.c` is built twice (`crt0_2.o`, `crt0_3.o`) because `main` may take two
   or three parameters and wasm checks signatures.
 - Each program is statically linked. A minimal program is about 1.6 KB; `sh` about 100 KB.
@@ -602,6 +671,37 @@ ld --crt0=/usr/lib/crt0_2.o,/usr/lib/crt0_3.o objs... -L/usr/lib -lc
   argument types in one file; bit-fields that cross their container in a packed struct.
   Errors stop at the first one in most cases.
 
+### 13.2 make (`bin/make/`)
+
+`/bin/make` is our own make, written to run the makefiles people write for GNU Make 4.4.
+It is plain C (`make.h`, `util.c` for strings, hash tables and globbing, and these):
+
+| File | What |
+|---|---|
+| `read.c` | logical lines, comments, conditionals, `define`, `include`, assignments, rules |
+| `var.c` | variables, scopes (global, target, pattern, inherited from the parent target), `$(...)` expansion |
+| `func.c` | the built-in functions, `$(shell)` |
+| `rule.c` | the file table, time stamps (cached `stat`), `vpath`, pattern and suffix rules, the implicit rule search |
+| `run.c` | the update walk, recipes, `-j N`, the child environment |
+| `main.c` | options, `MAKEFLAGS`, remaking makefiles, goals, messages |
+| `builtin.c` | built-in variables and suffix rules (the C, C++, assembler, lex and yacc ones), `CC = cc` |
+| `sys.c` | the only file that talks to the system: one half for UC.OS (`spawn`), one for POSIX (`fork`/`exec`), so the same logic is tested natively |
+
+How it maps onto UC.OS:
+- A recipe line with no shell syntax is started directly with `spawn` (as GNU Make does
+  with `execvp`); anything else is `$(SHELL) -c line`, `/bin/sh` by default. The child gets
+  an environment built from the exported variables, `MAKEFLAGS` and `MAKELEVEL`+1.
+- `-C dir` is a `chdir` before reading; children inherit the directory. `$(shell)` uses a
+  pipe from `pipe2` as the child's standard output.
+- `-j N` keeps up to N children and waits with `wait4(-1)`. There is no jobserver: a
+  sub-make given `-jN` runs its own N jobs. With one CPU thread, `-j` gives no speed-up.
+- A makefile that was remade is re-read by starting make again with `spawn` and waiting
+  for it (there is no `exec`).
+- Time stamps: UC.OS keeps whole seconds, so a target written in the same second as its
+  prerequisite counts as up to date (GNU Make's rule: rebuild only if strictly newer).
+- Ctrl-C: the kernel kills make together with its recipe, so a half-written target is
+  not deleted. The native build does delete it, as GNU Make does.
+
 ## 14. Limits, and what does not exist
 
 | Limit | Value | Where |
@@ -613,8 +713,11 @@ ld --crt0=/usr/lib/crt0_2.o,/usr/lib/crt0_3.o objs... -L/usr/lib -lc
 | file size, file offset | just under 2 GiB, 2^31 - 1 | `kmalloc`, `sys_lseek` |
 | one `getrandom` call | 33,554,431 bytes (Linux's figure) | `sys_getrandom` |
 | argv + environment | 64 KiB | `sys_spawn` |
+| one `malloc` in a program | 0x7fffffff bytes | `MALLOC_MAX` in `libc/src/malloc.c` |
+| remote files and imports in progress / one imported file | 32 / 256 MiB | `NREMOTE`, `IMPORT_MAX` in `kernel/remote.c` |
 | ptys | 16 | `NPTY` |
 | pipe buffer / socket buffer | 64 KiB / 512 KiB per direction | |
+| sound streams (`/dev/dsp` opens) / buffer per stream | 8 / 512 bytes to 256 KiB (default 16 KiB) | `NSTREAM`, `BUF_MAX` in `audio.c` |
 | TCP buffers | 64 KiB send, 65535 bytes receive per connection | `SBUF`, `RBUF` in `tcp.c` |
 | UDP, raw, packet receive queue | 256 KiB per socket (`SO_RCVBUF`, up to 1 MiB) | `inet.c` |
 | listen backlog | 64 | `tcp_listen` |
@@ -624,11 +727,70 @@ ld --crt0=/usr/lib/crt0_2.o,/usr/lib/crt0_3.o objs... -L/usr/lib -lc
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
 `fork`, signals, threads, shared memory, persistence, networking beyond the machine
-itself (section 15), sound, `/proc`
-contents, users and permissions, time zones, a clipboard, dynamic linking, running
-Linux binaries (see DECISIONS.md for the three "rungs").
+itself (section 16), sound input (recording), `/proc`
+contents, users and permissions, time zones, a clipboard, dynamic linking for UC.OS
+programs. Unmodified Linux binaries run through an ordinary program,
+`bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
+on top of this kernel); its design is in `docs/LINUX-BINARIES.md`. It needs nothing from
+the kernel that other programs do not have, and lists what it would like in section 7.3
+of that file.
 
-## 15. Networking (`kernel/net.h timer.c netif.c ip.c udp.c tcp.c inet.c`)
+## 15. Sound (`kernel/audio.c`, `boot/audio.mjs`, `boot/audio-worklet.js`, `bin/audiod.c`)
+
+DECISIONS.md 20; what works and what is missing is SOUND.md.
+
+**`/dev/dsp`**, in the shape of OSS. Each open descriptor is one stream (8 at most). One
+format: 16-bit little-endian stereo at the host's rate. Calls: `write` (blocking, or
+`EAGAIN` with `O_NONBLOCK`), `poll` (writable when a fragment is free), and the ioctls
+`SPEED SETFMT GETFMTS CHANNELS STEREO SETFRAGMENT GETBLKSIZE GETOSPACE GETODELAY
+SETPLAYVOL GETERROR RESET SYNC`, with Linux's numbers. `SPEED`, `SETFMT` and `CHANNELS`
+answer with what the device does, as OSS drivers may. No reading (recording), no `mmap`.
+
+The kernel does not mix. `write` copies the samples out of the process into a static
+16 KiB buffer and calls `host.audio_write` for each piece; the host copies them at once.
+Per stream the kernel keeps only `queued`, the bytes written and not yet played; the
+stream's buffer size (`SETFRAGMENT`: fragments of 256 B to 64 KiB, 256 KiB in all) caps
+it, so it is also the stream's delay. The host calls `audio_played(id, frames)` as sound
+plays, which lowers `queued` and wakes writers and `poll`; `audio_underrun(id)` counts a
+gap.
+
+**The host.** In a browser, `boot/audio.mjs` posts each write to an AudioWorklet node
+(`boot/audio-worklet.js`) with the buffer transferred. The worklet, on the audio thread,
+sums every stream with its volume into the output (float), every 4 render quanta
+(~11 ms) posts how many frames of each stream played, and reports a stream that ran dry
+while it was being fed: more data arriving within 0.5 s of running out. The page creates
+the AudioContext at boot and resumes it on the first click or key press (the browser's
+rule). Under Node, or without Web Audio, a stand-in consumes each stream in real time on a
+10 ms timer, only while something is queued, and can write the integer mix to a file
+(`--audio-capture=FILE` in `tools/run.mjs` and `tools/shot.mjs`).
+
+**audiod**, the sound server for everything but games, a user program started by `init`.
+It listens on `/run/audiod.sock`. A client sends a 20-byte header (`"UCAU"`, rate, channels,
+bits, volume 0 to 100, total bytes or 0) and samples: 8-bit unsigned or 16-bit, mono or
+stereo, 4 to 192 kHz. Each client is converted with linear interpolation in integers
+(16.16 positions, 15-bit fractions; a client at the device rate skips interpolation),
+mixed with a 32-bit sum and clamped, in 20 ms chunks into audiod's own `/dev/dsp` stream
+(16 x 4 KiB, ~340 ms). It reads a client only while that client's 64 KiB buffer has room,
+so a fast client waits in `write`. When a client's `total` bytes are mixed it gets one
+byte back and the connection is closed. With no clients, audiod closes `/dev/dsp`.
+
+**oplplay** (`bin/oplplay/`), Doom's music (DECISIONS.md 21). `opl.c` is our OPL2
+synthesizer: 9 two-operator channels, the chip's registers, computed like the chip in the
+log domain (a 256-entry log-sine table and a 256-entry exponential table: output =
+exp(logsin(phase) + attenuation)), a 9-bit envelope with the chip's rate scheme, four
+waveforms, feedback, FM and additive connection, key scaling, tremolo and vibrato.
+Rendered at 48 kHz directly (phase and envelope steps scaled from the chip's 49716 Hz);
+a channel whose voices have finished is skipped. `main.c` reads the GENMIDI instruments
+(a file or straight from a WAD), a MUS or MIDI song (format 0 or 1, tempo map; events
+sorted stably), and drives the 9 voices as Doom's music driver did: percussion on MIDI
+channel 10 from instruments 128 to 174 at fixed pitches, double-voice instruments with
+their fine detune, the oldest voice stolen when all are busy, volume and expression and
+pan per channel, pitch bend of 2 semitones. It sends 16-bit stereo to audiod, rendering
+at most ~60 ms ahead of real time; with `-c` it takes `pause`, `resume`, `volume N` and
+`stop` on stdin. Doom's music module (`bin/doom/i_ucossound.c`) writes the song and
+GENMIDI to `/tmp/doom/` and runs it.
+
+## 16. Networking (`kernel/net.h timer.c netif.c ip.c udp.c tcp.c inet.c`)
 
 Our own TCP/IP stack in the kernel (DECISIONS.md 18). Packets go only through the
 loopback interface for now (DECISIONS.md 19): every address in 127.0.0.0/8 is this

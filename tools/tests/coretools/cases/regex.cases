@@ -1,0 +1,3817 @@
+# FLAGS<TAB>PATTERN<TAB>SUBJECT; generated once, expectations from the host C library
+-	abc	
+-	abc	a
+-	abc	b
+-	abc	abc
+-	abc	aaa
+-	abc	aab
+-	abc	abab
+-	abc	abcd
+-	abc	xaby
+-	abc	a-b-c
+-	abc	key:value
+-	abc	x=1=2
+-	abc	foo bar
+-	abc	the cat
+-	abc	A1b2
+-	abc	aXbXc
+-	abc	ab\ncd
+-	abc	  x  
+-	abc	xxxxxy
+-	abc	abbbc
+-	abc	*a
+-	abc	a{1}
+-	abc	a\\b
+-	abc	foobar
+-	abc	12.34
+-	abc	  
+-	abc	a\nb
+-	abc	aaaaaaaaaa
+-	a.c	
+-	a.c	a
+-	a.c	b
+-	a.c	abc
+-	a.c	aaa
+-	a.c	aab
+-	a.c	abab
+-	a.c	abcd
+-	a.c	xaby
+-	a.c	a-b-c
+-	a.c	key:value
+-	a.c	x=1=2
+-	a.c	foo bar
+-	a.c	the cat
+-	a.c	A1b2
+-	a.c	aXbXc
+-	a.c	ab\ncd
+-	a.c	  x  
+-	a.c	xxxxxy
+-	a.c	abbbc
+-	a.c	*a
+-	a.c	a{1}
+-	a.c	a\\b
+-	a.c	foobar
+-	a.c	12.34
+-	a.c	  
+-	a.c	a\nb
+-	a.c	aaaaaaaaaa
+-	a*	
+-	a*	a
+-	a*	b
+-	a*	abc
+-	a*	aaa
+-	a*	aab
+-	a*	abab
+-	a*	abcd
+-	a*	xaby
+-	a*	a-b-c
+-	a*	key:value
+-	a*	x=1=2
+-	a*	foo bar
+-	a*	the cat
+-	a*	A1b2
+-	a*	aXbXc
+-	a*	ab\ncd
+-	a*	  x  
+-	a*	xxxxxy
+-	a*	abbbc
+-	a*	*a
+-	a*	a{1}
+-	a*	a\\b
+-	a*	foobar
+-	a*	12.34
+-	a*	  
+-	a*	a\nb
+-	a*	aaaaaaaaaa
+-	a*b	
+-	a*b	a
+-	a*b	b
+-	a*b	abc
+-	a*b	aaa
+-	a*b	aab
+-	a*b	abab
+-	a*b	abcd
+-	a*b	xaby
+-	a*b	a-b-c
+-	a*b	key:value
+-	a*b	x=1=2
+-	a*b	foo bar
+-	a*b	the cat
+-	a*b	A1b2
+-	a*b	aXbXc
+-	a*b	ab\ncd
+-	a*b	  x  
+-	a*b	xxxxxy
+-	a*b	abbbc
+-	a*b	*a
+-	a*b	a{1}
+-	a*b	a\\b
+-	a*b	foobar
+-	a*b	12.34
+-	a*b	  
+-	a*b	a\nb
+-	a*b	aaaaaaaaaa
+-	^ab	
+-	^ab	a
+-	^ab	b
+-	^ab	abc
+-	^ab	aaa
+-	^ab	aab
+-	^ab	abab
+-	^ab	abcd
+-	^ab	xaby
+-	^ab	a-b-c
+-	^ab	key:value
+-	^ab	x=1=2
+-	^ab	foo bar
+-	^ab	the cat
+-	^ab	A1b2
+-	^ab	aXbXc
+-	^ab	ab\ncd
+-	^ab	  x  
+-	^ab	xxxxxy
+-	^ab	abbbc
+-	^ab	*a
+-	^ab	a{1}
+-	^ab	a\\b
+-	^ab	foobar
+-	^ab	12.34
+-	^ab	  
+-	^ab	a\nb
+-	^ab	aaaaaaaaaa
+-	ab$	
+-	ab$	a
+-	ab$	b
+-	ab$	abc
+-	ab$	aaa
+-	ab$	aab
+-	ab$	abab
+-	ab$	abcd
+-	ab$	xaby
+-	ab$	a-b-c
+-	ab$	key:value
+-	ab$	x=1=2
+-	ab$	foo bar
+-	ab$	the cat
+-	ab$	A1b2
+-	ab$	aXbXc
+-	ab$	ab\ncd
+-	ab$	  x  
+-	ab$	xxxxxy
+-	ab$	abbbc
+-	ab$	*a
+-	ab$	a{1}
+-	ab$	a\\b
+-	ab$	foobar
+-	ab$	12.34
+-	ab$	  
+-	ab$	a\nb
+-	ab$	aaaaaaaaaa
+-	^$	
+-	^$	a
+-	^$	b
+-	^$	abc
+-	^$	aaa
+-	^$	aab
+-	^$	abab
+-	^$	abcd
+-	^$	xaby
+-	^$	a-b-c
+-	^$	key:value
+-	^$	x=1=2
+-	^$	foo bar
+-	^$	the cat
+-	^$	A1b2
+-	^$	aXbXc
+-	^$	ab\ncd
+-	^$	  x  
+-	^$	xxxxxy
+-	^$	abbbc
+-	^$	*a
+-	^$	a{1}
+-	^$	a\\b
+-	^$	foobar
+-	^$	12.34
+-	^$	  
+-	^$	a\nb
+-	^$	aaaaaaaaaa
+-	\(ab\)*	
+-	\(ab\)*	a
+-	\(ab\)*	b
+-	\(ab\)*	abc
+-	\(ab\)*	aaa
+-	\(ab\)*	aab
+-	\(ab\)*	abab
+-	\(ab\)*	abcd
+-	\(ab\)*	xaby
+-	\(ab\)*	a-b-c
+-	\(ab\)*	key:value
+-	\(ab\)*	x=1=2
+-	\(ab\)*	foo bar
+-	\(ab\)*	the cat
+-	\(ab\)*	A1b2
+-	\(ab\)*	aXbXc
+-	\(ab\)*	ab\ncd
+-	\(ab\)*	  x  
+-	\(ab\)*	xxxxxy
+-	\(ab\)*	abbbc
+-	\(ab\)*	*a
+-	\(ab\)*	a{1}
+-	\(ab\)*	a\\b
+-	\(ab\)*	foobar
+-	\(ab\)*	12.34
+-	\(ab\)*	  
+-	\(ab\)*	a\nb
+-	\(ab\)*	aaaaaaaaaa
+-	\(a\|b\)*c	
+-	\(a\|b\)*c	a
+-	\(a\|b\)*c	b
+-	\(a\|b\)*c	abc
+-	\(a\|b\)*c	aaa
+-	\(a\|b\)*c	aab
+-	\(a\|b\)*c	abab
+-	\(a\|b\)*c	abcd
+-	\(a\|b\)*c	xaby
+-	\(a\|b\)*c	a-b-c
+-	\(a\|b\)*c	key:value
+-	\(a\|b\)*c	x=1=2
+-	\(a\|b\)*c	foo bar
+-	\(a\|b\)*c	the cat
+-	\(a\|b\)*c	A1b2
+-	\(a\|b\)*c	aXbXc
+-	\(a\|b\)*c	ab\ncd
+-	\(a\|b\)*c	  x  
+-	\(a\|b\)*c	xxxxxy
+-	\(a\|b\)*c	abbbc
+-	\(a\|b\)*c	*a
+-	\(a\|b\)*c	a{1}
+-	\(a\|b\)*c	a\\b
+-	\(a\|b\)*c	foobar
+-	\(a\|b\)*c	12.34
+-	\(a\|b\)*c	  
+-	\(a\|b\)*c	a\nb
+-	\(a\|b\)*c	aaaaaaaaaa
+-	a\{2\}	
+-	a\{2\}	a
+-	a\{2\}	b
+-	a\{2\}	abc
+-	a\{2\}	aaa
+-	a\{2\}	aab
+-	a\{2\}	abab
+-	a\{2\}	abcd
+-	a\{2\}	xaby
+-	a\{2\}	a-b-c
+-	a\{2\}	key:value
+-	a\{2\}	x=1=2
+-	a\{2\}	foo bar
+-	a\{2\}	the cat
+-	a\{2\}	A1b2
+-	a\{2\}	aXbXc
+-	a\{2\}	ab\ncd
+-	a\{2\}	  x  
+-	a\{2\}	xxxxxy
+-	a\{2\}	abbbc
+-	a\{2\}	*a
+-	a\{2\}	a{1}
+-	a\{2\}	a\\b
+-	a\{2\}	foobar
+-	a\{2\}	12.34
+-	a\{2\}	  
+-	a\{2\}	a\nb
+-	a\{2\}	aaaaaaaaaa
+-	a\{2,\}	
+-	a\{2,\}	a
+-	a\{2,\}	b
+-	a\{2,\}	abc
+-	a\{2,\}	aaa
+-	a\{2,\}	aab
+-	a\{2,\}	abab
+-	a\{2,\}	abcd
+-	a\{2,\}	xaby
+-	a\{2,\}	a-b-c
+-	a\{2,\}	key:value
+-	a\{2,\}	x=1=2
+-	a\{2,\}	foo bar
+-	a\{2,\}	the cat
+-	a\{2,\}	A1b2
+-	a\{2,\}	aXbXc
+-	a\{2,\}	ab\ncd
+-	a\{2,\}	  x  
+-	a\{2,\}	xxxxxy
+-	a\{2,\}	abbbc
+-	a\{2,\}	*a
+-	a\{2,\}	a{1}
+-	a\{2,\}	a\\b
+-	a\{2,\}	foobar
+-	a\{2,\}	12.34
+-	a\{2,\}	  
+-	a\{2,\}	a\nb
+-	a\{2,\}	aaaaaaaaaa
+-	a\{,2\}	
+-	a\{,2\}	a
+-	a\{,2\}	b
+-	a\{,2\}	abc
+-	a\{,2\}	aaa
+-	a\{,2\}	aab
+-	a\{,2\}	abab
+-	a\{,2\}	abcd
+-	a\{,2\}	xaby
+-	a\{,2\}	a-b-c
+-	a\{,2\}	key:value
+-	a\{,2\}	x=1=2
+-	a\{,2\}	foo bar
+-	a\{,2\}	the cat
+-	a\{,2\}	A1b2
+-	a\{,2\}	aXbXc
+-	a\{,2\}	ab\ncd
+-	a\{,2\}	  x  
+-	a\{,2\}	xxxxxy
+-	a\{,2\}	abbbc
+-	a\{,2\}	*a
+-	a\{,2\}	a{1}
+-	a\{,2\}	a\\b
+-	a\{,2\}	foobar
+-	a\{,2\}	12.34
+-	a\{,2\}	  
+-	a\{,2\}	a\nb
+-	a\{,2\}	aaaaaaaaaa
+-	a\{1,3\}b	
+-	a\{1,3\}b	a
+-	a\{1,3\}b	b
+-	a\{1,3\}b	abc
+-	a\{1,3\}b	aaa
+-	a\{1,3\}b	aab
+-	a\{1,3\}b	abab
+-	a\{1,3\}b	abcd
+-	a\{1,3\}b	xaby
+-	a\{1,3\}b	a-b-c
+-	a\{1,3\}b	key:value
+-	a\{1,3\}b	x=1=2
+-	a\{1,3\}b	foo bar
+-	a\{1,3\}b	the cat
+-	a\{1,3\}b	A1b2
+-	a\{1,3\}b	aXbXc
+-	a\{1,3\}b	ab\ncd
+-	a\{1,3\}b	  x  
+-	a\{1,3\}b	xxxxxy
+-	a\{1,3\}b	abbbc
+-	a\{1,3\}b	*a
+-	a\{1,3\}b	a{1}
+-	a\{1,3\}b	a\\b
+-	a\{1,3\}b	foobar
+-	a\{1,3\}b	12.34
+-	a\{1,3\}b	  
+-	a\{1,3\}b	a\nb
+-	a\{1,3\}b	aaaaaaaaaa
+-	\(a\)\(b\)\(c\)	
+-	\(a\)\(b\)\(c\)	a
+-	\(a\)\(b\)\(c\)	b
+-	\(a\)\(b\)\(c\)	abc
+-	\(a\)\(b\)\(c\)	aaa
+-	\(a\)\(b\)\(c\)	aab
+-	\(a\)\(b\)\(c\)	abab
+-	\(a\)\(b\)\(c\)	abcd
+-	\(a\)\(b\)\(c\)	xaby
+-	\(a\)\(b\)\(c\)	a-b-c
+-	\(a\)\(b\)\(c\)	key:value
+-	\(a\)\(b\)\(c\)	x=1=2
+-	\(a\)\(b\)\(c\)	foo bar
+-	\(a\)\(b\)\(c\)	the cat
+-	\(a\)\(b\)\(c\)	A1b2
+-	\(a\)\(b\)\(c\)	aXbXc
+-	\(a\)\(b\)\(c\)	ab\ncd
+-	\(a\)\(b\)\(c\)	  x  
+-	\(a\)\(b\)\(c\)	xxxxxy
+-	\(a\)\(b\)\(c\)	abbbc
+-	\(a\)\(b\)\(c\)	*a
+-	\(a\)\(b\)\(c\)	a{1}
+-	\(a\)\(b\)\(c\)	a\\b
+-	\(a\)\(b\)\(c\)	foobar
+-	\(a\)\(b\)\(c\)	12.34
+-	\(a\)\(b\)\(c\)	  
+-	\(a\)\(b\)\(c\)	a\nb
+-	\(a\)\(b\)\(c\)	aaaaaaaaaa
+-	\(a*\)\(a*\)	
+-	\(a*\)\(a*\)	a
+-	\(a*\)\(a*\)	b
+-	\(a*\)\(a*\)	abc
+-	\(a*\)\(a*\)	aaa
+-	\(a*\)\(a*\)	aab
+-	\(a*\)\(a*\)	abab
+-	\(a*\)\(a*\)	abcd
+-	\(a*\)\(a*\)	xaby
+-	\(a*\)\(a*\)	a-b-c
+-	\(a*\)\(a*\)	key:value
+-	\(a*\)\(a*\)	x=1=2
+-	\(a*\)\(a*\)	foo bar
+-	\(a*\)\(a*\)	the cat
+-	\(a*\)\(a*\)	A1b2
+-	\(a*\)\(a*\)	aXbXc
+-	\(a*\)\(a*\)	ab\ncd
+-	\(a*\)\(a*\)	  x  
+-	\(a*\)\(a*\)	xxxxxy
+-	\(a*\)\(a*\)	abbbc
+-	\(a*\)\(a*\)	*a
+-	\(a*\)\(a*\)	a{1}
+-	\(a*\)\(a*\)	a\\b
+-	\(a*\)\(a*\)	foobar
+-	\(a*\)\(a*\)	12.34
+-	\(a*\)\(a*\)	  
+-	\(a*\)\(a*\)	a\nb
+-	\(a*\)\(a*\)	aaaaaaaaaa
+-	\(a*\)b\1	
+-	\(a*\)b\1	a
+-	\(a*\)b\1	b
+-	\(a*\)b\1	abc
+-	\(a*\)b\1	aaa
+-	\(a*\)b\1	aab
+-	\(a*\)b\1	abab
+-	\(a*\)b\1	abcd
+-	\(a*\)b\1	xaby
+-	\(a*\)b\1	a-b-c
+-	\(a*\)b\1	key:value
+-	\(a*\)b\1	x=1=2
+-	\(a*\)b\1	foo bar
+-	\(a*\)b\1	the cat
+-	\(a*\)b\1	A1b2
+-	\(a*\)b\1	aXbXc
+-	\(a*\)b\1	ab\ncd
+-	\(a*\)b\1	  x  
+-	\(a*\)b\1	xxxxxy
+-	\(a*\)b\1	abbbc
+-	\(a*\)b\1	*a
+-	\(a*\)b\1	a{1}
+-	\(a*\)b\1	a\\b
+-	\(a*\)b\1	foobar
+-	\(a*\)b\1	12.34
+-	\(a*\)b\1	  
+-	\(a*\)b\1	a\nb
+-	\(a*\)b\1	aaaaaaaaaa
+-	\(.\)\1	
+-	\(.\)\1	a
+-	\(.\)\1	b
+-	\(.\)\1	abc
+-	\(.\)\1	aaa
+-	\(.\)\1	aab
+-	\(.\)\1	abab
+-	\(.\)\1	abcd
+-	\(.\)\1	xaby
+-	\(.\)\1	a-b-c
+-	\(.\)\1	key:value
+-	\(.\)\1	x=1=2
+-	\(.\)\1	foo bar
+-	\(.\)\1	the cat
+-	\(.\)\1	A1b2
+-	\(.\)\1	aXbXc
+-	\(.\)\1	ab\ncd
+-	\(.\)\1	  x  
+-	\(.\)\1	xxxxxy
+-	\(.\)\1	abbbc
+-	\(.\)\1	*a
+-	\(.\)\1	a{1}
+-	\(.\)\1	a\\b
+-	\(.\)\1	foobar
+-	\(.\)\1	12.34
+-	\(.\)\1	  
+-	\(.\)\1	a\nb
+-	\(.\)\1	aaaaaaaaaa
+-	\(..\)*\1	
+-	\(..\)*\1	a
+-	\(..\)*\1	b
+-	\(..\)*\1	abc
+-	\(..\)*\1	aaa
+-	\(..\)*\1	aab
+-	\(..\)*\1	abab
+-	\(..\)*\1	abcd
+-	\(..\)*\1	xaby
+-	\(..\)*\1	a-b-c
+-	\(..\)*\1	key:value
+-	\(..\)*\1	x=1=2
+-	\(..\)*\1	foo bar
+-	\(..\)*\1	the cat
+-	\(..\)*\1	A1b2
+-	\(..\)*\1	aXbXc
+-	\(..\)*\1	ab\ncd
+-	\(..\)*\1	  x  
+-	\(..\)*\1	xxxxxy
+-	\(..\)*\1	abbbc
+-	\(..\)*\1	*a
+-	\(..\)*\1	a{1}
+-	\(..\)*\1	a\\b
+-	\(..\)*\1	foobar
+-	\(..\)*\1	12.34
+-	\(..\)*\1	  
+-	\(..\)*\1	a\nb
+-	\(..\)*\1	aaaaaaaaaa
+-	[abc]	
+-	[abc]	a
+-	[abc]	b
+-	[abc]	abc
+-	[abc]	aaa
+-	[abc]	aab
+-	[abc]	abab
+-	[abc]	abcd
+-	[abc]	xaby
+-	[abc]	a-b-c
+-	[abc]	key:value
+-	[abc]	x=1=2
+-	[abc]	foo bar
+-	[abc]	the cat
+-	[abc]	A1b2
+-	[abc]	aXbXc
+-	[abc]	ab\ncd
+-	[abc]	  x  
+-	[abc]	xxxxxy
+-	[abc]	abbbc
+-	[abc]	*a
+-	[abc]	a{1}
+-	[abc]	a\\b
+-	[abc]	foobar
+-	[abc]	12.34
+-	[abc]	  
+-	[abc]	a\nb
+-	[abc]	aaaaaaaaaa
+-	[^abc]	
+-	[^abc]	a
+-	[^abc]	b
+-	[^abc]	abc
+-	[^abc]	aaa
+-	[^abc]	aab
+-	[^abc]	abab
+-	[^abc]	abcd
+-	[^abc]	xaby
+-	[^abc]	a-b-c
+-	[^abc]	key:value
+-	[^abc]	x=1=2
+-	[^abc]	foo bar
+-	[^abc]	the cat
+-	[^abc]	A1b2
+-	[^abc]	aXbXc
+-	[^abc]	ab\ncd
+-	[^abc]	  x  
+-	[^abc]	xxxxxy
+-	[^abc]	abbbc
+-	[^abc]	*a
+-	[^abc]	a{1}
+-	[^abc]	a\\b
+-	[^abc]	foobar
+-	[^abc]	12.34
+-	[^abc]	  
+-	[^abc]	a\nb
+-	[^abc]	aaaaaaaaaa
+-	[a-c]*	
+-	[a-c]*	a
+-	[a-c]*	b
+-	[a-c]*	abc
+-	[a-c]*	aaa
+-	[a-c]*	aab
+-	[a-c]*	abab
+-	[a-c]*	abcd
+-	[a-c]*	xaby
+-	[a-c]*	a-b-c
+-	[a-c]*	key:value
+-	[a-c]*	x=1=2
+-	[a-c]*	foo bar
+-	[a-c]*	the cat
+-	[a-c]*	A1b2
+-	[a-c]*	aXbXc
+-	[a-c]*	ab\ncd
+-	[a-c]*	  x  
+-	[a-c]*	xxxxxy
+-	[a-c]*	abbbc
+-	[a-c]*	*a
+-	[a-c]*	a{1}
+-	[a-c]*	a\\b
+-	[a-c]*	foobar
+-	[a-c]*	12.34
+-	[a-c]*	  
+-	[a-c]*	a\nb
+-	[a-c]*	aaaaaaaaaa
+-	[]a]	
+-	[]a]	a
+-	[]a]	b
+-	[]a]	abc
+-	[]a]	aaa
+-	[]a]	aab
+-	[]a]	abab
+-	[]a]	abcd
+-	[]a]	xaby
+-	[]a]	a-b-c
+-	[]a]	key:value
+-	[]a]	x=1=2
+-	[]a]	foo bar
+-	[]a]	the cat
+-	[]a]	A1b2
+-	[]a]	aXbXc
+-	[]a]	ab\ncd
+-	[]a]	  x  
+-	[]a]	xxxxxy
+-	[]a]	abbbc
+-	[]a]	*a
+-	[]a]	a{1}
+-	[]a]	a\\b
+-	[]a]	foobar
+-	[]a]	12.34
+-	[]a]	  
+-	[]a]	a\nb
+-	[]a]	aaaaaaaaaa
+-	[^]a]	
+-	[^]a]	a
+-	[^]a]	b
+-	[^]a]	abc
+-	[^]a]	aaa
+-	[^]a]	aab
+-	[^]a]	abab
+-	[^]a]	abcd
+-	[^]a]	xaby
+-	[^]a]	a-b-c
+-	[^]a]	key:value
+-	[^]a]	x=1=2
+-	[^]a]	foo bar
+-	[^]a]	the cat
+-	[^]a]	A1b2
+-	[^]a]	aXbXc
+-	[^]a]	ab\ncd
+-	[^]a]	  x  
+-	[^]a]	xxxxxy
+-	[^]a]	abbbc
+-	[^]a]	*a
+-	[^]a]	a{1}
+-	[^]a]	a\\b
+-	[^]a]	foobar
+-	[^]a]	12.34
+-	[^]a]	  
+-	[^]a]	a\nb
+-	[^]a]	aaaaaaaaaa
+-	[a-]	
+-	[a-]	a
+-	[a-]	b
+-	[a-]	abc
+-	[a-]	aaa
+-	[a-]	aab
+-	[a-]	abab
+-	[a-]	abcd
+-	[a-]	xaby
+-	[a-]	a-b-c
+-	[a-]	key:value
+-	[a-]	x=1=2
+-	[a-]	foo bar
+-	[a-]	the cat
+-	[a-]	A1b2
+-	[a-]	aXbXc
+-	[a-]	ab\ncd
+-	[a-]	  x  
+-	[a-]	xxxxxy
+-	[a-]	abbbc
+-	[a-]	*a
+-	[a-]	a{1}
+-	[a-]	a\\b
+-	[a-]	foobar
+-	[a-]	12.34
+-	[a-]	  
+-	[a-]	a\nb
+-	[a-]	aaaaaaaaaa
+-	[-a]	
+-	[-a]	a
+-	[-a]	b
+-	[-a]	abc
+-	[-a]	aaa
+-	[-a]	aab
+-	[-a]	abab
+-	[-a]	abcd
+-	[-a]	xaby
+-	[-a]	a-b-c
+-	[-a]	key:value
+-	[-a]	x=1=2
+-	[-a]	foo bar
+-	[-a]	the cat
+-	[-a]	A1b2
+-	[-a]	aXbXc
+-	[-a]	ab\ncd
+-	[-a]	  x  
+-	[-a]	xxxxxy
+-	[-a]	abbbc
+-	[-a]	*a
+-	[-a]	a{1}
+-	[-a]	a\\b
+-	[-a]	foobar
+-	[-a]	12.34
+-	[-a]	  
+-	[-a]	a\nb
+-	[-a]	aaaaaaaaaa
+-	[[:digit:]]\+	
+-	[[:digit:]]\+	a
+-	[[:digit:]]\+	b
+-	[[:digit:]]\+	abc
+-	[[:digit:]]\+	aaa
+-	[[:digit:]]\+	aab
+-	[[:digit:]]\+	abab
+-	[[:digit:]]\+	abcd
+-	[[:digit:]]\+	xaby
+-	[[:digit:]]\+	a-b-c
+-	[[:digit:]]\+	key:value
+-	[[:digit:]]\+	x=1=2
+-	[[:digit:]]\+	foo bar
+-	[[:digit:]]\+	the cat
+-	[[:digit:]]\+	A1b2
+-	[[:digit:]]\+	aXbXc
+-	[[:digit:]]\+	ab\ncd
+-	[[:digit:]]\+	  x  
+-	[[:digit:]]\+	xxxxxy
+-	[[:digit:]]\+	abbbc
+-	[[:digit:]]\+	*a
+-	[[:digit:]]\+	a{1}
+-	[[:digit:]]\+	a\\b
+-	[[:digit:]]\+	foobar
+-	[[:digit:]]\+	12.34
+-	[[:digit:]]\+	  
+-	[[:digit:]]\+	a\nb
+-	[[:digit:]]\+	aaaaaaaaaa
+-	[[:space:]]*	
+-	[[:space:]]*	a
+-	[[:space:]]*	b
+-	[[:space:]]*	abc
+-	[[:space:]]*	aaa
+-	[[:space:]]*	aab
+-	[[:space:]]*	abab
+-	[[:space:]]*	abcd
+-	[[:space:]]*	xaby
+-	[[:space:]]*	a-b-c
+-	[[:space:]]*	key:value
+-	[[:space:]]*	x=1=2
+-	[[:space:]]*	foo bar
+-	[[:space:]]*	the cat
+-	[[:space:]]*	A1b2
+-	[[:space:]]*	aXbXc
+-	[[:space:]]*	ab\ncd
+-	[[:space:]]*	  x  
+-	[[:space:]]*	xxxxxy
+-	[[:space:]]*	abbbc
+-	[[:space:]]*	*a
+-	[[:space:]]*	a{1}
+-	[[:space:]]*	a\\b
+-	[[:space:]]*	foobar
+-	[[:space:]]*	12.34
+-	[[:space:]]*	  
+-	[[:space:]]*	a\nb
+-	[[:space:]]*	aaaaaaaaaa
+-	[[:upper:][:digit:]]	
+-	[[:upper:][:digit:]]	a
+-	[[:upper:][:digit:]]	b
+-	[[:upper:][:digit:]]	abc
+-	[[:upper:][:digit:]]	aaa
+-	[[:upper:][:digit:]]	aab
+-	[[:upper:][:digit:]]	abab
+-	[[:upper:][:digit:]]	abcd
+-	[[:upper:][:digit:]]	xaby
+-	[[:upper:][:digit:]]	a-b-c
+-	[[:upper:][:digit:]]	key:value
+-	[[:upper:][:digit:]]	x=1=2
+-	[[:upper:][:digit:]]	foo bar
+-	[[:upper:][:digit:]]	the cat
+-	[[:upper:][:digit:]]	A1b2
+-	[[:upper:][:digit:]]	aXbXc
+-	[[:upper:][:digit:]]	ab\ncd
+-	[[:upper:][:digit:]]	  x  
+-	[[:upper:][:digit:]]	xxxxxy
+-	[[:upper:][:digit:]]	abbbc
+-	[[:upper:][:digit:]]	*a
+-	[[:upper:][:digit:]]	a{1}
+-	[[:upper:][:digit:]]	a\\b
+-	[[:upper:][:digit:]]	foobar
+-	[[:upper:][:digit:]]	12.34
+-	[[:upper:][:digit:]]	  
+-	[[:upper:][:digit:]]	a\nb
+-	[[:upper:][:digit:]]	aaaaaaaaaa
+-	[[.a.]]	
+-	[[.a.]]	a
+-	[[.a.]]	b
+-	[[.a.]]	abc
+-	[[.a.]]	aaa
+-	[[.a.]]	aab
+-	[[.a.]]	abab
+-	[[.a.]]	abcd
+-	[[.a.]]	xaby
+-	[[.a.]]	a-b-c
+-	[[.a.]]	key:value
+-	[[.a.]]	x=1=2
+-	[[.a.]]	foo bar
+-	[[.a.]]	the cat
+-	[[.a.]]	A1b2
+-	[[.a.]]	aXbXc
+-	[[.a.]]	ab\ncd
+-	[[.a.]]	  x  
+-	[[.a.]]	xxxxxy
+-	[[.a.]]	abbbc
+-	[[.a.]]	*a
+-	[[.a.]]	a{1}
+-	[[.a.]]	a\\b
+-	[[.a.]]	foobar
+-	[[.a.]]	12.34
+-	[[.a.]]	  
+-	[[.a.]]	a\nb
+-	[[.a.]]	aaaaaaaaaa
+-	[[=a=]]b	
+-	[[=a=]]b	a
+-	[[=a=]]b	b
+-	[[=a=]]b	abc
+-	[[=a=]]b	aaa
+-	[[=a=]]b	aab
+-	[[=a=]]b	abab
+-	[[=a=]]b	abcd
+-	[[=a=]]b	xaby
+-	[[=a=]]b	a-b-c
+-	[[=a=]]b	key:value
+-	[[=a=]]b	x=1=2
+-	[[=a=]]b	foo bar
+-	[[=a=]]b	the cat
+-	[[=a=]]b	A1b2
+-	[[=a=]]b	aXbXc
+-	[[=a=]]b	ab\ncd
+-	[[=a=]]b	  x  
+-	[[=a=]]b	xxxxxy
+-	[[=a=]]b	abbbc
+-	[[=a=]]b	*a
+-	[[=a=]]b	a{1}
+-	[[=a=]]b	a\\b
+-	[[=a=]]b	foobar
+-	[[=a=]]b	12.34
+-	[[=a=]]b	  
+-	[[=a=]]b	a\nb
+-	[[=a=]]b	aaaaaaaaaa
+-	x\+	
+-	x\+	a
+-	x\+	b
+-	x\+	abc
+-	x\+	aaa
+-	x\+	aab
+-	x\+	abab
+-	x\+	abcd
+-	x\+	xaby
+-	x\+	a-b-c
+-	x\+	key:value
+-	x\+	x=1=2
+-	x\+	foo bar
+-	x\+	the cat
+-	x\+	A1b2
+-	x\+	aXbXc
+-	x\+	ab\ncd
+-	x\+	  x  
+-	x\+	xxxxxy
+-	x\+	abbbc
+-	x\+	*a
+-	x\+	a{1}
+-	x\+	a\\b
+-	x\+	foobar
+-	x\+	12.34
+-	x\+	  
+-	x\+	a\nb
+-	x\+	aaaaaaaaaa
+-	x\?y	
+-	x\?y	a
+-	x\?y	b
+-	x\?y	abc
+-	x\?y	aaa
+-	x\?y	aab
+-	x\?y	abab
+-	x\?y	abcd
+-	x\?y	xaby
+-	x\?y	a-b-c
+-	x\?y	key:value
+-	x\?y	x=1=2
+-	x\?y	foo bar
+-	x\?y	the cat
+-	x\?y	A1b2
+-	x\?y	aXbXc
+-	x\?y	ab\ncd
+-	x\?y	  x  
+-	x\?y	xxxxxy
+-	x\?y	abbbc
+-	x\?y	*a
+-	x\?y	a{1}
+-	x\?y	a\\b
+-	x\?y	foobar
+-	x\?y	12.34
+-	x\?y	  
+-	x\?y	a\nb
+-	x\?y	aaaaaaaaaa
+-	\.	
+-	\.	a
+-	\.	b
+-	\.	abc
+-	\.	aaa
+-	\.	aab
+-	\.	abab
+-	\.	abcd
+-	\.	xaby
+-	\.	a-b-c
+-	\.	key:value
+-	\.	x=1=2
+-	\.	foo bar
+-	\.	the cat
+-	\.	A1b2
+-	\.	aXbXc
+-	\.	ab\ncd
+-	\.	  x  
+-	\.	xxxxxy
+-	\.	abbbc
+-	\.	*a
+-	\.	a{1}
+-	\.	a\\b
+-	\.	foobar
+-	\.	12.34
+-	\.	  
+-	\.	a\nb
+-	\.	aaaaaaaaaa
+-	\*	
+-	\*	a
+-	\*	b
+-	\*	abc
+-	\*	aaa
+-	\*	aab
+-	\*	abab
+-	\*	abcd
+-	\*	xaby
+-	\*	a-b-c
+-	\*	key:value
+-	\*	x=1=2
+-	\*	foo bar
+-	\*	the cat
+-	\*	A1b2
+-	\*	aXbXc
+-	\*	ab\ncd
+-	\*	  x  
+-	\*	xxxxxy
+-	\*	abbbc
+-	\*	*a
+-	\*	a{1}
+-	\*	a\\b
+-	\*	foobar
+-	\*	12.34
+-	\*	  
+-	\*	a\nb
+-	\*	aaaaaaaaaa
+-	a\|b\|c	
+-	a\|b\|c	a
+-	a\|b\|c	b
+-	a\|b\|c	abc
+-	a\|b\|c	aaa
+-	a\|b\|c	aab
+-	a\|b\|c	abab
+-	a\|b\|c	abcd
+-	a\|b\|c	xaby
+-	a\|b\|c	a-b-c
+-	a\|b\|c	key:value
+-	a\|b\|c	x=1=2
+-	a\|b\|c	foo bar
+-	a\|b\|c	the cat
+-	a\|b\|c	A1b2
+-	a\|b\|c	aXbXc
+-	a\|b\|c	ab\ncd
+-	a\|b\|c	  x  
+-	a\|b\|c	xxxxxy
+-	a\|b\|c	abbbc
+-	a\|b\|c	*a
+-	a\|b\|c	a{1}
+-	a\|b\|c	a\\b
+-	a\|b\|c	foobar
+-	a\|b\|c	12.34
+-	a\|b\|c	  
+-	a\|b\|c	a\nb
+-	a\|b\|c	aaaaaaaaaa
+-	\(\)	
+-	\(\)	a
+-	\(\)	b
+-	\(\)	abc
+-	\(\)	aaa
+-	\(\)	aab
+-	\(\)	abab
+-	\(\)	abcd
+-	\(\)	xaby
+-	\(\)	a-b-c
+-	\(\)	key:value
+-	\(\)	x=1=2
+-	\(\)	foo bar
+-	\(\)	the cat
+-	\(\)	A1b2
+-	\(\)	aXbXc
+-	\(\)	ab\ncd
+-	\(\)	  x  
+-	\(\)	xxxxxy
+-	\(\)	abbbc
+-	\(\)	*a
+-	\(\)	a{1}
+-	\(\)	a\\b
+-	\(\)	foobar
+-	\(\)	12.34
+-	\(\)	  
+-	\(\)	a\nb
+-	\(\)	aaaaaaaaaa
+-	\<a	
+-	\<a	a
+-	\<a	b
+-	\<a	abc
+-	\<a	aaa
+-	\<a	aab
+-	\<a	abab
+-	\<a	abcd
+-	\<a	xaby
+-	\<a	a-b-c
+-	\<a	key:value
+-	\<a	x=1=2
+-	\<a	foo bar
+-	\<a	the cat
+-	\<a	A1b2
+-	\<a	aXbXc
+-	\<a	ab\ncd
+-	\<a	  x  
+-	\<a	xxxxxy
+-	\<a	abbbc
+-	\<a	*a
+-	\<a	a{1}
+-	\<a	a\\b
+-	\<a	foobar
+-	\<a	12.34
+-	\<a	  
+-	\<a	a\nb
+-	\<a	aaaaaaaaaa
+-	a\>	
+-	a\>	a
+-	a\>	b
+-	a\>	abc
+-	a\>	aaa
+-	a\>	aab
+-	a\>	abab
+-	a\>	abcd
+-	a\>	xaby
+-	a\>	a-b-c
+-	a\>	key:value
+-	a\>	x=1=2
+-	a\>	foo bar
+-	a\>	the cat
+-	a\>	A1b2
+-	a\>	aXbXc
+-	a\>	ab\ncd
+-	a\>	  x  
+-	a\>	xxxxxy
+-	a\>	abbbc
+-	a\>	*a
+-	a\>	a{1}
+-	a\>	a\\b
+-	a\>	foobar
+-	a\>	12.34
+-	a\>	  
+-	a\>	a\nb
+-	a\>	aaaaaaaaaa
+-	\bb	
+-	\bb	a
+-	\bb	b
+-	\bb	abc
+-	\bb	aaa
+-	\bb	aab
+-	\bb	abab
+-	\bb	abcd
+-	\bb	xaby
+-	\bb	a-b-c
+-	\bb	key:value
+-	\bb	x=1=2
+-	\bb	foo bar
+-	\bb	the cat
+-	\bb	A1b2
+-	\bb	aXbXc
+-	\bb	ab\ncd
+-	\bb	  x  
+-	\bb	xxxxxy
+-	\bb	abbbc
+-	\bb	*a
+-	\bb	a{1}
+-	\bb	a\\b
+-	\bb	foobar
+-	\bb	12.34
+-	\bb	  
+-	\bb	a\nb
+-	\bb	aaaaaaaaaa
+-	\Bb	
+-	\Bb	a
+-	\Bb	b
+-	\Bb	abc
+-	\Bb	aaa
+-	\Bb	aab
+-	\Bb	abab
+-	\Bb	abcd
+-	\Bb	xaby
+-	\Bb	a-b-c
+-	\Bb	key:value
+-	\Bb	x=1=2
+-	\Bb	foo bar
+-	\Bb	the cat
+-	\Bb	A1b2
+-	\Bb	aXbXc
+-	\Bb	ab\ncd
+-	\Bb	  x  
+-	\Bb	xxxxxy
+-	\Bb	abbbc
+-	\Bb	*a
+-	\Bb	a{1}
+-	\Bb	a\\b
+-	\Bb	foobar
+-	\Bb	12.34
+-	\Bb	  
+-	\Bb	a\nb
+-	\Bb	aaaaaaaaaa
+-	\w\+	
+-	\w\+	a
+-	\w\+	b
+-	\w\+	abc
+-	\w\+	aaa
+-	\w\+	aab
+-	\w\+	abab
+-	\w\+	abcd
+-	\w\+	xaby
+-	\w\+	a-b-c
+-	\w\+	key:value
+-	\w\+	x=1=2
+-	\w\+	foo bar
+-	\w\+	the cat
+-	\w\+	A1b2
+-	\w\+	aXbXc
+-	\w\+	ab\ncd
+-	\w\+	  x  
+-	\w\+	xxxxxy
+-	\w\+	abbbc
+-	\w\+	*a
+-	\w\+	a{1}
+-	\w\+	a\\b
+-	\w\+	foobar
+-	\w\+	12.34
+-	\w\+	  
+-	\w\+	a\nb
+-	\w\+	aaaaaaaaaa
+-	\W	
+-	\W	a
+-	\W	b
+-	\W	abc
+-	\W	aaa
+-	\W	aab
+-	\W	abab
+-	\W	abcd
+-	\W	xaby
+-	\W	a-b-c
+-	\W	key:value
+-	\W	x=1=2
+-	\W	foo bar
+-	\W	the cat
+-	\W	A1b2
+-	\W	aXbXc
+-	\W	ab\ncd
+-	\W	  x  
+-	\W	xxxxxy
+-	\W	abbbc
+-	\W	*a
+-	\W	a{1}
+-	\W	a\\b
+-	\W	foobar
+-	\W	12.34
+-	\W	  
+-	\W	a\nb
+-	\W	aaaaaaaaaa
+-	\s	
+-	\s	a
+-	\s	b
+-	\s	abc
+-	\s	aaa
+-	\s	aab
+-	\s	abab
+-	\s	abcd
+-	\s	xaby
+-	\s	a-b-c
+-	\s	key:value
+-	\s	x=1=2
+-	\s	foo bar
+-	\s	the cat
+-	\s	A1b2
+-	\s	aXbXc
+-	\s	ab\ncd
+-	\s	  x  
+-	\s	xxxxxy
+-	\s	abbbc
+-	\s	*a
+-	\s	a{1}
+-	\s	a\\b
+-	\s	foobar
+-	\s	12.34
+-	\s	  
+-	\s	a\nb
+-	\s	aaaaaaaaaa
+-	\S\+	
+-	\S\+	a
+-	\S\+	b
+-	\S\+	abc
+-	\S\+	aaa
+-	\S\+	aab
+-	\S\+	abab
+-	\S\+	abcd
+-	\S\+	xaby
+-	\S\+	a-b-c
+-	\S\+	key:value
+-	\S\+	x=1=2
+-	\S\+	foo bar
+-	\S\+	the cat
+-	\S\+	A1b2
+-	\S\+	aXbXc
+-	\S\+	ab\ncd
+-	\S\+	  x  
+-	\S\+	xxxxxy
+-	\S\+	abbbc
+-	\S\+	*a
+-	\S\+	a{1}
+-	\S\+	a\\b
+-	\S\+	foobar
+-	\S\+	12.34
+-	\S\+	  
+-	\S\+	a\nb
+-	\S\+	aaaaaaaaaa
+-	\`a	
+-	\`a	a
+-	\`a	b
+-	\`a	abc
+-	\`a	aaa
+-	\`a	aab
+-	\`a	abab
+-	\`a	abcd
+-	\`a	xaby
+-	\`a	a-b-c
+-	\`a	key:value
+-	\`a	x=1=2
+-	\`a	foo bar
+-	\`a	the cat
+-	\`a	A1b2
+-	\`a	aXbXc
+-	\`a	ab\ncd
+-	\`a	  x  
+-	\`a	xxxxxy
+-	\`a	abbbc
+-	\`a	*a
+-	\`a	a{1}
+-	\`a	a\\b
+-	\`a	foobar
+-	\`a	12.34
+-	\`a	  
+-	\`a	a\nb
+-	\`a	aaaaaaaaaa
+-	a\'	
+-	a\'	a
+-	a\'	b
+-	a\'	abc
+-	a\'	aaa
+-	a\'	aab
+-	a\'	abab
+-	a\'	abcd
+-	a\'	xaby
+-	a\'	a-b-c
+-	a\'	key:value
+-	a\'	x=1=2
+-	a\'	foo bar
+-	a\'	the cat
+-	a\'	A1b2
+-	a\'	aXbXc
+-	a\'	ab\ncd
+-	a\'	  x  
+-	a\'	xxxxxy
+-	a\'	abbbc
+-	a\'	*a
+-	a\'	a{1}
+-	a\'	a\\b
+-	a\'	foobar
+-	a\'	12.34
+-	a\'	  
+-	a\'	a\nb
+-	a\'	aaaaaaaaaa
+-	*a	
+-	*a	a
+-	*a	b
+-	*a	abc
+-	*a	aaa
+-	*a	aab
+-	*a	abab
+-	*a	abcd
+-	*a	xaby
+-	*a	a-b-c
+-	*a	key:value
+-	*a	x=1=2
+-	*a	foo bar
+-	*a	the cat
+-	*a	A1b2
+-	*a	aXbXc
+-	*a	ab\ncd
+-	*a	  x  
+-	*a	xxxxxy
+-	*a	abbbc
+-	*a	*a
+-	*a	a{1}
+-	*a	a\\b
+-	*a	foobar
+-	*a	12.34
+-	*a	  
+-	*a	a\nb
+-	*a	aaaaaaaaaa
+-	^*a	
+-	^*a	a
+-	^*a	b
+-	^*a	abc
+-	^*a	aaa
+-	^*a	aab
+-	^*a	abab
+-	^*a	abcd
+-	^*a	xaby
+-	^*a	a-b-c
+-	^*a	key:value
+-	^*a	x=1=2
+-	^*a	foo bar
+-	^*a	the cat
+-	^*a	A1b2
+-	^*a	aXbXc
+-	^*a	ab\ncd
+-	^*a	  x  
+-	^*a	xxxxxy
+-	^*a	abbbc
+-	^*a	*a
+-	^*a	a{1}
+-	^*a	a\\b
+-	^*a	foobar
+-	^*a	12.34
+-	^*a	  
+-	^*a	a\nb
+-	^*a	aaaaaaaaaa
+-	\(*a\)	
+-	\(*a\)	a
+-	\(*a\)	b
+-	\(*a\)	abc
+-	\(*a\)	aaa
+-	\(*a\)	aab
+-	\(*a\)	abab
+-	\(*a\)	abcd
+-	\(*a\)	xaby
+-	\(*a\)	a-b-c
+-	\(*a\)	key:value
+-	\(*a\)	x=1=2
+-	\(*a\)	foo bar
+-	\(*a\)	the cat
+-	\(*a\)	A1b2
+-	\(*a\)	aXbXc
+-	\(*a\)	ab\ncd
+-	\(*a\)	  x  
+-	\(*a\)	xxxxxy
+-	\(*a\)	abbbc
+-	\(*a\)	*a
+-	\(*a\)	a{1}
+-	\(*a\)	a\\b
+-	\(*a\)	foobar
+-	\(*a\)	12.34
+-	\(*a\)	  
+-	\(*a\)	a\nb
+-	\(*a\)	aaaaaaaaaa
+-	.*	
+-	.*	a
+-	.*	b
+-	.*	abc
+-	.*	aaa
+-	.*	aab
+-	.*	abab
+-	.*	abcd
+-	.*	xaby
+-	.*	a-b-c
+-	.*	key:value
+-	.*	x=1=2
+-	.*	foo bar
+-	.*	the cat
+-	.*	A1b2
+-	.*	aXbXc
+-	.*	ab\ncd
+-	.*	  x  
+-	.*	xxxxxy
+-	.*	abbbc
+-	.*	*a
+-	.*	a{1}
+-	.*	a\\b
+-	.*	foobar
+-	.*	12.34
+-	.*	  
+-	.*	a\nb
+-	.*	aaaaaaaaaa
+-	.\+	
+-	.\+	a
+-	.\+	b
+-	.\+	abc
+-	.\+	aaa
+-	.\+	aab
+-	.\+	abab
+-	.\+	abcd
+-	.\+	xaby
+-	.\+	a-b-c
+-	.\+	key:value
+-	.\+	x=1=2
+-	.\+	foo bar
+-	.\+	the cat
+-	.\+	A1b2
+-	.\+	aXbXc
+-	.\+	ab\ncd
+-	.\+	  x  
+-	.\+	xxxxxy
+-	.\+	abbbc
+-	.\+	*a
+-	.\+	a{1}
+-	.\+	a\\b
+-	.\+	foobar
+-	.\+	12.34
+-	.\+	  
+-	.\+	a\nb
+-	.\+	aaaaaaaaaa
+-	\(a\|ab\)\(c\|bcd\)	
+-	\(a\|ab\)\(c\|bcd\)	a
+-	\(a\|ab\)\(c\|bcd\)	b
+-	\(a\|ab\)\(c\|bcd\)	abc
+-	\(a\|ab\)\(c\|bcd\)	aaa
+-	\(a\|ab\)\(c\|bcd\)	aab
+-	\(a\|ab\)\(c\|bcd\)	abab
+-	\(a\|ab\)\(c\|bcd\)	abcd
+-	\(a\|ab\)\(c\|bcd\)	xaby
+-	\(a\|ab\)\(c\|bcd\)	a-b-c
+-	\(a\|ab\)\(c\|bcd\)	key:value
+-	\(a\|ab\)\(c\|bcd\)	x=1=2
+-	\(a\|ab\)\(c\|bcd\)	foo bar
+-	\(a\|ab\)\(c\|bcd\)	the cat
+-	\(a\|ab\)\(c\|bcd\)	A1b2
+-	\(a\|ab\)\(c\|bcd\)	aXbXc
+-	\(a\|ab\)\(c\|bcd\)	ab\ncd
+-	\(a\|ab\)\(c\|bcd\)	  x  
+-	\(a\|ab\)\(c\|bcd\)	xxxxxy
+-	\(a\|ab\)\(c\|bcd\)	abbbc
+-	\(a\|ab\)\(c\|bcd\)	*a
+-	\(a\|ab\)\(c\|bcd\)	a{1}
+-	\(a\|ab\)\(c\|bcd\)	a\\b
+-	\(a\|ab\)\(c\|bcd\)	foobar
+-	\(a\|ab\)\(c\|bcd\)	12.34
+-	\(a\|ab\)\(c\|bcd\)	  
+-	\(a\|ab\)\(c\|bcd\)	a\nb
+-	\(a\|ab\)\(c\|bcd\)	aaaaaaaaaa
+-	\(a\|ab\)\(bc\|c\)	
+-	\(a\|ab\)\(bc\|c\)	a
+-	\(a\|ab\)\(bc\|c\)	b
+-	\(a\|ab\)\(bc\|c\)	abc
+-	\(a\|ab\)\(bc\|c\)	aaa
+-	\(a\|ab\)\(bc\|c\)	aab
+-	\(a\|ab\)\(bc\|c\)	abab
+-	\(a\|ab\)\(bc\|c\)	abcd
+-	\(a\|ab\)\(bc\|c\)	xaby
+-	\(a\|ab\)\(bc\|c\)	a-b-c
+-	\(a\|ab\)\(bc\|c\)	key:value
+-	\(a\|ab\)\(bc\|c\)	x=1=2
+-	\(a\|ab\)\(bc\|c\)	foo bar
+-	\(a\|ab\)\(bc\|c\)	the cat
+-	\(a\|ab\)\(bc\|c\)	A1b2
+-	\(a\|ab\)\(bc\|c\)	aXbXc
+-	\(a\|ab\)\(bc\|c\)	ab\ncd
+-	\(a\|ab\)\(bc\|c\)	  x  
+-	\(a\|ab\)\(bc\|c\)	xxxxxy
+-	\(a\|ab\)\(bc\|c\)	abbbc
+-	\(a\|ab\)\(bc\|c\)	*a
+-	\(a\|ab\)\(bc\|c\)	a{1}
+-	\(a\|ab\)\(bc\|c\)	a\\b
+-	\(a\|ab\)\(bc\|c\)	foobar
+-	\(a\|ab\)\(bc\|c\)	12.34
+-	\(a\|ab\)\(bc\|c\)	  
+-	\(a\|ab\)\(bc\|c\)	a\nb
+-	\(a\|ab\)\(bc\|c\)	aaaaaaaaaa
+-	\(.*\)-\(.*\)	
+-	\(.*\)-\(.*\)	a
+-	\(.*\)-\(.*\)	b
+-	\(.*\)-\(.*\)	abc
+-	\(.*\)-\(.*\)	aaa
+-	\(.*\)-\(.*\)	aab
+-	\(.*\)-\(.*\)	abab
+-	\(.*\)-\(.*\)	abcd
+-	\(.*\)-\(.*\)	xaby
+-	\(.*\)-\(.*\)	a-b-c
+-	\(.*\)-\(.*\)	key:value
+-	\(.*\)-\(.*\)	x=1=2
+-	\(.*\)-\(.*\)	foo bar
+-	\(.*\)-\(.*\)	the cat
+-	\(.*\)-\(.*\)	A1b2
+-	\(.*\)-\(.*\)	aXbXc
+-	\(.*\)-\(.*\)	ab\ncd
+-	\(.*\)-\(.*\)	  x  
+-	\(.*\)-\(.*\)	xxxxxy
+-	\(.*\)-\(.*\)	abbbc
+-	\(.*\)-\(.*\)	*a
+-	\(.*\)-\(.*\)	a{1}
+-	\(.*\)-\(.*\)	a\\b
+-	\(.*\)-\(.*\)	foobar
+-	\(.*\)-\(.*\)	12.34
+-	\(.*\)-\(.*\)	  
+-	\(.*\)-\(.*\)	a\nb
+-	\(.*\)-\(.*\)	aaaaaaaaaa
+-	\([^:]*\):\(.*\)	
+-	\([^:]*\):\(.*\)	a
+-	\([^:]*\):\(.*\)	b
+-	\([^:]*\):\(.*\)	abc
+-	\([^:]*\):\(.*\)	aaa
+-	\([^:]*\):\(.*\)	aab
+-	\([^:]*\):\(.*\)	abab
+-	\([^:]*\):\(.*\)	abcd
+-	\([^:]*\):\(.*\)	xaby
+-	\([^:]*\):\(.*\)	a-b-c
+-	\([^:]*\):\(.*\)	key:value
+-	\([^:]*\):\(.*\)	x=1=2
+-	\([^:]*\):\(.*\)	foo bar
+-	\([^:]*\):\(.*\)	the cat
+-	\([^:]*\):\(.*\)	A1b2
+-	\([^:]*\):\(.*\)	aXbXc
+-	\([^:]*\):\(.*\)	ab\ncd
+-	\([^:]*\):\(.*\)	  x  
+-	\([^:]*\):\(.*\)	xxxxxy
+-	\([^:]*\):\(.*\)	abbbc
+-	\([^:]*\):\(.*\)	*a
+-	\([^:]*\):\(.*\)	a{1}
+-	\([^:]*\):\(.*\)	a\\b
+-	\([^:]*\):\(.*\)	foobar
+-	\([^:]*\):\(.*\)	12.34
+-	\([^:]*\):\(.*\)	  
+-	\([^:]*\):\(.*\)	a\nb
+-	\([^:]*\):\(.*\)	aaaaaaaaaa
+-	[[:alpha:]_][[:alnum:]_]*	
+-	[[:alpha:]_][[:alnum:]_]*	a
+-	[[:alpha:]_][[:alnum:]_]*	b
+-	[[:alpha:]_][[:alnum:]_]*	abc
+-	[[:alpha:]_][[:alnum:]_]*	aaa
+-	[[:alpha:]_][[:alnum:]_]*	aab
+-	[[:alpha:]_][[:alnum:]_]*	abab
+-	[[:alpha:]_][[:alnum:]_]*	abcd
+-	[[:alpha:]_][[:alnum:]_]*	xaby
+-	[[:alpha:]_][[:alnum:]_]*	a-b-c
+-	[[:alpha:]_][[:alnum:]_]*	key:value
+-	[[:alpha:]_][[:alnum:]_]*	x=1=2
+-	[[:alpha:]_][[:alnum:]_]*	foo bar
+-	[[:alpha:]_][[:alnum:]_]*	the cat
+-	[[:alpha:]_][[:alnum:]_]*	A1b2
+-	[[:alpha:]_][[:alnum:]_]*	aXbXc
+-	[[:alpha:]_][[:alnum:]_]*	ab\ncd
+-	[[:alpha:]_][[:alnum:]_]*	  x  
+-	[[:alpha:]_][[:alnum:]_]*	xxxxxy
+-	[[:alpha:]_][[:alnum:]_]*	abbbc
+-	[[:alpha:]_][[:alnum:]_]*	*a
+-	[[:alpha:]_][[:alnum:]_]*	a{1}
+-	[[:alpha:]_][[:alnum:]_]*	a\\b
+-	[[:alpha:]_][[:alnum:]_]*	foobar
+-	[[:alpha:]_][[:alnum:]_]*	12.34
+-	[[:alpha:]_][[:alnum:]_]*	  
+-	[[:alpha:]_][[:alnum:]_]*	a\nb
+-	[[:alpha:]_][[:alnum:]_]*	aaaaaaaaaa
+-	a[	
+-	a[	a
+-	a[	b
+-	a[	abc
+-	a[	aaa
+-	a[	aab
+-	a[	abab
+-	a[	abcd
+-	a[	xaby
+-	a[	a-b-c
+-	a[	key:value
+-	a[	x=1=2
+-	a[	foo bar
+-	a[	the cat
+-	a[	A1b2
+-	a[	aXbXc
+-	a[	ab\ncd
+-	a[	  x  
+-	a[	xxxxxy
+-	a[	abbbc
+-	a[	*a
+-	a[	a{1}
+-	a[	a\\b
+-	a[	foobar
+-	a[	12.34
+-	a[	  
+-	a[	a\nb
+-	a[	aaaaaaaaaa
+-	a\(	
+-	a\(	a
+-	a\(	b
+-	a\(	abc
+-	a\(	aaa
+-	a\(	aab
+-	a\(	abab
+-	a\(	abcd
+-	a\(	xaby
+-	a\(	a-b-c
+-	a\(	key:value
+-	a\(	x=1=2
+-	a\(	foo bar
+-	a\(	the cat
+-	a\(	A1b2
+-	a\(	aXbXc
+-	a\(	ab\ncd
+-	a\(	  x  
+-	a\(	xxxxxy
+-	a\(	abbbc
+-	a\(	*a
+-	a\(	a{1}
+-	a\(	a\\b
+-	a\(	foobar
+-	a\(	12.34
+-	a\(	  
+-	a\(	a\nb
+-	a\(	aaaaaaaaaa
+-	a\)	
+-	a\)	a
+-	a\)	b
+-	a\)	abc
+-	a\)	aaa
+-	a\)	aab
+-	a\)	abab
+-	a\)	abcd
+-	a\)	xaby
+-	a\)	a-b-c
+-	a\)	key:value
+-	a\)	x=1=2
+-	a\)	foo bar
+-	a\)	the cat
+-	a\)	A1b2
+-	a\)	aXbXc
+-	a\)	ab\ncd
+-	a\)	  x  
+-	a\)	xxxxxy
+-	a\)	abbbc
+-	a\)	*a
+-	a\)	a{1}
+-	a\)	a\\b
+-	a\)	foobar
+-	a\)	12.34
+-	a\)	  
+-	a\)	a\nb
+-	a\)	aaaaaaaaaa
+-	a\{1	
+-	a\{1	a
+-	a\{1	b
+-	a\{1	abc
+-	a\{1	aaa
+-	a\{1	aab
+-	a\{1	abab
+-	a\{1	abcd
+-	a\{1	xaby
+-	a\{1	a-b-c
+-	a\{1	key:value
+-	a\{1	x=1=2
+-	a\{1	foo bar
+-	a\{1	the cat
+-	a\{1	A1b2
+-	a\{1	aXbXc
+-	a\{1	ab\ncd
+-	a\{1	  x  
+-	a\{1	xxxxxy
+-	a\{1	abbbc
+-	a\{1	*a
+-	a\{1	a{1}
+-	a\{1	a\\b
+-	a\{1	foobar
+-	a\{1	12.34
+-	a\{1	  
+-	a\{1	a\nb
+-	a\{1	aaaaaaaaaa
+-	a\{2,1\}	
+-	a\{2,1\}	a
+-	a\{2,1\}	b
+-	a\{2,1\}	abc
+-	a\{2,1\}	aaa
+-	a\{2,1\}	aab
+-	a\{2,1\}	abab
+-	a\{2,1\}	abcd
+-	a\{2,1\}	xaby
+-	a\{2,1\}	a-b-c
+-	a\{2,1\}	key:value
+-	a\{2,1\}	x=1=2
+-	a\{2,1\}	foo bar
+-	a\{2,1\}	the cat
+-	a\{2,1\}	A1b2
+-	a\{2,1\}	aXbXc
+-	a\{2,1\}	ab\ncd
+-	a\{2,1\}	  x  
+-	a\{2,1\}	xxxxxy
+-	a\{2,1\}	abbbc
+-	a\{2,1\}	*a
+-	a\{2,1\}	a{1}
+-	a\{2,1\}	a\\b
+-	a\{2,1\}	foobar
+-	a\{2,1\}	12.34
+-	a\{2,1\}	  
+-	a\{2,1\}	a\nb
+-	a\{2,1\}	aaaaaaaaaa
+-	\1	
+-	\1	a
+-	\1	b
+-	\1	abc
+-	\1	aaa
+-	\1	aab
+-	\1	abab
+-	\1	abcd
+-	\1	xaby
+-	\1	a-b-c
+-	\1	key:value
+-	\1	x=1=2
+-	\1	foo bar
+-	\1	the cat
+-	\1	A1b2
+-	\1	aXbXc
+-	\1	ab\ncd
+-	\1	  x  
+-	\1	xxxxxy
+-	\1	abbbc
+-	\1	*a
+-	\1	a{1}
+-	\1	a\\b
+-	\1	foobar
+-	\1	12.34
+-	\1	  
+-	\1	a\nb
+-	\1	aaaaaaaaaa
+-	\(a\)\2	
+-	\(a\)\2	a
+-	\(a\)\2	b
+-	\(a\)\2	abc
+-	\(a\)\2	aaa
+-	\(a\)\2	aab
+-	\(a\)\2	abab
+-	\(a\)\2	abcd
+-	\(a\)\2	xaby
+-	\(a\)\2	a-b-c
+-	\(a\)\2	key:value
+-	\(a\)\2	x=1=2
+-	\(a\)\2	foo bar
+-	\(a\)\2	the cat
+-	\(a\)\2	A1b2
+-	\(a\)\2	aXbXc
+-	\(a\)\2	ab\ncd
+-	\(a\)\2	  x  
+-	\(a\)\2	xxxxxy
+-	\(a\)\2	abbbc
+-	\(a\)\2	*a
+-	\(a\)\2	a{1}
+-	\(a\)\2	a\\b
+-	\(a\)\2	foobar
+-	\(a\)\2	12.34
+-	\(a\)\2	  
+-	\(a\)\2	a\nb
+-	\(a\)\2	aaaaaaaaaa
+-	[[:foo:]]	
+-	[[:foo:]]	a
+-	[[:foo:]]	b
+-	[[:foo:]]	abc
+-	[[:foo:]]	aaa
+-	[[:foo:]]	aab
+-	[[:foo:]]	abab
+-	[[:foo:]]	abcd
+-	[[:foo:]]	xaby
+-	[[:foo:]]	a-b-c
+-	[[:foo:]]	key:value
+-	[[:foo:]]	x=1=2
+-	[[:foo:]]	foo bar
+-	[[:foo:]]	the cat
+-	[[:foo:]]	A1b2
+-	[[:foo:]]	aXbXc
+-	[[:foo:]]	ab\ncd
+-	[[:foo:]]	  x  
+-	[[:foo:]]	xxxxxy
+-	[[:foo:]]	abbbc
+-	[[:foo:]]	*a
+-	[[:foo:]]	a{1}
+-	[[:foo:]]	a\\b
+-	[[:foo:]]	foobar
+-	[[:foo:]]	12.34
+-	[[:foo:]]	  
+-	[[:foo:]]	a\nb
+-	[[:foo:]]	aaaaaaaaaa
+-	[z-a]	
+-	[z-a]	a
+-	[z-a]	b
+-	[z-a]	abc
+-	[z-a]	aaa
+-	[z-a]	aab
+-	[z-a]	abab
+-	[z-a]	abcd
+-	[z-a]	xaby
+-	[z-a]	a-b-c
+-	[z-a]	key:value
+-	[z-a]	x=1=2
+-	[z-a]	foo bar
+-	[z-a]	the cat
+-	[z-a]	A1b2
+-	[z-a]	aXbXc
+-	[z-a]	ab\ncd
+-	[z-a]	  x  
+-	[z-a]	xxxxxy
+-	[z-a]	abbbc
+-	[z-a]	*a
+-	[z-a]	a{1}
+-	[z-a]	a\\b
+-	[z-a]	foobar
+-	[z-a]	12.34
+-	[z-a]	  
+-	[z-a]	a\nb
+-	[z-a]	aaaaaaaaaa
+-	a\\	
+-	a\\	a
+-	a\\	b
+-	a\\	abc
+-	a\\	aaa
+-	a\\	aab
+-	a\\	abab
+-	a\\	abcd
+-	a\\	xaby
+-	a\\	a-b-c
+-	a\\	key:value
+-	a\\	x=1=2
+-	a\\	foo bar
+-	a\\	the cat
+-	a\\	A1b2
+-	a\\	aXbXc
+-	a\\	ab\ncd
+-	a\\	  x  
+-	a\\	xxxxxy
+-	a\\	abbbc
+-	a\\	*a
+-	a\\	a{1}
+-	a\\	a\\b
+-	a\\	foobar
+-	a\\	12.34
+-	a\\	  
+-	a\\	a\nb
+-	a\\	aaaaaaaaaa
+-	x$y	
+-	x$y	a
+-	x$y	b
+-	x$y	abc
+-	x$y	aaa
+-	x$y	aab
+-	x$y	abab
+-	x$y	abcd
+-	x$y	xaby
+-	x$y	a-b-c
+-	x$y	key:value
+-	x$y	x=1=2
+-	x$y	foo bar
+-	x$y	the cat
+-	x$y	A1b2
+-	x$y	aXbXc
+-	x$y	ab\ncd
+-	x$y	  x  
+-	x$y	xxxxxy
+-	x$y	abbbc
+-	x$y	*a
+-	x$y	a{1}
+-	x$y	a\\b
+-	x$y	foobar
+-	x$y	12.34
+-	x$y	  
+-	x$y	a\nb
+-	x$y	aaaaaaaaaa
+-	x^y	
+-	x^y	a
+-	x^y	b
+-	x^y	abc
+-	x^y	aaa
+-	x^y	aab
+-	x^y	abab
+-	x^y	abcd
+-	x^y	xaby
+-	x^y	a-b-c
+-	x^y	key:value
+-	x^y	x=1=2
+-	x^y	foo bar
+-	x^y	the cat
+-	x^y	A1b2
+-	x^y	aXbXc
+-	x^y	ab\ncd
+-	x^y	  x  
+-	x^y	xxxxxy
+-	x^y	abbbc
+-	x^y	*a
+-	x^y	a{1}
+-	x^y	a\\b
+-	x^y	foobar
+-	x^y	12.34
+-	x^y	  
+-	x^y	a\nb
+-	x^y	aaaaaaaaaa
+-	$x	
+-	$x	a
+-	$x	b
+-	$x	abc
+-	$x	aaa
+-	$x	aab
+-	$x	abab
+-	$x	abcd
+-	$x	xaby
+-	$x	a-b-c
+-	$x	key:value
+-	$x	x=1=2
+-	$x	foo bar
+-	$x	the cat
+-	$x	A1b2
+-	$x	aXbXc
+-	$x	ab\ncd
+-	$x	  x  
+-	$x	xxxxxy
+-	$x	abbbc
+-	$x	*a
+-	$x	a{1}
+-	$x	a\\b
+-	$x	foobar
+-	$x	12.34
+-	$x	  
+-	$x	a\nb
+-	$x	aaaaaaaaaa
+-	\(^a\)	
+-	\(^a\)	a
+-	\(^a\)	b
+-	\(^a\)	abc
+-	\(^a\)	aaa
+-	\(^a\)	aab
+-	\(^a\)	abab
+-	\(^a\)	abcd
+-	\(^a\)	xaby
+-	\(^a\)	a-b-c
+-	\(^a\)	key:value
+-	\(^a\)	x=1=2
+-	\(^a\)	foo bar
+-	\(^a\)	the cat
+-	\(^a\)	A1b2
+-	\(^a\)	aXbXc
+-	\(^a\)	ab\ncd
+-	\(^a\)	  x  
+-	\(^a\)	xxxxxy
+-	\(^a\)	abbbc
+-	\(^a\)	*a
+-	\(^a\)	a{1}
+-	\(^a\)	a\\b
+-	\(^a\)	foobar
+-	\(^a\)	12.34
+-	\(^a\)	  
+-	\(^a\)	a\nb
+-	\(^a\)	aaaaaaaaaa
+-	\(a$\)	
+-	\(a$\)	a
+-	\(a$\)	b
+-	\(a$\)	abc
+-	\(a$\)	aaa
+-	\(a$\)	aab
+-	\(a$\)	abab
+-	\(a$\)	abcd
+-	\(a$\)	xaby
+-	\(a$\)	a-b-c
+-	\(a$\)	key:value
+-	\(a$\)	x=1=2
+-	\(a$\)	foo bar
+-	\(a$\)	the cat
+-	\(a$\)	A1b2
+-	\(a$\)	aXbXc
+-	\(a$\)	ab\ncd
+-	\(a$\)	  x  
+-	\(a$\)	xxxxxy
+-	\(a$\)	abbbc
+-	\(a$\)	*a
+-	\(a$\)	a{1}
+-	\(a$\)	a\\b
+-	\(a$\)	foobar
+-	\(a$\)	12.34
+-	\(a$\)	  
+-	\(a$\)	a\nb
+-	\(a$\)	aaaaaaaaaa
+-	a\|^b	
+-	a\|^b	a
+-	a\|^b	b
+-	a\|^b	abc
+-	a\|^b	aaa
+-	a\|^b	aab
+-	a\|^b	abab
+-	a\|^b	abcd
+-	a\|^b	xaby
+-	a\|^b	a-b-c
+-	a\|^b	key:value
+-	a\|^b	x=1=2
+-	a\|^b	foo bar
+-	a\|^b	the cat
+-	a\|^b	A1b2
+-	a\|^b	aXbXc
+-	a\|^b	ab\ncd
+-	a\|^b	  x  
+-	a\|^b	xxxxxy
+-	a\|^b	abbbc
+-	a\|^b	*a
+-	a\|^b	a{1}
+-	a\|^b	a\\b
+-	a\|^b	foobar
+-	a\|^b	12.34
+-	a\|^b	  
+-	a\|^b	a\nb
+-	a\|^b	aaaaaaaaaa
+-	a$\|b	
+-	a$\|b	a
+-	a$\|b	b
+-	a$\|b	abc
+-	a$\|b	aaa
+-	a$\|b	aab
+-	a$\|b	abab
+-	a$\|b	abcd
+-	a$\|b	xaby
+-	a$\|b	a-b-c
+-	a$\|b	key:value
+-	a$\|b	x=1=2
+-	a$\|b	foo bar
+-	a$\|b	the cat
+-	a$\|b	A1b2
+-	a$\|b	aXbXc
+-	a$\|b	ab\ncd
+-	a$\|b	  x  
+-	a$\|b	xxxxxy
+-	a$\|b	abbbc
+-	a$\|b	*a
+-	a$\|b	a{1}
+-	a$\|b	a\\b
+-	a$\|b	foobar
+-	a$\|b	12.34
+-	a$\|b	  
+-	a$\|b	a\nb
+-	a$\|b	aaaaaaaaaa
+-	[\n]	
+-	[\n]	a
+-	[\n]	b
+-	[\n]	abc
+-	[\n]	aaa
+-	[\n]	aab
+-	[\n]	abab
+-	[\n]	abcd
+-	[\n]	xaby
+-	[\n]	a-b-c
+-	[\n]	key:value
+-	[\n]	x=1=2
+-	[\n]	foo bar
+-	[\n]	the cat
+-	[\n]	A1b2
+-	[\n]	aXbXc
+-	[\n]	ab\ncd
+-	[\n]	  x  
+-	[\n]	xxxxxy
+-	[\n]	abbbc
+-	[\n]	*a
+-	[\n]	a{1}
+-	[\n]	a\\b
+-	[\n]	foobar
+-	[\n]	12.34
+-	[\n]	  
+-	[\n]	a\nb
+-	[\n]	aaaaaaaaaa
+-	a\nb	
+-	a\nb	a
+-	a\nb	b
+-	a\nb	abc
+-	a\nb	aaa
+-	a\nb	aab
+-	a\nb	abab
+-	a\nb	abcd
+-	a\nb	xaby
+-	a\nb	a-b-c
+-	a\nb	key:value
+-	a\nb	x=1=2
+-	a\nb	foo bar
+-	a\nb	the cat
+-	a\nb	A1b2
+-	a\nb	aXbXc
+-	a\nb	ab\ncd
+-	a\nb	  x  
+-	a\nb	xxxxxy
+-	a\nb	abbbc
+-	a\nb	*a
+-	a\nb	a{1}
+-	a\nb	a\\b
+-	a\nb	foobar
+-	a\nb	12.34
+-	a\nb	  
+-	a\nb	a\nb
+-	a\nb	aaaaaaaaaa
+E	abc	
+E	abc	a
+E	abc	b
+E	abc	abc
+E	abc	aaa
+E	abc	aab
+E	abc	abab
+E	abc	abcd
+E	abc	xaby
+E	abc	a-b-c
+E	abc	key:value
+E	abc	x=1=2
+E	abc	foo bar
+E	abc	the cat
+E	abc	A1b2
+E	abc	aXbXc
+E	abc	ab\ncd
+E	abc	  x  
+E	abc	xxxxxy
+E	abc	abbbc
+E	abc	*a
+E	abc	a{1}
+E	abc	a\\b
+E	abc	foobar
+E	abc	12.34
+E	abc	  
+E	abc	a\nb
+E	abc	aaaaaaaaaa
+E	a|b	
+E	a|b	a
+E	a|b	b
+E	a|b	abc
+E	a|b	aaa
+E	a|b	aab
+E	a|b	abab
+E	a|b	abcd
+E	a|b	xaby
+E	a|b	a-b-c
+E	a|b	key:value
+E	a|b	x=1=2
+E	a|b	foo bar
+E	a|b	the cat
+E	a|b	A1b2
+E	a|b	aXbXc
+E	a|b	ab\ncd
+E	a|b	  x  
+E	a|b	xxxxxy
+E	a|b	abbbc
+E	a|b	*a
+E	a|b	a{1}
+E	a|b	a\\b
+E	a|b	foobar
+E	a|b	12.34
+E	a|b	  
+E	a|b	a\nb
+E	a|b	aaaaaaaaaa
+E	(a|b)+	
+E	(a|b)+	a
+E	(a|b)+	b
+E	(a|b)+	abc
+E	(a|b)+	aaa
+E	(a|b)+	aab
+E	(a|b)+	abab
+E	(a|b)+	abcd
+E	(a|b)+	xaby
+E	(a|b)+	a-b-c
+E	(a|b)+	key:value
+E	(a|b)+	x=1=2
+E	(a|b)+	foo bar
+E	(a|b)+	the cat
+E	(a|b)+	A1b2
+E	(a|b)+	aXbXc
+E	(a|b)+	ab\ncd
+E	(a|b)+	  x  
+E	(a|b)+	xxxxxy
+E	(a|b)+	abbbc
+E	(a|b)+	*a
+E	(a|b)+	a{1}
+E	(a|b)+	a\\b
+E	(a|b)+	foobar
+E	(a|b)+	12.34
+E	(a|b)+	  
+E	(a|b)+	a\nb
+E	(a|b)+	aaaaaaaaaa
+E	a+	
+E	a+	a
+E	a+	b
+E	a+	abc
+E	a+	aaa
+E	a+	aab
+E	a+	abab
+E	a+	abcd
+E	a+	xaby
+E	a+	a-b-c
+E	a+	key:value
+E	a+	x=1=2
+E	a+	foo bar
+E	a+	the cat
+E	a+	A1b2
+E	a+	aXbXc
+E	a+	ab\ncd
+E	a+	  x  
+E	a+	xxxxxy
+E	a+	abbbc
+E	a+	*a
+E	a+	a{1}
+E	a+	a\\b
+E	a+	foobar
+E	a+	12.34
+E	a+	  
+E	a+	a\nb
+E	a+	aaaaaaaaaa
+E	a?b	
+E	a?b	a
+E	a?b	b
+E	a?b	abc
+E	a?b	aaa
+E	a?b	aab
+E	a?b	abab
+E	a?b	abcd
+E	a?b	xaby
+E	a?b	a-b-c
+E	a?b	key:value
+E	a?b	x=1=2
+E	a?b	foo bar
+E	a?b	the cat
+E	a?b	A1b2
+E	a?b	aXbXc
+E	a?b	ab\ncd
+E	a?b	  x  
+E	a?b	xxxxxy
+E	a?b	abbbc
+E	a?b	*a
+E	a?b	a{1}
+E	a?b	a\\b
+E	a?b	foobar
+E	a?b	12.34
+E	a?b	  
+E	a?b	a\nb
+E	a?b	aaaaaaaaaa
+E	(ab){2}	
+E	(ab){2}	a
+E	(ab){2}	b
+E	(ab){2}	abc
+E	(ab){2}	aaa
+E	(ab){2}	aab
+E	(ab){2}	abab
+E	(ab){2}	abcd
+E	(ab){2}	xaby
+E	(ab){2}	a-b-c
+E	(ab){2}	key:value
+E	(ab){2}	x=1=2
+E	(ab){2}	foo bar
+E	(ab){2}	the cat
+E	(ab){2}	A1b2
+E	(ab){2}	aXbXc
+E	(ab){2}	ab\ncd
+E	(ab){2}	  x  
+E	(ab){2}	xxxxxy
+E	(ab){2}	abbbc
+E	(ab){2}	*a
+E	(ab){2}	a{1}
+E	(ab){2}	a\\b
+E	(ab){2}	foobar
+E	(ab){2}	12.34
+E	(ab){2}	  
+E	(ab){2}	a\nb
+E	(ab){2}	aaaaaaaaaa
+E	(ab){1,}	
+E	(ab){1,}	a
+E	(ab){1,}	b
+E	(ab){1,}	abc
+E	(ab){1,}	aaa
+E	(ab){1,}	aab
+E	(ab){1,}	abab
+E	(ab){1,}	abcd
+E	(ab){1,}	xaby
+E	(ab){1,}	a-b-c
+E	(ab){1,}	key:value
+E	(ab){1,}	x=1=2
+E	(ab){1,}	foo bar
+E	(ab){1,}	the cat
+E	(ab){1,}	A1b2
+E	(ab){1,}	aXbXc
+E	(ab){1,}	ab\ncd
+E	(ab){1,}	  x  
+E	(ab){1,}	xxxxxy
+E	(ab){1,}	abbbc
+E	(ab){1,}	*a
+E	(ab){1,}	a{1}
+E	(ab){1,}	a\\b
+E	(ab){1,}	foobar
+E	(ab){1,}	12.34
+E	(ab){1,}	  
+E	(ab){1,}	a\nb
+E	(ab){1,}	aaaaaaaaaa
+E	a{,2}	
+E	a{,2}	a
+E	a{,2}	b
+E	a{,2}	abc
+E	a{,2}	aaa
+E	a{,2}	aab
+E	a{,2}	abab
+E	a{,2}	abcd
+E	a{,2}	xaby
+E	a{,2}	a-b-c
+E	a{,2}	key:value
+E	a{,2}	x=1=2
+E	a{,2}	foo bar
+E	a{,2}	the cat
+E	a{,2}	A1b2
+E	a{,2}	aXbXc
+E	a{,2}	ab\ncd
+E	a{,2}	  x  
+E	a{,2}	xxxxxy
+E	a{,2}	abbbc
+E	a{,2}	*a
+E	a{,2}	a{1}
+E	a{,2}	a\\b
+E	a{,2}	foobar
+E	a{,2}	12.34
+E	a{,2}	  
+E	a{,2}	a\nb
+E	a{,2}	aaaaaaaaaa
+E	(a*)+	
+E	(a*)+	a
+E	(a*)+	b
+E	(a*)+	abc
+E	(a*)+	aaa
+E	(a*)+	aab
+E	(a*)+	abab
+E	(a*)+	abcd
+E	(a*)+	xaby
+E	(a*)+	a-b-c
+E	(a*)+	key:value
+E	(a*)+	x=1=2
+E	(a*)+	foo bar
+E	(a*)+	the cat
+E	(a*)+	A1b2
+E	(a*)+	aXbXc
+E	(a*)+	ab\ncd
+E	(a*)+	  x  
+E	(a*)+	xxxxxy
+E	(a*)+	abbbc
+E	(a*)+	*a
+E	(a*)+	a{1}
+E	(a*)+	a\\b
+E	(a*)+	foobar
+E	(a*)+	12.34
+E	(a*)+	  
+E	(a*)+	a\nb
+E	(a*)+	aaaaaaaaaa
+E	(a*)*	
+E	(a*)*	a
+E	(a*)*	b
+E	(a*)*	abc
+E	(a*)*	aaa
+E	(a*)*	aab
+E	(a*)*	abab
+E	(a*)*	abcd
+E	(a*)*	xaby
+E	(a*)*	a-b-c
+E	(a*)*	key:value
+E	(a*)*	x=1=2
+E	(a*)*	foo bar
+E	(a*)*	the cat
+E	(a*)*	A1b2
+E	(a*)*	aXbXc
+E	(a*)*	ab\ncd
+E	(a*)*	  x  
+E	(a*)*	xxxxxy
+E	(a*)*	abbbc
+E	(a*)*	*a
+E	(a*)*	a{1}
+E	(a*)*	a\\b
+E	(a*)*	foobar
+E	(a*)*	12.34
+E	(a*)*	  
+E	(a*)*	a\nb
+E	(a*)*	aaaaaaaaaa
+E	(a|ab)(c|bcd)(d*)	
+E	(a|ab)(c|bcd)(d*)	a
+E	(a|ab)(c|bcd)(d*)	b
+E	(a|ab)(c|bcd)(d*)	abc
+E	(a|ab)(c|bcd)(d*)	aaa
+E	(a|ab)(c|bcd)(d*)	aab
+E	(a|ab)(c|bcd)(d*)	abab
+E	(a|ab)(c|bcd)(d*)	abcd
+E	(a|ab)(c|bcd)(d*)	xaby
+E	(a|ab)(c|bcd)(d*)	a-b-c
+E	(a|ab)(c|bcd)(d*)	key:value
+E	(a|ab)(c|bcd)(d*)	x=1=2
+E	(a|ab)(c|bcd)(d*)	foo bar
+E	(a|ab)(c|bcd)(d*)	the cat
+E	(a|ab)(c|bcd)(d*)	A1b2
+E	(a|ab)(c|bcd)(d*)	aXbXc
+E	(a|ab)(c|bcd)(d*)	ab\ncd
+E	(a|ab)(c|bcd)(d*)	  x  
+E	(a|ab)(c|bcd)(d*)	xxxxxy
+E	(a|ab)(c|bcd)(d*)	abbbc
+E	(a|ab)(c|bcd)(d*)	*a
+E	(a|ab)(c|bcd)(d*)	a{1}
+E	(a|ab)(c|bcd)(d*)	a\\b
+E	(a|ab)(c|bcd)(d*)	foobar
+E	(a|ab)(c|bcd)(d*)	12.34
+E	(a|ab)(c|bcd)(d*)	  
+E	(a|ab)(c|bcd)(d*)	a\nb
+E	(a|ab)(c|bcd)(d*)	aaaaaaaaaa
+E	()	
+E	()	a
+E	()	b
+E	()	abc
+E	()	aaa
+E	()	aab
+E	()	abab
+E	()	abcd
+E	()	xaby
+E	()	a-b-c
+E	()	key:value
+E	()	x=1=2
+E	()	foo bar
+E	()	the cat
+E	()	A1b2
+E	()	aXbXc
+E	()	ab\ncd
+E	()	  x  
+E	()	xxxxxy
+E	()	abbbc
+E	()	*a
+E	()	a{1}
+E	()	a\\b
+E	()	foobar
+E	()	12.34
+E	()	  
+E	()	a\nb
+E	()	aaaaaaaaaa
+E	(|a)b	
+E	(|a)b	a
+E	(|a)b	b
+E	(|a)b	abc
+E	(|a)b	aaa
+E	(|a)b	aab
+E	(|a)b	abab
+E	(|a)b	abcd
+E	(|a)b	xaby
+E	(|a)b	a-b-c
+E	(|a)b	key:value
+E	(|a)b	x=1=2
+E	(|a)b	foo bar
+E	(|a)b	the cat
+E	(|a)b	A1b2
+E	(|a)b	aXbXc
+E	(|a)b	ab\ncd
+E	(|a)b	  x  
+E	(|a)b	xxxxxy
+E	(|a)b	abbbc
+E	(|a)b	*a
+E	(|a)b	a{1}
+E	(|a)b	a\\b
+E	(|a)b	foobar
+E	(|a)b	12.34
+E	(|a)b	  
+E	(|a)b	a\nb
+E	(|a)b	aaaaaaaaaa
+E	a|	
+E	a|	a
+E	a|	b
+E	a|	abc
+E	a|	aaa
+E	a|	aab
+E	a|	abab
+E	a|	abcd
+E	a|	xaby
+E	a|	a-b-c
+E	a|	key:value
+E	a|	x=1=2
+E	a|	foo bar
+E	a|	the cat
+E	a|	A1b2
+E	a|	aXbXc
+E	a|	ab\ncd
+E	a|	  x  
+E	a|	xxxxxy
+E	a|	abbbc
+E	a|	*a
+E	a|	a{1}
+E	a|	a\\b
+E	a|	foobar
+E	a|	12.34
+E	a|	  
+E	a|	a\nb
+E	a|	aaaaaaaaaa
+E	^a|b$	
+E	^a|b$	a
+E	^a|b$	b
+E	^a|b$	abc
+E	^a|b$	aaa
+E	^a|b$	aab
+E	^a|b$	abab
+E	^a|b$	abcd
+E	^a|b$	xaby
+E	^a|b$	a-b-c
+E	^a|b$	key:value
+E	^a|b$	x=1=2
+E	^a|b$	foo bar
+E	^a|b$	the cat
+E	^a|b$	A1b2
+E	^a|b$	aXbXc
+E	^a|b$	ab\ncd
+E	^a|b$	  x  
+E	^a|b$	xxxxxy
+E	^a|b$	abbbc
+E	^a|b$	*a
+E	^a|b$	a{1}
+E	^a|b$	a\\b
+E	^a|b$	foobar
+E	^a|b$	12.34
+E	^a|b$	  
+E	^a|b$	a\nb
+E	^a|b$	aaaaaaaaaa
+E	(a)|b	
+E	(a)|b	a
+E	(a)|b	b
+E	(a)|b	abc
+E	(a)|b	aaa
+E	(a)|b	aab
+E	(a)|b	abab
+E	(a)|b	abcd
+E	(a)|b	xaby
+E	(a)|b	a-b-c
+E	(a)|b	key:value
+E	(a)|b	x=1=2
+E	(a)|b	foo bar
+E	(a)|b	the cat
+E	(a)|b	A1b2
+E	(a)|b	aXbXc
+E	(a)|b	ab\ncd
+E	(a)|b	  x  
+E	(a)|b	xxxxxy
+E	(a)|b	abbbc
+E	(a)|b	*a
+E	(a)|b	a{1}
+E	(a)|b	a\\b
+E	(a)|b	foobar
+E	(a)|b	12.34
+E	(a)|b	  
+E	(a)|b	a\nb
+E	(a)|b	aaaaaaaaaa
+E	x(a|b|c)*y	
+E	x(a|b|c)*y	a
+E	x(a|b|c)*y	b
+E	x(a|b|c)*y	abc
+E	x(a|b|c)*y	aaa
+E	x(a|b|c)*y	aab
+E	x(a|b|c)*y	abab
+E	x(a|b|c)*y	abcd
+E	x(a|b|c)*y	xaby
+E	x(a|b|c)*y	a-b-c
+E	x(a|b|c)*y	key:value
+E	x(a|b|c)*y	x=1=2
+E	x(a|b|c)*y	foo bar
+E	x(a|b|c)*y	the cat
+E	x(a|b|c)*y	A1b2
+E	x(a|b|c)*y	aXbXc
+E	x(a|b|c)*y	ab\ncd
+E	x(a|b|c)*y	  x  
+E	x(a|b|c)*y	xxxxxy
+E	x(a|b|c)*y	abbbc
+E	x(a|b|c)*y	*a
+E	x(a|b|c)*y	a{1}
+E	x(a|b|c)*y	a\\b
+E	x(a|b|c)*y	foobar
+E	x(a|b|c)*y	12.34
+E	x(a|b|c)*y	  
+E	x(a|b|c)*y	a\nb
+E	x(a|b|c)*y	aaaaaaaaaa
+E	[[:alpha:]]+	
+E	[[:alpha:]]+	a
+E	[[:alpha:]]+	b
+E	[[:alpha:]]+	abc
+E	[[:alpha:]]+	aaa
+E	[[:alpha:]]+	aab
+E	[[:alpha:]]+	abab
+E	[[:alpha:]]+	abcd
+E	[[:alpha:]]+	xaby
+E	[[:alpha:]]+	a-b-c
+E	[[:alpha:]]+	key:value
+E	[[:alpha:]]+	x=1=2
+E	[[:alpha:]]+	foo bar
+E	[[:alpha:]]+	the cat
+E	[[:alpha:]]+	A1b2
+E	[[:alpha:]]+	aXbXc
+E	[[:alpha:]]+	ab\ncd
+E	[[:alpha:]]+	  x  
+E	[[:alpha:]]+	xxxxxy
+E	[[:alpha:]]+	abbbc
+E	[[:alpha:]]+	*a
+E	[[:alpha:]]+	a{1}
+E	[[:alpha:]]+	a\\b
+E	[[:alpha:]]+	foobar
+E	[[:alpha:]]+	12.34
+E	[[:alpha:]]+	  
+E	[[:alpha:]]+	a\nb
+E	[[:alpha:]]+	aaaaaaaaaa
+E	\(	
+E	\(	a
+E	\(	b
+E	\(	abc
+E	\(	aaa
+E	\(	aab
+E	\(	abab
+E	\(	abcd
+E	\(	xaby
+E	\(	a-b-c
+E	\(	key:value
+E	\(	x=1=2
+E	\(	foo bar
+E	\(	the cat
+E	\(	A1b2
+E	\(	aXbXc
+E	\(	ab\ncd
+E	\(	  x  
+E	\(	xxxxxy
+E	\(	abbbc
+E	\(	*a
+E	\(	a{1}
+E	\(	a\\b
+E	\(	foobar
+E	\(	12.34
+E	\(	  
+E	\(	a\nb
+E	\(	aaaaaaaaaa
+E	a{	
+E	a{	a
+E	a{	b
+E	a{	abc
+E	a{	aaa
+E	a{	aab
+E	a{	abab
+E	a{	abcd
+E	a{	xaby
+E	a{	a-b-c
+E	a{	key:value
+E	a{	x=1=2
+E	a{	foo bar
+E	a{	the cat
+E	a{	A1b2
+E	a{	aXbXc
+E	a{	ab\ncd
+E	a{	  x  
+E	a{	xxxxxy
+E	a{	abbbc
+E	a{	*a
+E	a{	a{1}
+E	a{	a\\b
+E	a{	foobar
+E	a{	12.34
+E	a{	  
+E	a{	a\nb
+E	a{	aaaaaaaaaa
+E	a{1	
+E	a{1	a
+E	a{1	b
+E	a{1	abc
+E	a{1	aaa
+E	a{1	aab
+E	a{1	abab
+E	a{1	abcd
+E	a{1	xaby
+E	a{1	a-b-c
+E	a{1	key:value
+E	a{1	x=1=2
+E	a{1	foo bar
+E	a{1	the cat
+E	a{1	A1b2
+E	a{1	aXbXc
+E	a{1	ab\ncd
+E	a{1	  x  
+E	a{1	xxxxxy
+E	a{1	abbbc
+E	a{1	*a
+E	a{1	a{1}
+E	a{1	a\\b
+E	a{1	foobar
+E	a{1	12.34
+E	a{1	  
+E	a{1	a\nb
+E	a{1	aaaaaaaaaa
+E	a{x}	
+E	a{x}	a
+E	a{x}	b
+E	a{x}	abc
+E	a{x}	aaa
+E	a{x}	aab
+E	a{x}	abab
+E	a{x}	abcd
+E	a{x}	xaby
+E	a{x}	a-b-c
+E	a{x}	key:value
+E	a{x}	x=1=2
+E	a{x}	foo bar
+E	a{x}	the cat
+E	a{x}	A1b2
+E	a{x}	aXbXc
+E	a{x}	ab\ncd
+E	a{x}	  x  
+E	a{x}	xxxxxy
+E	a{x}	abbbc
+E	a{x}	*a
+E	a{x}	a{1}
+E	a{x}	a\\b
+E	a{x}	foobar
+E	a{x}	12.34
+E	a{x}	  
+E	a{x}	a\nb
+E	a{x}	aaaaaaaaaa
+E	*a	
+E	*a	a
+E	*a	b
+E	*a	abc
+E	*a	aaa
+E	*a	aab
+E	*a	abab
+E	*a	abcd
+E	*a	xaby
+E	*a	a-b-c
+E	*a	key:value
+E	*a	x=1=2
+E	*a	foo bar
+E	*a	the cat
+E	*a	A1b2
+E	*a	aXbXc
+E	*a	ab\ncd
+E	*a	  x  
+E	*a	xxxxxy
+E	*a	abbbc
+E	*a	*a
+E	*a	a{1}
+E	*a	a\\b
+E	*a	foobar
+E	*a	12.34
+E	*a	  
+E	*a	a\nb
+E	*a	aaaaaaaaaa
+E	+a	
+E	+a	a
+E	+a	b
+E	+a	abc
+E	+a	aaa
+E	+a	aab
+E	+a	abab
+E	+a	abcd
+E	+a	xaby
+E	+a	a-b-c
+E	+a	key:value
+E	+a	x=1=2
+E	+a	foo bar
+E	+a	the cat
+E	+a	A1b2
+E	+a	aXbXc
+E	+a	ab\ncd
+E	+a	  x  
+E	+a	xxxxxy
+E	+a	abbbc
+E	+a	*a
+E	+a	a{1}
+E	+a	a\\b
+E	+a	foobar
+E	+a	12.34
+E	+a	  
+E	+a	a\nb
+E	+a	aaaaaaaaaa
+E	(*a)	
+E	(*a)	a
+E	(*a)	b
+E	(*a)	abc
+E	(*a)	aaa
+E	(*a)	aab
+E	(*a)	abab
+E	(*a)	abcd
+E	(*a)	xaby
+E	(*a)	a-b-c
+E	(*a)	key:value
+E	(*a)	x=1=2
+E	(*a)	foo bar
+E	(*a)	the cat
+E	(*a)	A1b2
+E	(*a)	aXbXc
+E	(*a)	ab\ncd
+E	(*a)	  x  
+E	(*a)	xxxxxy
+E	(*a)	abbbc
+E	(*a)	*a
+E	(*a)	a{1}
+E	(*a)	a\\b
+E	(*a)	foobar
+E	(*a)	12.34
+E	(*a)	  
+E	(*a)	a\nb
+E	(*a)	aaaaaaaaaa
+E	a**	
+E	a**	a
+E	a**	b
+E	a**	abc
+E	a**	aaa
+E	a**	aab
+E	a**	abab
+E	a**	abcd
+E	a**	xaby
+E	a**	a-b-c
+E	a**	key:value
+E	a**	x=1=2
+E	a**	foo bar
+E	a**	the cat
+E	a**	A1b2
+E	a**	aXbXc
+E	a**	ab\ncd
+E	a**	  x  
+E	a**	xxxxxy
+E	a**	abbbc
+E	a**	*a
+E	a**	a{1}
+E	a**	a\\b
+E	a**	foobar
+E	a**	12.34
+E	a**	  
+E	a**	a\nb
+E	a**	aaaaaaaaaa
+E	a+?	
+E	a+?	a
+E	a+?	b
+E	a+?	abc
+E	a+?	aaa
+E	a+?	aab
+E	a+?	abab
+E	a+?	abcd
+E	a+?	xaby
+E	a+?	a-b-c
+E	a+?	key:value
+E	a+?	x=1=2
+E	a+?	foo bar
+E	a+?	the cat
+E	a+?	A1b2
+E	a+?	aXbXc
+E	a+?	ab\ncd
+E	a+?	  x  
+E	a+?	xxxxxy
+E	a+?	abbbc
+E	a+?	*a
+E	a+?	a{1}
+E	a+?	a\\b
+E	a+?	foobar
+E	a+?	12.34
+E	a+?	  
+E	a+?	a\nb
+E	a+?	aaaaaaaaaa
+E	(a)(b)?c	
+E	(a)(b)?c	a
+E	(a)(b)?c	b
+E	(a)(b)?c	abc
+E	(a)(b)?c	aaa
+E	(a)(b)?c	aab
+E	(a)(b)?c	abab
+E	(a)(b)?c	abcd
+E	(a)(b)?c	xaby
+E	(a)(b)?c	a-b-c
+E	(a)(b)?c	key:value
+E	(a)(b)?c	x=1=2
+E	(a)(b)?c	foo bar
+E	(a)(b)?c	the cat
+E	(a)(b)?c	A1b2
+E	(a)(b)?c	aXbXc
+E	(a)(b)?c	ab\ncd
+E	(a)(b)?c	  x  
+E	(a)(b)?c	xxxxxy
+E	(a)(b)?c	abbbc
+E	(a)(b)?c	*a
+E	(a)(b)?c	a{1}
+E	(a)(b)?c	a\\b
+E	(a)(b)?c	foobar
+E	(a)(b)?c	12.34
+E	(a)(b)?c	  
+E	(a)(b)?c	a\nb
+E	(a)(b)?c	aaaaaaaaaa
+E	(a)\1	
+E	(a)\1	a
+E	(a)\1	b
+E	(a)\1	abc
+E	(a)\1	aaa
+E	(a)\1	aab
+E	(a)\1	abab
+E	(a)\1	abcd
+E	(a)\1	xaby
+E	(a)\1	a-b-c
+E	(a)\1	key:value
+E	(a)\1	x=1=2
+E	(a)\1	foo bar
+E	(a)\1	the cat
+E	(a)\1	A1b2
+E	(a)\1	aXbXc
+E	(a)\1	ab\ncd
+E	(a)\1	  x  
+E	(a)\1	xxxxxy
+E	(a)\1	abbbc
+E	(a)\1	*a
+E	(a)\1	a{1}
+E	(a)\1	a\\b
+E	(a)\1	foobar
+E	(a)\1	12.34
+E	(a)\1	  
+E	(a)\1	a\nb
+E	(a)\1	aaaaaaaaaa
+E	(.)(.)\2\1	
+E	(.)(.)\2\1	a
+E	(.)(.)\2\1	b
+E	(.)(.)\2\1	abc
+E	(.)(.)\2\1	aaa
+E	(.)(.)\2\1	aab
+E	(.)(.)\2\1	abab
+E	(.)(.)\2\1	abcd
+E	(.)(.)\2\1	xaby
+E	(.)(.)\2\1	a-b-c
+E	(.)(.)\2\1	key:value
+E	(.)(.)\2\1	x=1=2
+E	(.)(.)\2\1	foo bar
+E	(.)(.)\2\1	the cat
+E	(.)(.)\2\1	A1b2
+E	(.)(.)\2\1	aXbXc
+E	(.)(.)\2\1	ab\ncd
+E	(.)(.)\2\1	  x  
+E	(.)(.)\2\1	xxxxxy
+E	(.)(.)\2\1	abbbc
+E	(.)(.)\2\1	*a
+E	(.)(.)\2\1	a{1}
+E	(.)(.)\2\1	a\\b
+E	(.)(.)\2\1	foobar
+E	(.)(.)\2\1	12.34
+E	(.)(.)\2\1	  
+E	(.)(.)\2\1	a\nb
+E	(.)(.)\2\1	aaaaaaaaaa
+E	(foo|foobar)(bar)?	
+E	(foo|foobar)(bar)?	a
+E	(foo|foobar)(bar)?	b
+E	(foo|foobar)(bar)?	abc
+E	(foo|foobar)(bar)?	aaa
+E	(foo|foobar)(bar)?	aab
+E	(foo|foobar)(bar)?	abab
+E	(foo|foobar)(bar)?	abcd
+E	(foo|foobar)(bar)?	xaby
+E	(foo|foobar)(bar)?	a-b-c
+E	(foo|foobar)(bar)?	key:value
+E	(foo|foobar)(bar)?	x=1=2
+E	(foo|foobar)(bar)?	foo bar
+E	(foo|foobar)(bar)?	the cat
+E	(foo|foobar)(bar)?	A1b2
+E	(foo|foobar)(bar)?	aXbXc
+E	(foo|foobar)(bar)?	ab\ncd
+E	(foo|foobar)(bar)?	  x  
+E	(foo|foobar)(bar)?	xxxxxy
+E	(foo|foobar)(bar)?	abbbc
+E	(foo|foobar)(bar)?	*a
+E	(foo|foobar)(bar)?	a{1}
+E	(foo|foobar)(bar)?	a\\b
+E	(foo|foobar)(bar)?	foobar
+E	(foo|foobar)(bar)?	12.34
+E	(foo|foobar)(bar)?	  
+E	(foo|foobar)(bar)?	a\nb
+E	(foo|foobar)(bar)?	aaaaaaaaaa
+E	([0-9]+)\.([0-9]+)	
+E	([0-9]+)\.([0-9]+)	a
+E	([0-9]+)\.([0-9]+)	b
+E	([0-9]+)\.([0-9]+)	abc
+E	([0-9]+)\.([0-9]+)	aaa
+E	([0-9]+)\.([0-9]+)	aab
+E	([0-9]+)\.([0-9]+)	abab
+E	([0-9]+)\.([0-9]+)	abcd
+E	([0-9]+)\.([0-9]+)	xaby
+E	([0-9]+)\.([0-9]+)	a-b-c
+E	([0-9]+)\.([0-9]+)	key:value
+E	([0-9]+)\.([0-9]+)	x=1=2
+E	([0-9]+)\.([0-9]+)	foo bar
+E	([0-9]+)\.([0-9]+)	the cat
+E	([0-9]+)\.([0-9]+)	A1b2
+E	([0-9]+)\.([0-9]+)	aXbXc
+E	([0-9]+)\.([0-9]+)	ab\ncd
+E	([0-9]+)\.([0-9]+)	  x  
+E	([0-9]+)\.([0-9]+)	xxxxxy
+E	([0-9]+)\.([0-9]+)	abbbc
+E	([0-9]+)\.([0-9]+)	*a
+E	([0-9]+)\.([0-9]+)	a{1}
+E	([0-9]+)\.([0-9]+)	a\\b
+E	([0-9]+)\.([0-9]+)	foobar
+E	([0-9]+)\.([0-9]+)	12.34
+E	([0-9]+)\.([0-9]+)	  
+E	([0-9]+)\.([0-9]+)	a\nb
+E	([0-9]+)\.([0-9]+)	aaaaaaaaaa
+E	^([^=]+)=(.*)$	
+E	^([^=]+)=(.*)$	a
+E	^([^=]+)=(.*)$	b
+E	^([^=]+)=(.*)$	abc
+E	^([^=]+)=(.*)$	aaa
+E	^([^=]+)=(.*)$	aab
+E	^([^=]+)=(.*)$	abab
+E	^([^=]+)=(.*)$	abcd
+E	^([^=]+)=(.*)$	xaby
+E	^([^=]+)=(.*)$	a-b-c
+E	^([^=]+)=(.*)$	key:value
+E	^([^=]+)=(.*)$	x=1=2
+E	^([^=]+)=(.*)$	foo bar
+E	^([^=]+)=(.*)$	the cat
+E	^([^=]+)=(.*)$	A1b2
+E	^([^=]+)=(.*)$	aXbXc
+E	^([^=]+)=(.*)$	ab\ncd
+E	^([^=]+)=(.*)$	  x  
+E	^([^=]+)=(.*)$	xxxxxy
+E	^([^=]+)=(.*)$	abbbc
+E	^([^=]+)=(.*)$	*a
+E	^([^=]+)=(.*)$	a{1}
+E	^([^=]+)=(.*)$	a\\b
+E	^([^=]+)=(.*)$	foobar
+E	^([^=]+)=(.*)$	12.34
+E	^([^=]+)=(.*)$	  
+E	^([^=]+)=(.*)$	a\nb
+E	^([^=]+)=(.*)$	aaaaaaaaaa
+E	(a|b|c|d|e)*e	
+E	(a|b|c|d|e)*e	a
+E	(a|b|c|d|e)*e	b
+E	(a|b|c|d|e)*e	abc
+E	(a|b|c|d|e)*e	aaa
+E	(a|b|c|d|e)*e	aab
+E	(a|b|c|d|e)*e	abab
+E	(a|b|c|d|e)*e	abcd
+E	(a|b|c|d|e)*e	xaby
+E	(a|b|c|d|e)*e	a-b-c
+E	(a|b|c|d|e)*e	key:value
+E	(a|b|c|d|e)*e	x=1=2
+E	(a|b|c|d|e)*e	foo bar
+E	(a|b|c|d|e)*e	the cat
+E	(a|b|c|d|e)*e	A1b2
+E	(a|b|c|d|e)*e	aXbXc
+E	(a|b|c|d|e)*e	ab\ncd
+E	(a|b|c|d|e)*e	  x  
+E	(a|b|c|d|e)*e	xxxxxy
+E	(a|b|c|d|e)*e	abbbc
+E	(a|b|c|d|e)*e	*a
+E	(a|b|c|d|e)*e	a{1}
+E	(a|b|c|d|e)*e	a\\b
+E	(a|b|c|d|e)*e	foobar
+E	(a|b|c|d|e)*e	12.34
+E	(a|b|c|d|e)*e	  
+E	(a|b|c|d|e)*e	a\nb
+E	(a|b|c|d|e)*e	aaaaaaaaaa
+E	(x+x+)+y	
+E	(x+x+)+y	a
+E	(x+x+)+y	b
+E	(x+x+)+y	abc
+E	(x+x+)+y	aaa
+E	(x+x+)+y	aab
+E	(x+x+)+y	abab
+E	(x+x+)+y	abcd
+E	(x+x+)+y	xaby
+E	(x+x+)+y	a-b-c
+E	(x+x+)+y	key:value
+E	(x+x+)+y	x=1=2
+E	(x+x+)+y	foo bar
+E	(x+x+)+y	the cat
+E	(x+x+)+y	A1b2
+E	(x+x+)+y	aXbXc
+E	(x+x+)+y	ab\ncd
+E	(x+x+)+y	  x  
+E	(x+x+)+y	xxxxxy
+E	(x+x+)+y	abbbc
+E	(x+x+)+y	*a
+E	(x+x+)+y	a{1}
+E	(x+x+)+y	a\\b
+E	(x+x+)+y	foobar
+E	(x+x+)+y	12.34
+E	(x+x+)+y	  
+E	(x+x+)+y	a\nb
+E	(x+x+)+y	aaaaaaaaaa
+E	(a+|b+)*c	
+E	(a+|b+)*c	a
+E	(a+|b+)*c	b
+E	(a+|b+)*c	abc
+E	(a+|b+)*c	aaa
+E	(a+|b+)*c	aab
+E	(a+|b+)*c	abab
+E	(a+|b+)*c	abcd
+E	(a+|b+)*c	xaby
+E	(a+|b+)*c	a-b-c
+E	(a+|b+)*c	key:value
+E	(a+|b+)*c	x=1=2
+E	(a+|b+)*c	foo bar
+E	(a+|b+)*c	the cat
+E	(a+|b+)*c	A1b2
+E	(a+|b+)*c	aXbXc
+E	(a+|b+)*c	ab\ncd
+E	(a+|b+)*c	  x  
+E	(a+|b+)*c	xxxxxy
+E	(a+|b+)*c	abbbc
+E	(a+|b+)*c	*a
+E	(a+|b+)*c	a{1}
+E	(a+|b+)*c	a\\b
+E	(a+|b+)*c	foobar
+E	(a+|b+)*c	12.34
+E	(a+|b+)*c	  
+E	(a+|b+)*c	a\nb
+E	(a+|b+)*c	aaaaaaaaaa
+E	.{3}	
+E	.{3}	a
+E	.{3}	b
+E	.{3}	abc
+E	.{3}	aaa
+E	.{3}	aab
+E	.{3}	abab
+E	.{3}	abcd
+E	.{3}	xaby
+E	.{3}	a-b-c
+E	.{3}	key:value
+E	.{3}	x=1=2
+E	.{3}	foo bar
+E	.{3}	the cat
+E	.{3}	A1b2
+E	.{3}	aXbXc
+E	.{3}	ab\ncd
+E	.{3}	  x  
+E	.{3}	xxxxxy
+E	.{3}	abbbc
+E	.{3}	*a
+E	.{3}	a{1}
+E	.{3}	a\\b
+E	.{3}	foobar
+E	.{3}	12.34
+E	.{3}	  
+E	.{3}	a\nb
+E	.{3}	aaaaaaaaaa
+E	(.)*	
+E	(.)*	a
+E	(.)*	b
+E	(.)*	abc
+E	(.)*	aaa
+E	(.)*	aab
+E	(.)*	abab
+E	(.)*	abcd
+E	(.)*	xaby
+E	(.)*	a-b-c
+E	(.)*	key:value
+E	(.)*	x=1=2
+E	(.)*	foo bar
+E	(.)*	the cat
+E	(.)*	A1b2
+E	(.)*	aXbXc
+E	(.)*	ab\ncd
+E	(.)*	  x  
+E	(.)*	xxxxxy
+E	(.)*	abbbc
+E	(.)*	*a
+E	(.)*	a{1}
+E	(.)*	a\\b
+E	(.)*	foobar
+E	(.)*	12.34
+E	(.)*	  
+E	(.)*	a\nb
+E	(.)*	aaaaaaaaaa
+E	([ab]*)(b*)	
+E	([ab]*)(b*)	a
+E	([ab]*)(b*)	b
+E	([ab]*)(b*)	abc
+E	([ab]*)(b*)	aaa
+E	([ab]*)(b*)	aab
+E	([ab]*)(b*)	abab
+E	([ab]*)(b*)	abcd
+E	([ab]*)(b*)	xaby
+E	([ab]*)(b*)	a-b-c
+E	([ab]*)(b*)	key:value
+E	([ab]*)(b*)	x=1=2
+E	([ab]*)(b*)	foo bar
+E	([ab]*)(b*)	the cat
+E	([ab]*)(b*)	A1b2
+E	([ab]*)(b*)	aXbXc
+E	([ab]*)(b*)	ab\ncd
+E	([ab]*)(b*)	  x  
+E	([ab]*)(b*)	xxxxxy
+E	([ab]*)(b*)	abbbc
+E	([ab]*)(b*)	*a
+E	([ab]*)(b*)	a{1}
+E	([ab]*)(b*)	a\\b
+E	([ab]*)(b*)	foobar
+E	([ab]*)(b*)	12.34
+E	([ab]*)(b*)	  
+E	([ab]*)(b*)	a\nb
+E	([ab]*)(b*)	aaaaaaaaaa
+E	\bfoo\b	
+E	\bfoo\b	a
+E	\bfoo\b	b
+E	\bfoo\b	abc
+E	\bfoo\b	aaa
+E	\bfoo\b	aab
+E	\bfoo\b	abab
+E	\bfoo\b	abcd
+E	\bfoo\b	xaby
+E	\bfoo\b	a-b-c
+E	\bfoo\b	key:value
+E	\bfoo\b	x=1=2
+E	\bfoo\b	foo bar
+E	\bfoo\b	the cat
+E	\bfoo\b	A1b2
+E	\bfoo\b	aXbXc
+E	\bfoo\b	ab\ncd
+E	\bfoo\b	  x  
+E	\bfoo\b	xxxxxy
+E	\bfoo\b	abbbc
+E	\bfoo\b	*a
+E	\bfoo\b	a{1}
+E	\bfoo\b	a\\b
+E	\bfoo\b	foobar
+E	\bfoo\b	12.34
+E	\bfoo\b	  
+E	\bfoo\b	a\nb
+E	\bfoo\b	aaaaaaaaaa
+E	\<(the)\>	
+E	\<(the)\>	a
+E	\<(the)\>	b
+E	\<(the)\>	abc
+E	\<(the)\>	aaa
+E	\<(the)\>	aab
+E	\<(the)\>	abab
+E	\<(the)\>	abcd
+E	\<(the)\>	xaby
+E	\<(the)\>	a-b-c
+E	\<(the)\>	key:value
+E	\<(the)\>	x=1=2
+E	\<(the)\>	foo bar
+E	\<(the)\>	the cat
+E	\<(the)\>	A1b2
+E	\<(the)\>	aXbXc
+E	\<(the)\>	ab\ncd
+E	\<(the)\>	  x  
+E	\<(the)\>	xxxxxy
+E	\<(the)\>	abbbc
+E	\<(the)\>	*a
+E	\<(the)\>	a{1}
+E	\<(the)\>	a\\b
+E	\<(the)\>	foobar
+E	\<(the)\>	12.34
+E	\<(the)\>	  
+E	\<(the)\>	a\nb
+E	\<(the)\>	aaaaaaaaaa
+E	[.]	
+E	[.]	a
+E	[.]	b
+E	[.]	abc
+E	[.]	aaa
+E	[.]	aab
+E	[.]	abab
+E	[.]	abcd
+E	[.]	xaby
+E	[.]	a-b-c
+E	[.]	key:value
+E	[.]	x=1=2
+E	[.]	foo bar
+E	[.]	the cat
+E	[.]	A1b2
+E	[.]	aXbXc
+E	[.]	ab\ncd
+E	[.]	  x  
+E	[.]	xxxxxy
+E	[.]	abbbc
+E	[.]	*a
+E	[.]	a{1}
+E	[.]	a\\b
+E	[.]	foobar
+E	[.]	12.34
+E	[.]	  
+E	[.]	a\nb
+E	[.]	aaaaaaaaaa
+E	[$^]	
+E	[$^]	a
+E	[$^]	b
+E	[$^]	abc
+E	[$^]	aaa
+E	[$^]	aab
+E	[$^]	abab
+E	[$^]	abcd
+E	[$^]	xaby
+E	[$^]	a-b-c
+E	[$^]	key:value
+E	[$^]	x=1=2
+E	[$^]	foo bar
+E	[$^]	the cat
+E	[$^]	A1b2
+E	[$^]	aXbXc
+E	[$^]	ab\ncd
+E	[$^]	  x  
+E	[$^]	xxxxxy
+E	[$^]	abbbc
+E	[$^]	*a
+E	[$^]	a{1}
+E	[$^]	a\\b
+E	[$^]	foobar
+E	[$^]	12.34
+E	[$^]	  
+E	[$^]	a\nb
+E	[$^]	aaaaaaaaaa
+E	a$b	
+E	a$b	a
+E	a$b	b
+E	a$b	abc
+E	a$b	aaa
+E	a$b	aab
+E	a$b	abab
+E	a$b	abcd
+E	a$b	xaby
+E	a$b	a-b-c
+E	a$b	key:value
+E	a$b	x=1=2
+E	a$b	foo bar
+E	a$b	the cat
+E	a$b	A1b2
+E	a$b	aXbXc
+E	a$b	ab\ncd
+E	a$b	  x  
+E	a$b	xxxxxy
+E	a$b	abbbc
+E	a$b	*a
+E	a$b	a{1}
+E	a$b	a\\b
+E	a$b	foobar
+E	a$b	12.34
+E	a$b	  
+E	a$b	a\nb
+E	a$b	aaaaaaaaaa
+E	a^b	
+E	a^b	a
+E	a^b	b
+E	a^b	abc
+E	a^b	aaa
+E	a^b	aab
+E	a^b	abab
+E	a^b	abcd
+E	a^b	xaby
+E	a^b	a-b-c
+E	a^b	key:value
+E	a^b	x=1=2
+E	a^b	foo bar
+E	a^b	the cat
+E	a^b	A1b2
+E	a^b	aXbXc
+E	a^b	ab\ncd
+E	a^b	  x  
+E	a^b	xxxxxy
+E	a^b	abbbc
+E	a^b	*a
+E	a^b	a{1}
+E	a^b	a\\b
+E	a^b	foobar
+E	a^b	12.34
+E	a^b	  
+E	a^b	a\nb
+E	a^b	aaaaaaaaaa
+E	(^|x)a	
+E	(^|x)a	a
+E	(^|x)a	b
+E	(^|x)a	abc
+E	(^|x)a	aaa
+E	(^|x)a	aab
+E	(^|x)a	abab
+E	(^|x)a	abcd
+E	(^|x)a	xaby
+E	(^|x)a	a-b-c
+E	(^|x)a	key:value
+E	(^|x)a	x=1=2
+E	(^|x)a	foo bar
+E	(^|x)a	the cat
+E	(^|x)a	A1b2
+E	(^|x)a	aXbXc
+E	(^|x)a	ab\ncd
+E	(^|x)a	  x  
+E	(^|x)a	xxxxxy
+E	(^|x)a	abbbc
+E	(^|x)a	*a
+E	(^|x)a	a{1}
+E	(^|x)a	a\\b
+E	(^|x)a	foobar
+E	(^|x)a	12.34
+E	(^|x)a	  
+E	(^|x)a	a\nb
+E	(^|x)a	aaaaaaaaaa
+E	a($|x)	
+E	a($|x)	a
+E	a($|x)	b
+E	a($|x)	abc
+E	a($|x)	aaa
+E	a($|x)	aab
+E	a($|x)	abab
+E	a($|x)	abcd
+E	a($|x)	xaby
+E	a($|x)	a-b-c
+E	a($|x)	key:value
+E	a($|x)	x=1=2
+E	a($|x)	foo bar
+E	a($|x)	the cat
+E	a($|x)	A1b2
+E	a($|x)	aXbXc
+E	a($|x)	ab\ncd
+E	a($|x)	  x  
+E	a($|x)	xxxxxy
+E	a($|x)	abbbc
+E	a($|x)	*a
+E	a($|x)	a{1}
+E	a($|x)	a\\b
+E	a($|x)	foobar
+E	a($|x)	12.34
+E	a($|x)	  
+E	a($|x)	a\nb
+E	a($|x)	aaaaaaaaaa
+E	((a)|b)+	
+E	((a)|b)+	a
+E	((a)|b)+	b
+E	((a)|b)+	abc
+E	((a)|b)+	aaa
+E	((a)|b)+	aab
+E	((a)|b)+	abab
+E	((a)|b)+	abcd
+E	((a)|b)+	xaby
+E	((a)|b)+	a-b-c
+E	((a)|b)+	key:value
+E	((a)|b)+	x=1=2
+E	((a)|b)+	foo bar
+E	((a)|b)+	the cat
+E	((a)|b)+	A1b2
+E	((a)|b)+	aXbXc
+E	((a)|b)+	ab\ncd
+E	((a)|b)+	  x  
+E	((a)|b)+	xxxxxy
+E	((a)|b)+	abbbc
+E	((a)|b)+	*a
+E	((a)|b)+	a{1}
+E	((a)|b)+	a\\b
+E	((a)|b)+	foobar
+E	((a)|b)+	12.34
+E	((a)|b)+	  
+E	((a)|b)+	a\nb
+E	((a)|b)+	aaaaaaaaaa
+E	(a(b(c)))	
+E	(a(b(c)))	a
+E	(a(b(c)))	b
+E	(a(b(c)))	abc
+E	(a(b(c)))	aaa
+E	(a(b(c)))	aab
+E	(a(b(c)))	abab
+E	(a(b(c)))	abcd
+E	(a(b(c)))	xaby
+E	(a(b(c)))	a-b-c
+E	(a(b(c)))	key:value
+E	(a(b(c)))	x=1=2
+E	(a(b(c)))	foo bar
+E	(a(b(c)))	the cat
+E	(a(b(c)))	A1b2
+E	(a(b(c)))	aXbXc
+E	(a(b(c)))	ab\ncd
+E	(a(b(c)))	  x  
+E	(a(b(c)))	xxxxxy
+E	(a(b(c)))	abbbc
+E	(a(b(c)))	*a
+E	(a(b(c)))	a{1}
+E	(a(b(c)))	a\\b
+E	(a(b(c)))	foobar
+E	(a(b(c)))	12.34
+E	(a(b(c)))	  
+E	(a(b(c)))	a\nb
+E	(a(b(c)))	aaaaaaaaaa
+E	(a{2})*	
+E	(a{2})*	a
+E	(a{2})*	b
+E	(a{2})*	abc
+E	(a{2})*	aaa
+E	(a{2})*	aab
+E	(a{2})*	abab
+E	(a{2})*	abcd
+E	(a{2})*	xaby
+E	(a{2})*	a-b-c
+E	(a{2})*	key:value
+E	(a{2})*	x=1=2
+E	(a{2})*	foo bar
+E	(a{2})*	the cat
+E	(a{2})*	A1b2
+E	(a{2})*	aXbXc
+E	(a{2})*	ab\ncd
+E	(a{2})*	  x  
+E	(a{2})*	xxxxxy
+E	(a{2})*	abbbc
+E	(a{2})*	*a
+E	(a{2})*	a{1}
+E	(a{2})*	a\\b
+E	(a{2})*	foobar
+E	(a{2})*	12.34
+E	(a{2})*	  
+E	(a{2})*	a\nb
+E	(a{2})*	aaaaaaaaaa
+E	[a-z]{2,4}	
+E	[a-z]{2,4}	a
+E	[a-z]{2,4}	b
+E	[a-z]{2,4}	abc
+E	[a-z]{2,4}	aaa
+E	[a-z]{2,4}	aab
+E	[a-z]{2,4}	abab
+E	[a-z]{2,4}	abcd
+E	[a-z]{2,4}	xaby
+E	[a-z]{2,4}	a-b-c
+E	[a-z]{2,4}	key:value
+E	[a-z]{2,4}	x=1=2
+E	[a-z]{2,4}	foo bar
+E	[a-z]{2,4}	the cat
+E	[a-z]{2,4}	A1b2
+E	[a-z]{2,4}	aXbXc
+E	[a-z]{2,4}	ab\ncd
+E	[a-z]{2,4}	  x  
+E	[a-z]{2,4}	xxxxxy
+E	[a-z]{2,4}	abbbc
+E	[a-z]{2,4}	*a
+E	[a-z]{2,4}	a{1}
+E	[a-z]{2,4}	a\\b
+E	[a-z]{2,4}	foobar
+E	[a-z]{2,4}	12.34
+E	[a-z]{2,4}	  
+E	[a-z]{2,4}	a\nb
+E	[a-z]{2,4}	aaaaaaaaaa
+E	a{0}b	
+E	a{0}b	a
+E	a{0}b	b
+E	a{0}b	abc
+E	a{0}b	aaa
+E	a{0}b	aab
+E	a{0}b	abab
+E	a{0}b	abcd
+E	a{0}b	xaby
+E	a{0}b	a-b-c
+E	a{0}b	key:value
+E	a{0}b	x=1=2
+E	a{0}b	foo bar
+E	a{0}b	the cat
+E	a{0}b	A1b2
+E	a{0}b	aXbXc
+E	a{0}b	ab\ncd
+E	a{0}b	  x  
+E	a{0}b	xxxxxy
+E	a{0}b	abbbc
+E	a{0}b	*a
+E	a{0}b	a{1}
+E	a{0}b	a\\b
+E	a{0}b	foobar
+E	a{0}b	12.34
+E	a{0}b	  
+E	a{0}b	a\nb
+E	a{0}b	aaaaaaaaaa
+E	(a{0})b	
+E	(a{0})b	a
+E	(a{0})b	b
+E	(a{0})b	abc
+E	(a{0})b	aaa
+E	(a{0})b	aab
+E	(a{0})b	abab
+E	(a{0})b	abcd
+E	(a{0})b	xaby
+E	(a{0})b	a-b-c
+E	(a{0})b	key:value
+E	(a{0})b	x=1=2
+E	(a{0})b	foo bar
+E	(a{0})b	the cat
+E	(a{0})b	A1b2
+E	(a{0})b	aXbXc
+E	(a{0})b	ab\ncd
+E	(a{0})b	  x  
+E	(a{0})b	xxxxxy
+E	(a{0})b	abbbc
+E	(a{0})b	*a
+E	(a{0})b	a{1}
+E	(a{0})b	a\\b
+E	(a{0})b	foobar
+E	(a{0})b	12.34
+E	(a{0})b	  
+E	(a{0})b	a\nb
+E	(a{0})b	aaaaaaaaaa
+E	)	
+E	)	a
+E	)	b
+E	)	abc
+E	)	aaa
+E	)	aab
+E	)	abab
+E	)	abcd
+E	)	xaby
+E	)	a-b-c
+E	)	key:value
+E	)	x=1=2
+E	)	foo bar
+E	)	the cat
+E	)	A1b2
+E	)	aXbXc
+E	)	ab\ncd
+E	)	  x  
+E	)	xxxxxy
+E	)	abbbc
+E	)	*a
+E	)	a{1}
+E	)	a\\b
+E	)	foobar
+E	)	12.34
+E	)	  
+E	)	a\nb
+E	)	aaaaaaaaaa
+E	a)	
+E	a)	a
+E	a)	b
+E	a)	abc
+E	a)	aaa
+E	a)	aab
+E	a)	abab
+E	a)	abcd
+E	a)	xaby
+E	a)	a-b-c
+E	a)	key:value
+E	a)	x=1=2
+E	a)	foo bar
+E	a)	the cat
+E	a)	A1b2
+E	a)	aXbXc
+E	a)	ab\ncd
+E	a)	  x  
+E	a)	xxxxxy
+E	a)	abbbc
+E	a)	*a
+E	a)	a{1}
+E	a)	a\\b
+E	a)	foobar
+E	a)	12.34
+E	a)	  
+E	a)	a\nb
+E	a)	aaaaaaaaaa
+E	(a))	
+E	(a))	a
+E	(a))	b
+E	(a))	abc
+E	(a))	aaa
+E	(a))	aab
+E	(a))	abab
+E	(a))	abcd
+E	(a))	xaby
+E	(a))	a-b-c
+E	(a))	key:value
+E	(a))	x=1=2
+E	(a))	foo bar
+E	(a))	the cat
+E	(a))	A1b2
+E	(a))	aXbXc
+E	(a))	ab\ncd
+E	(a))	  x  
+E	(a))	xxxxxy
+E	(a))	abbbc
+E	(a))	*a
+E	(a))	a{1}
+E	(a))	a\\b
+E	(a))	foobar
+E	(a))	12.34
+E	(a))	  
+E	(a))	a\nb
+E	(a))	aaaaaaaaaa
+E	((a)	
+E	((a)	a
+E	((a)	b
+E	((a)	abc
+E	((a)	aaa
+E	((a)	aab
+E	((a)	abab
+E	((a)	abcd
+E	((a)	xaby
+E	((a)	a-b-c
+E	((a)	key:value
+E	((a)	x=1=2
+E	((a)	foo bar
+E	((a)	the cat
+E	((a)	A1b2
+E	((a)	aXbXc
+E	((a)	ab\ncd
+E	((a)	  x  
+E	((a)	xxxxxy
+E	((a)	abbbc
+E	((a)	*a
+E	((a)	a{1}
+E	((a)	a\\b
+E	((a)	foobar
+E	((a)	12.34
+E	((a)	  
+E	((a)	a\nb
+E	((a)	aaaaaaaaaa
+I	abc	ABC
+I	abc	aBc
+I	abc	xYz
+I	abc	Aa
+I	abc	xA
+I	[a-c]+	ABC
+I	[a-c]+	aBc
+I	[a-c]+	xYz
+I	[a-c]+	Aa
+I	[a-c]+	xA
+I	[^a]	ABC
+I	[^a]	aBc
+I	[^a]	xYz
+I	[^a]	Aa
+I	[^a]	xA
+I	\(A\)\1	ABC
+I	\(A\)\1	aBc
+I	\(A\)\1	xYz
+I	\(A\)\1	Aa
+I	\(A\)\1	xA
+I	[[:upper:]]	ABC
+I	[[:upper:]]	aBc
+I	[[:upper:]]	xYz
+I	[[:upper:]]	Aa
+I	[[:upper:]]	xA
+I	x[[:lower:]]	ABC
+I	x[[:lower:]]	aBc
+I	x[[:lower:]]	xYz
+I	x[[:lower:]]	Aa
+I	x[[:lower:]]	xA
+N	^b	a\nb
+N	^b	\nb
+N	^b	a\n
+N	^b	x\n\ny
+N	^b	b
+N	a$	a\nb
+N	a$	\nb
+N	a$	a\n
+N	a$	x\n\ny
+N	a$	b
+N	^$	a\nb
+N	^$	\nb
+N	^$	a\n
+N	^$	x\n\ny
+N	^$	b
+N	.*	a\nb
+N	.*	\nb
+N	.*	a\n
+N	.*	x\n\ny
+N	.*	b
+N	[^x]*	a\nb
+N	[^x]*	\nb
+N	[^x]*	a\n
+N	[^x]*	x\n\ny
+N	[^x]*	b
+N	^a.*$	a\nb
+N	^a.*$	\nb
+N	^a.*$	a\n
+N	^a.*$	x\n\ny
+N	^a.*$	b
+b	^a	a
+e	^a	a
+be	^a	a
+b	^a	ba
+e	^a	ba
+be	^a	ba
+b	^a	ab
+e	^a	ab
+be	^a	ab
+b	^a	
+e	^a	
+be	^a	
+b	a$	a
+e	a$	a
+be	a$	a
+b	a$	ba
+e	a$	ba
+be	a$	ba
+b	a$	ab
+e	a$	ab
+be	a$	ab
+b	a$	
+e	a$	
+be	a$	
+b	^$	a
+e	^$	a
+be	^$	a
+b	^$	ba
+e	^$	ba
+be	^$	ba
+b	^$	ab
+e	^$	ab
+be	^$	ab
+b	^$	
+e	^$	
+be	^$	
+b	x*	a
+e	x*	a
+be	x*	a
+b	x*	ba
+e	x*	ba
+be	x*	ba
+b	x*	ab
+e	x*	ab
+be	x*	ab
+b	x*	
+e	x*	
+be	x*	
+E	(a*)*b	aaaaa
+E	(a|aa)*c	aaaaa
+-	\(a*\)*b	aaaaa
+E	(x+x+)+y	xxxxx
+E	(a*)*b	aaaaaaaaaa
+E	(a|aa)*c	aaaaaaaaaa
+-	\(a*\)*b	aaaaaaaaaa
+E	(x+x+)+y	xxxxxxxxxx
+E	(a*)*b	aaaaaaaaaaaaaaaaaaaa
+E	(a|aa)*c	aaaaaaaaaaaaaaaaaaaa
+-	\(a*\)*b	aaaaaaaaaaaaaaaaaaaa
+E	(x+x+)+y	xxxxxxxxxxxxxxxxxxxx

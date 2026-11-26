@@ -1,0 +1,182 @@
+##### ifeq-forms
+=== make -s
+--- status 0
+--- stdout
+paren yes
+double yes
+single yes
+mixed yes
+ifneq yes
+empty yes
+space after comma yes
+--- stderr
+
+=== files
+Makefile: "A = x\nifeq ($(A),x)\n$(info paren yes)\nendif\nifeq \"$(A)\" \"x\"\n$(info double yes)\nendif\nifeq '$(A)' 'x'\n$(info single yes)\nendif\nifeq \"$(A)\" 'x'\n$(info mixed yes)\nendif\nifneq ($(A),y)\n$(info ifneq yes)\nendif\nifeq (,$(B))\n$(info empty yes)\nendif\nifeq ($(A), x)\n$(info space after comma yes)\nendif\nall: ;\n"
+##### ifeq-whitespace
+=== make -s
+--- status 0
+--- stdout
+2
+3
+5
+--- stderr
+
+=== files
+Makefile: "ifeq ( a , a )\n$(info 1)\nendif\nifeq (a ,a)\n$(info 2)\nendif\nifeq (a, a)\n$(info 3)\nendif\nifeq (a,a )\n$(info 4)\nendif\nifeq ($(strip a ),a)\n$(info 5)\nendif\nall: ;\n"
+##### ifdef
+=== make -s
+--- status 0
+--- stdout
+A defined
+C defined
+NOPE undefined
+computed name
+--- stderr
+
+=== make -s NOPE=1
+--- status 0
+--- stdout
+A defined
+C defined
+computed name
+--- stderr
+
+=== files
+Makefile: "A = a\nB =\nC = $(B)\nifdef A\n$(info A defined)\nendif\nifdef B\n$(info B defined)\nendif\nifdef C\n$(info C defined)\nendif\nifndef NOPE\n$(info NOPE undefined)\nendif\nN = A\nifdef $(N)\n$(info computed name)\nendif\nall: ;\n"
+##### else
+=== make -s
+--- status 0
+--- stdout
+two
+b
+--- stderr
+
+=== make -s X=1
+--- status 0
+--- stdout
+one
+b
+--- stderr
+
+=== make -s X=9
+--- status 0
+--- stdout
+other
+b
+--- stderr
+
+=== files
+Makefile: "X = 2\nifeq ($(X),1)\n$(info one)\nelse ifeq ($(X),2)\n$(info two)\nelse ifeq ($(X),2)\n$(info two again)\nelse\n$(info other)\nendif\nifdef NOPE\n$(info a)\nelse ifndef NOPE2\n$(info b)\nendif\nall: ;\n"
+##### nested
+=== make -s
+--- status 0
+--- stdout
+both
+--- stderr
+
+=== make -s A=0
+--- status 0
+--- stdout
+only B
+--- stderr
+
+=== files
+Makefile: "A = 1\nB = 2\nifeq ($(A),1)\n  ifeq ($(B),2)\n    $(info both)\n  else\n    $(info only A)\n  endif\nelse\n  ifeq ($(B),2)\n    $(info only B)\n  endif\nendif\nifeq ($(A),9)\n  ifeq ($(B),2)\n    $(info never)\n  else\n    $(info never either)\n  endif\nendif\nall: ;\n"
+##### skipped-define
+=== make -s
+--- status 0
+--- stdout
+still fine
+--- stderr
+
+=== files
+Makefile: "ifeq (1,2)\ndefine X\nendif\nendef\nendif\n$(info still fine)\nall: ;\n"
+##### conditional-in-recipe
+=== make
+--- status 0
+--- stdout
+start
+debug on
+end
+--- stderr
+
+=== make DEBUG=0
+--- status 0
+--- stdout
+start
+debug off
+end
+--- stderr
+
+=== files
+Makefile: "DEBUG = 1\nall:\n\t@echo start\nifeq ($(DEBUG),1)\n\t@echo debug on\nelse\n\t@echo debug off\nendif\n\t@echo end\n"
+##### missing-endif
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:3: *** missing 'endif'.  Stop.
+
+=== files
+Makefile: "ifeq (a,a)\nall: ;\n"
+##### extra-endif
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:2: *** extraneous 'endif'.  Stop.
+
+=== files
+Makefile: "all: ;\nendif\n"
+##### extra-else
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** extraneous 'else'.  Stop.
+
+=== files
+Makefile: "else\n"
+##### double-else
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:3: *** only one 'else' per conditional.  Stop.
+
+=== files
+Makefile: "ifeq (a,a)\nelse\nelse\nendif\n"
+##### invalid-cond
+=== make; echo "status $?"
+--- status 0
+--- stdout
+status 2
+--- stderr
+Makefile:1: *** invalid syntax in conditional.  Stop.
+
+=== files
+Makefile: "ifeq a b\nendif\n"
+##### cond-with-comment
+=== make -s
+--- status 0
+--- stdout
+yes
+--- stderr
+
+=== files
+Makefile: "ifeq (a,a) # comment\n$(info yes)\nelse # comment\n$(info no)\nendif # comment\nall: ;\n"
+##### cond-tab-recipe
+=== make
+--- status 0
+--- stdout
+x
+--- stderr
+/bin/sh: line 1: ifeq: command not found
+
+=== files
+Makefile: "all:\n\t@echo x; ifeq; true\n"

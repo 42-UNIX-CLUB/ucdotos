@@ -1,0 +1,17 @@
+{"cmd":"dirname /usr/bin/sort","out":"/usr/bin\n","status":0,"err":false}
+{"cmd":"dirname /usr/bin/","out":"/usr\n","status":0,"err":false}
+{"cmd":"dirname /usr","out":"/\n","status":0,"err":false}
+{"cmd":"dirname /","out":"/\n","status":0,"err":false}
+{"cmd":"dirname //","out":"/\n","status":0,"err":false}
+{"cmd":"dirname ///","out":"/\n","status":0,"err":false}
+{"cmd":"dirname //a//b//","out":"//a\n","status":0,"err":false}
+{"cmd":"dirname a","out":".\n","status":0,"err":false}
+{"cmd":"dirname a/","out":".\n","status":0,"err":false}
+{"cmd":"dirname ./a","out":".\n","status":0,"err":false}
+{"cmd":"dirname ../a/b","out":"../a\n","status":0,"err":false}
+{"cmd":"dirname ''","out":".\n","status":0,"err":false}
+{"cmd":"dirname a b/c /d/e/f","out":".\nb\n/d/e\n","status":0,"err":false}
+{"cmd":"dirname -z a/b c/d | od -c","out":"0000000   a  \\0   c  \\0\n0000004\n","status":0,"err":false}
+{"cmd":"dirname","out":"","status":1,"err":true}
+{"cmd":"dirname -- -a/b","out":"-a\n","status":0,"err":false}
+{"cmd":"dirname -x a","out":"","status":1,"err":true}

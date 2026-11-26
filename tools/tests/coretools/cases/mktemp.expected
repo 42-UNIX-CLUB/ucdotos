@@ -1,0 +1,20 @@
+{"cmd":"f=$(mktemp -p t); case $f in t/tmp.??????????) echo shape-ok;; *) echo \"bad $f\";; esac; test -f \"$f\" && echo is-file","out":"shape-ok\nis-file\n","status":0,"err":false}
+{"cmd":"f=$(mktemp -d -p t); test -d \"$f\" && echo is-dir","out":"is-dir\n","status":0,"err":false}
+{"cmd":"f=$(mktemp t/fooXXXXXX); case $f in t/foo??????) echo ok;; esac; test -f \"$f\" && echo file","out":"ok\nfile\n","status":0,"err":false}
+{"cmd":"f=$(mktemp t/a.XXX); case $f in t/a.???) echo ok;; esac","out":"ok\n","status":0,"err":false}
+{"cmd":"f=$(mktemp t/XXXXXX.txt); case $f in t/??????.txt) echo ok;; esac; test -f \"$f\" && echo file","out":"ok\nfile\n","status":0,"err":false}
+{"cmd":"f=$(mktemp --suffix=.c t/xXXXX); case $f in t/x????.c) echo ok;; esac","out":"ok\n","status":0,"err":false}
+{"cmd":"f=$(mktemp -u t/uXXXXXX); case $f in t/u??????) echo ok;; esac; test -e \"$f\" || echo not-created","out":"ok\nnot-created\n","status":0,"err":false}
+{"cmd":"f=$(TMPDIR=$PWD/t mktemp); case $f in \"$PWD\"/t/tmp.*) echo in-tmpdir;; esac","out":"in-tmpdir\n","status":0,"err":false}
+{"cmd":"f=$(TMPDIR=$PWD/t mktemp -t zzXXXX); case $f in \"$PWD\"/t/zz????) echo t-ok;; esac","out":"t-ok\n","status":0,"err":false}
+{"cmd":"f=$(mktemp --tmpdir=t qXXXXXX); case $f in t/q??????) echo ok;; esac","out":"ok\n","status":0,"err":false}
+{"cmd":"a=$(mktemp -p t); b=$(mktemp -p t); test \"$a\" != \"$b\" && echo different","out":"different\n","status":0,"err":false}
+{"cmd":"mktemp t/XX; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"f=$(mktemp t/aXXXb); echo \"st=$?\"; case $f in t/a???b) echo ok;; esac","out":"st=0\nok\n","status":0,"err":false}
+{"cmd":"mktemp -q t/XX; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"mktemp nodir/XXXXXX; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"mktemp -t a/XXXXXX; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"mktemp a b; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"mktemp -z; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"f=$(mktemp -d t/dXXXXXX); ls -ld \"$f\" | cut -c1-10","out":"drwx------\n","status":0,"err":false}
+{"cmd":"f=$(mktemp t/mXXXXXX); ls -l \"$f\" | cut -c1-10","out":"-rw-------\n","status":0,"err":false}

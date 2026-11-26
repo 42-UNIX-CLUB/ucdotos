@@ -1,0 +1,33 @@
+{"cmd":"install prog dir/; ls -l dir/prog | cut -c1-10; cat dir/prog","out":"-rwxr-xr-x\nbinary\n","status":0,"err":false}
+{"cmd":"install prog dest; ls -l dest | cut -c1-10","out":"-rwxr-xr-x\n","status":0,"err":false}
+{"cmd":"install -m 644 data dest; ls -l dest | cut -c1-10; cat dest","out":"-rw-r--r--\ndata\n","status":0,"err":false}
+{"cmd":"install -m 0600 data dest; ls -l dest | cut -c1-10","out":"-rw-------\n","status":0,"err":false}
+{"cmd":"install -m u=rw,go=r data dest; ls -l dest | cut -c1-10","out":"-rw-r--r--\n","status":0,"err":false}
+{"cmd":"install -m a+x,u-w data dest; ls -l dest | cut -c1-10","out":"---x--x--x\n","status":0,"err":false}
+{"cmd":"install -m 755 prog data dir; ls dir","out":"data\nprog\n","status":0,"err":false}
+{"cmd":"install -t dir prog data; ls dir","out":"data\nprog\n","status":0,"err":false}
+{"cmd":"install -d a/b/c; ls -ld a/b/c | cut -c1-10","out":"drwxr-xr-x\n","status":0,"err":false}
+{"cmd":"install -d -m 700 x y; ls -ld x y | cut -c1-10","out":"drwx------\ndrwx------\n","status":0,"err":false}
+{"cmd":"install -D prog p/q/r/prog; cat p/q/r/prog","out":"binary\n","status":0,"err":false}
+{"cmd":"install -D -t t/u prog data; ls t/u","out":"data\nprog\n","status":0,"err":false}
+{"cmd":"install -T prog file; cat file","out":"binary\n","status":0,"err":false}
+{"cmd":"install -v prog v1","out":"'prog' -> 'v1'\n","status":0,"err":false}
+{"cmd":"install -v -d vd/e","out":"install: creating directory 'vd'\ninstall: creating directory 'vd/e'\n","status":0,"err":false}
+{"cmd":"install -C prog c1; install -C prog c1; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"install -p prog pp; test pp -nt prog && echo newer || echo same-time","out":"same-time\n","status":0,"err":false}
+{"cmd":"install prog prog; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install dir dest2; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install missing dest3; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install prog; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install prog data nodir; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install -m 999 prog x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install -m u+q prog x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install -t nodir prog; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install -T prog data dir; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install -o no-such-user-xyz prog x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
+{"cmd":"install -o \"$(id -u)\" prog own; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"install -g \"$(id -g)\" prog grp; echo \"st=$?\"","out":"st=0\n","status":0,"err":false}
+{"cmd":"install -c prog cflag; cat cflag","out":"binary\n","status":0,"err":false}
+{"cmd":"echo new > dest; install data dest; cat dest","out":"data\n","status":0,"err":false}
+{"cmd":"install -Q prog x; echo \"st=$?\"","out":"st=1\n","status":0,"err":true}
