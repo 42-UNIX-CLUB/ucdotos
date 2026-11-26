@@ -336,7 +336,15 @@ static void load_config(void) {
   else snprintf(path, sizeof path, "%s/.config/fetch/fetch.uconf", home && *home ? home : "/home/user");
   uconf c;
   uconf_load(&c, path); /* no file: the built-in defaults */
-  snprintf(font_name, sizeof font_name, "%s", uconf_str(&c, "fetch.font", font_name));
+  const char *f = uconf_str(&c, "fetch.font", NULL);
+  if (f) snprintf(font_name, sizeof font_name, "%s", f);
+  else { /* the active theme's [font] name */
+    char tpath[96];
+    snprintf(tpath, sizeof tpath, "/usr/share/themes/%s.uconf", th->name);
+    uconf t;
+    if (uconf_load(&t, tpath) == 0) snprintf(font_name, sizeof font_name, "%s", uconf_str(&t, "font.name", font_name));
+    uconf_free(&t);
+  }
   snprintf(logo_name, sizeof logo_name, "%s", uconf_str(&c, "fetch.logo", logo_name));
   show_palette = uconf_bool(&c, "info.palette", 1);
   for (int i = uconf_next(&c, "info.line", -1); i >= 0 && nlines < NINFO; i = uconf_next(&c, "info.line", i)) {

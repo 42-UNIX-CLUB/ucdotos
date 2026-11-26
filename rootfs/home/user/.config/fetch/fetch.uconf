@@ -6,7 +6,8 @@
 [fetch]
 logo = mark          # mark (the club's prompt mark), cube, torus, or text
                      # (text draws /usr/share/fetch/logo.txt)
-font = Fira Code     # what the Font line says (the FONT variable wins over it)
+# font = Fira Code   # what the Font line says; leave it out to use the theme's
+                     # font name (the FONT variable wins over both)
 
 [info]
 # The lines next to the logo, top to bottom. Delete a line to hide it, move it
