@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* themes: the theme picker. A strip of cards along the bottom of the screen, one per
- * /usr/share/themes/NAME.uconf, each drawn in that theme's own colours. Left and Right (or
+ * ~/.config/themes/NAME.uconf or /usr/share/themes/NAME.uconf, each drawn in that theme's own colours. Left and Right (or
  * h and l, Tab) preview a theme on the whole desktop as you move; Enter keeps it, Escape
  * goes back to the theme you started with, a click picks a card. It closes when it loses
  * the focus, keeping what is shown.
@@ -36,18 +36,8 @@ static ttf_cache *reg, *bld;
 static ttf_metrics met;
 static int pad = 14, head_h;
 
-static int by_name(const void *a, const void *b) { return strcmp(a, b); }
 static void list_themes(void) {
-  DIR *d = opendir("/usr/share/themes");
-  for (struct dirent *e; d && (e = readdir(d)) && n < MAXT;) {
-    size_t l = strlen(e->d_name);
-    if (l <= 6 || l >= sizeof names[0] + 6 || strcmp(e->d_name + l - 6, ".uconf")) continue;
-    memcpy(names[n], e->d_name, l - 6);
-    names[n][l - 6] = 0;
-    n++;
-  }
-  if (d) closedir(d);
-  qsort(names, (size_t)n, sizeof names[0], by_name);
+  n = ui_theme_names(names, MAXT); /* the user's own (~/.config/themes) and the system's, sorted */
   for (int i = 0; i < n; i++) ui_theme_load(&themes[i], names[i]);
 }
 

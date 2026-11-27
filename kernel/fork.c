@@ -78,6 +78,8 @@ static long args_from_user(u32 uargv, u32 uenvp, u8 **out, u32 *outlen) {
     }
   }
   memcpy(args, counts, 8);
+  u8 *fit = kmalloc(len); /* the 64 KiB block was working room: the process keeps only what was used */
+  if (fit) { memcpy(fit, args, len); kfree(args); args = fit; }
   *out = args; *outlen = len;
   return 0;
 }
@@ -115,6 +117,7 @@ long sys_execve(u32 upath, u32 uargv, u32 uenvp) {
   strlcpy(cur->name, base ? base + 1 : path, sizeof cur->name);
   sig_exec_reset(cur);
   vfs_proc_exec(cur->pid, exe); /* file system: /proc/PID/exe */
+  vfs_exec_ids(cur->pid, exe); /* set-user-ID programs, saved ids */
   cur->in_sigsuspend = 0;
   cur->sleep_until = 0;
   cur->block_ms = -1;

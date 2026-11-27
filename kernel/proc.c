@@ -115,6 +115,7 @@ int proc_spawn(struct proc *parent, const char *path, u8 *args, u32 args_len, co
   p->cwd = parent ? parent->cwd : vfs_root;
   inode_get(p->cwd);
   vfs_proc_start(pid, parent ? parent->pid : 0, exe); /* file system: credentials, umask, chroot */
+  vfs_exec_ids(pid, exe); /* set-user-ID programs, saved ids */
   p->pgid = parent ? parent->pgid : pid;
   p->sid = parent ? parent->sid : pid;
   p->args = args; p->args_len = args_len;

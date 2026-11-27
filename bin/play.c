@@ -19,7 +19,8 @@ static int volume = 100;
 /* total: the bytes of samples that will follow, so audiod can say when it has taken them all. */
 static int server(unsigned rate, int channels, int bits, unsigned total) {
   int fd = (int)__syscall3(SYS_socket, 1 /* AF_UNIX */, 1 /* SOCK_STREAM */, 0);
-  struct { unsigned short family; char path[108]; } a = {1, "/run/audiod.sock"};
+  struct { unsigned short family; char path[108]; } a = {1, ""};
+  { const char *x = getenv("XDG_RUNTIME_DIR"); snprintf(a.path, sizeof a.path, "%s/audiod.sock", x && *x ? x : "/run"); } /* audiod's socket, in the session (bin/audiod.c) */
   long e = __syscall3(SYS_connect, fd, &a, sizeof a);
   if (e < 0) { fprintf(stderr, "play: cannot reach the sound server (audiod): %s\n", strerror((int)-e)); exit(1); }
   struct audiod_hello h = {{'U', 'C', 'A', 'U'}, rate, (unsigned short)channels, (unsigned short)bits, (unsigned short)volume, 0, total};

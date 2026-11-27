@@ -13,6 +13,7 @@ run() {
   esac
 }
 run "kernel   " node tools/run.mjs --build="$B" --init=/bin/ktest
+run "kernel, session entitled to administration" node tools/run.mjs --build="$B" --init=/bin/ktest --args=users --admin
 run "C library" node tools/run.mjs --build="$B" --init=/bin/libctest
 run "uconf    " node tools/run.mjs --build="$B" --init=/bin/uconftest
 run "shell    " node tools/run.mjs --build="$B" --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'

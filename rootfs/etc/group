@@ -1,0 +1,8 @@
+root:x:0:
+tty:x:5:
+audio:x:29:user
+video:x:44:user
+users:x:100:user
+input:x:101:user
+user:x:1000:
+nogroup:x:65534:

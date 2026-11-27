@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* libclip: the client side of the clipboard. The clipboard is its own program, clipd,
  * which keeps a short history of copied data and answers on the AF_UNIX stream socket
- * /run/clip.sock. It has nothing to do with the window manager or the kernel: any
+ * $XDG_RUNTIME_DIR/clip.sock (/run/clip.sock without the variable). It has nothing to do with the window manager or the kernel: any
  * program can use it, with or without a window. The first call that finds no clipd
  * starts one (/bin/clipd); it then runs until the system stops.
  *
@@ -12,8 +12,19 @@
 #ifndef CLIP_H
 #define CLIP_H
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define CLIP_SOCKET "/run/clip.sock"
+/* clipd runs in the desktop user's session, as audiod does, so its socket is in that
+ * session's runtime directory. A program started with no environment (a test run as
+ * pid 1) uses /run, as before users existed. Fills out (108 bytes, a socket path). */
+static inline const char *clip_socket(char *out) {
+  const char *x = getenv("XDG_RUNTIME_DIR");
+  if (!x || !*x || strlen(x) > 108 - sizeof "/clip.sock") x = "/run";
+  strcpy(out, x);
+  strcat(out, "/clip.sock");
+  return out;
+}
 #define CLIP_MAX_ENTRY (1 << 20)   /* largest single entry: 1 MiB */
 
 enum { CLIP_PUT = 1, CLIP_GET, CLIP_LIST, CLIP_SELECT, CLIP_REMOVE, CLIP_CLEAR };

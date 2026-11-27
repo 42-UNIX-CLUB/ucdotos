@@ -78,6 +78,8 @@ class IdbBackend {
   async put1(key, val) { const tx = this.db.transaction('meta', 'readwrite'); tx.objectStore('meta').put(val.slice().buffer, key.slice().buffer); await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = () => j(tx.error); }); }
   async wipe() { const tx = this.db.transaction(['meta', 'blocks'], 'readwrite'); tx.objectStore('meta').clear(); tx.objectStore('blocks').clear(); await new Promise((r, j) => { tx.oncomplete = r; tx.onerror = () => j(tx.error); }); }
   async usage() { const e = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : {}; return { used: e.usage || 0, quota: e.quota || 0 }; }
+  async persisted() { return navigator.storage && navigator.storage.persisted ? navigator.storage.persisted() : null; }
+  async persist() { return navigator.storage && navigator.storage.persist ? navigator.storage.persist() : null; }
 }
 function assemble(parts, size) {
   const out = new Uint8Array(size);
@@ -92,7 +94,11 @@ function assemble(parts, size) {
 // 'C' u32 seq. A transaction without its commit record (a crash) is cut off at load.
 // The index lives in memory: metadata values, and file offsets of data blocks.
 class FileBackend {
-  constructor(fs, path, crashAfter) { this.fs = fs; this.path = path; this.crashAfter = crashAfter || 0; this.writes = 0; }
+  // quota (tests): behave like a browser that gives this origin `quota` bytes: usage is the
+  // live data, and a batch whose new records do not fit is refused whole (nothing written)
+  // reportQuota (tests): tell the kernel a larger quota than the one enforced, as a browser whose
+  // estimate is off would: the kernel's own check passes and the batch itself is refused
+  constructor(fs, path, crashAfter, quota, reportQuota) { this.fs = fs; this.path = path; this.crashAfter = crashAfter || 0; this.writes = 0; this.quota = quota || 0; this.reportQuota = reportQuota || 0; }
   write(fd, buf, pos) {
     if (this.crashAfter && ++this.writes >= this.crashAfter) { // test mode: die in the middle of this write
       this.fs.writeSync(fd, buf, 0, buf.length >> 1, pos);
@@ -155,6 +161,11 @@ class FileBackend {
   async load() { return [...this.meta].map(([k, v]) => [Buffer.from(k, 'latin1'), v]); }
   async commit(batch) {
     const body = batch.subarray(12), head = Buffer.alloc(9), tail = Buffer.alloc(5);
+    if (this.quota) { // the check a browser makes: the batch's writes must fit in what is left
+      let add = 0;
+      for (const o of ops(body)) if (o.op === OP_PUT) add += o.key.length + o.val.length + 16;
+      if (add && this.live() + add > this.quota) { const e = new Error(`no room: ${this.live() + add} bytes would exceed the quota of ${this.quota}`); e.name = 'QuotaExceededError'; throw e; }
+    }
     head[0] = 84;
     const seq = new DataView(batch.buffer, batch.byteOffset).getUint32(4, true);
     head.writeUInt32LE(seq, 1); head.writeUInt32LE(body.length, 5);
@@ -198,17 +209,21 @@ class FileBackend {
   async put1(key, val) { const b = blobOf([[key, val]]), h = new Uint8Array(12 + b.length); h.set(b, 12); new DataView(h.buffer).setUint32(4, 0, true); await this.commit(Buffer.from(h.buffer)); }
   async wipe() { this.fs.ftruncateSync(this.fd, 8); this.size = 8; this.meta.clear(); this.blocks.clear(); }
   async usage() {
+    if (this.quota) return { used: this.live(), quota: this.reportQuota || this.quota };
     let quota = 0;
     try { const s = this.fs.statfsSync(this.path); quota = this.size + s.bavail * s.bsize; } catch {}
     return { used: this.size, quota };
   }
+  async persisted() { return true; } // a file on disk is not evicted
+  async persist() { return true; }
 }
+const isQuota = (e) => !!e && (e.name === 'QuotaExceededError' || e.code === 'ENOSPC' || e.code === 'EDQUOT' || (e.inner && e.inner.name === 'QuotaExceededError'));
 
 // openStore({ kind: 'idb' | 'file', name, path, fs, crashAfter, readOnly, log }) -> store or null.
 // Call before boot(); pass the result to boot({ store }).
 export async function openStore(o) {
   const log = o.log || (() => {});
-  const be = o.kind === 'file' ? new FileBackend(o.fs, o.path, o.crashAfter) : new IdbBackend();
+  const be = o.kind === 'file' ? new FileBackend(o.fs, o.path, o.crashAfter, o.quota, o.reportQuota) : new IdbBackend();
   await be.open(o.name || 'ucos-store');
   let entries = await be.load();
   const info = entries.find(([k]) => k.length === 1 && k[0] === 73 /* I */);
@@ -220,11 +235,40 @@ export async function openStore(o) {
     const v = new Uint8Array(8); v.set([85, 67, 79, 83]); new DataView(v.buffer).setUint32(4, SCHEMA, true);
     await be.put1(new Uint8Array([73]), v);
   }
-  entries = entries.filter(([k]) => k[0] !== 73);
+  // Record 'O': this store was written by a system with users and permissions. A store
+  // without it (written before) gets its image files' owners from the image at the next boot
+  // (kernel flag 8, store.c apply_meta); the record is added once that boot has started.
+  const OWNERS = new Uint8Array([79]);
+  const owners = entries.some(([k]) => k.length === 1 && k[0] === 79);
+  if (!info && !owners && !o.readOnly) await be.put1(OWNERS, new Uint8Array([1]));
+  const migrate = !!info && !owners;
+  entries = entries.filter(([k]) => !(k.length === 1 && (k[0] === 73 || k[0] === 79)));
   const blob = blobOf(entries);
   let k = null, mem = null, busy = false, timer = 0, urgent = false, stopped = false;
   const stats = { batches: 0, bytes: 0, ms: 0, fetches: 0, fetchMs: 0 };
-  async function usage() { try { const u = await be.usage(); k.store_usage(u.used, u.quota); } catch {} }
+  // The kernel learns the browser's figures (statfs, /proc/ucos-store, the 80% and 95%
+  // warnings) from these pushes: after every drain, at boot, and every 5 minutes while the
+  // page is visible (the quota can change on its own). Nothing runs on the system call path.
+  let lastUsed = -1, lastQuota = -1;
+  async function usage() {
+    try {
+      const u = await be.usage();
+      if (u.used !== lastUsed || u.quota !== lastQuota) { lastUsed = u.used; lastQuota = u.quota; k.store_usage(u.used, u.quota); }
+    } catch {}
+  }
+  // Ask the browser to keep the data (navigator.storage.persist) once, after the first batch
+  // that stored something: by then the user has made changes worth keeping. Chrome and Safari
+  // answer silently from how the site is used; Firefox shows a prompt, which then comes as a
+  // consequence of saving, not at first sight of the page.
+  let askedPersist = false;
+  async function persistence(ask) {
+    try {
+      let p = await be.persisted();
+      if (!p && ask && !askedPersist) { askedPersist = true; p = await be.persist(); log(`[store] the browser ${p ? 'will keep' : 'may evict'} the stored files (persist() ${p ? 'granted' : 'not granted'})\n`); }
+      if (p !== null && p !== undefined) k.store_persisted(p ? 1 : 0);
+    } catch {}
+  }
+  let fullLogged = false;
   async function drain() {
     timer = 0;
     if (busy || stopped || !k) return;
@@ -237,10 +281,16 @@ export async function openStore(o) {
         const t0 = performance.now();
         let ok = 1;
         try { await be.commit(o.kind === 'file' ? Buffer.from(batch.buffer) : batch, strict); }
-        catch (e) { ok = 0; log(`[store] writing a batch failed: ${e && e.message}\n`); }
+        catch (e) {
+          ok = isQuota(e) ? 2 : 0; // 2: no room; the kernel keeps the changes and answers ENOSPC
+          if (ok === 0 || !fullLogged) log(`[store] writing a batch failed: ${e && e.message}\n`);
+          if (ok === 2) fullLogged = true;
+        }
         stats.batches++; stats.bytes += len; stats.ms += performance.now() - t0;
         k.store_done(seq, ok);
-        if (!ok) { stopped = true; break; }
+        if (ok === 1) { fullLogged = false; if (!askedPersist) persistence(true); }
+        if (ok === 0) { stopped = true; break; }
+        if (ok === 2) break;
       }
       await usage();
     } finally { busy = false; }
@@ -272,9 +322,13 @@ export async function openStore(o) {
     preboot(kernel, put, flags) {
       k = kernel; mem = () => new Uint8Array(k.memory.buffer);
       if (k.store_schema() !== SCHEMA) throw new Error('kernel and boot/store.mjs disagree on the store format');
-      k.store_boot(blob.length ? put(blob) : 0, blob.length, (o.readOnly ? 2 : 1) | (flags || 0));
+      k.store_boot(blob.length ? put(blob) : 0, blob.length, (o.readOnly ? 2 : 1) | (flags || 0) | (migrate ? 8 : 0));
     },
-    started() { usage(); },
+    started() {
+      if (migrate && !o.readOnly) be.put1(OWNERS, new Uint8Array([1])).catch((e) => log(`[store] marking the store: ${e && e.message}\n`));
+      usage(); persistence(false);
+      if (typeof document !== 'undefined') { const t = setInterval(() => { if (!document.hidden && !stopped) usage(); }, 300000); if (t.unref) t.unref(); }
+    },
     flush() { schedule(true); return new Promise((res) => { const t = () => (busy || (k && k.store_pending() && !stopped) ? setTimeout(t, 5) : res()); t(); }); },
     wipe: () => be.wipe(),
   };

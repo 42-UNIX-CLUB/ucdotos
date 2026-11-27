@@ -5,7 +5,8 @@
 //   node tools/shot.mjs [--build=build] [--init=/bin/init] [--size=1280x720] [--out=build/shots]
 //                       [--script=path/to/script.mjs] [--wait=1500] [--debug] [--quiet]
 //                       [--audio-capture=FILE]   save what /dev/dsp plays (raw 16-bit stereo, 48 kHz)
-//                       [--remote-rate=BYTES_PER_SECOND] [--remote-off]   (remote files: tools/remote-node.mjs)
+//                       [--remote-rate=BYTES_PER_SECOND] [--remote-off]   (remote files: tools/remote-node.mjs) [--admin]
+// --admin: boot with ucos.admin=1 (this session may become root: su, sudo, set-user-ID)
 //
 // Without --script: waits --wait milliseconds and writes <out>/screen.png.
 // With --script: the module's default export is `async (t) => { ... }` where t has:
@@ -46,7 +47,7 @@ let pointerLocked = false;
 const sys = await boot({
   kernel: fs.readFileSync(root + build + '/kernel.wasm'),
   initrd: fs.readFileSync(root + build + '/initrd.tar'),
-  cmdline: 'init=' + opt('init', '/bin/init') + (opt('args', '') ? ' -- ' + opt('args', '') : ''),
+  cmdline: 'init=' + opt('init', '/bin/init') + (args.includes('--admin') ? ' ucos.admin=1' : '') + (opt('args', '') ? ' -- ' + opt('args', '') : ''),
   screen: { width: W, height: H },
   log: (s) => { logText += s; if (!quiet) process.stdout.write(s); },
   debug: args.includes('--debug'),

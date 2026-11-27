@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* audiod: the sound server, for everything that is not a game.
  *   audiod [-v]
- * Programs connect to /run/audiod.sock, send a 20-byte header (struct below), then
+ * Programs connect to $XDG_RUNTIME_DIR/audiod.sock (/run/audiod.sock without it), send a 20-byte header (struct below), then
  * samples in their own format: 8-bit unsigned or 16-bit signed, mono or stereo, any
  * rate from 4000 to 192000 Hz. audiod converts each to the device's format (linear
  * interpolation, integer arithmetic), applies its volume, mixes them, and writes
@@ -23,7 +23,16 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 
-#define SOCK_PATH "/run/audiod.sock"
+/* The sound server runs in the desktop user's session (as on Linux, where PipeWire and
+ * PulseAudio do), so its socket is in that session's runtime directory. A program started
+ * with no environment (a test run as pid 1) uses /run, as before users existed. */
+static char sock_path[108];
+static const char *audiod_socket(void) {
+  const char *x = getenv("XDG_RUNTIME_DIR");
+  snprintf(sock_path, sizeof sock_path, "%s/audiod.sock", x && *x ? x : "/run");
+  return sock_path;
+}
+#define SOCK_PATH audiod_socket()
 #define MAX_CLIENTS 16
 #define IN_CAP 65536              /* raw bytes buffered per client */
 #define FRAG_SHIFT 12             /* /dev/dsp: 16 fragments of 4 KiB, about 340 ms at 48 kHz */
@@ -168,8 +177,9 @@ int main(int argc, char **argv) {
   mkdir("/run", 0755);
   unlink(SOCK_PATH);
   int lfd = (int)__syscall3(SYS_socket, 1 /* AF_UNIX */, 1 /* SOCK_STREAM */ | O_CLOEXEC, 0);
-  struct { unsigned short family; char path[108]; } a = {1, SOCK_PATH};
-  if (lfd < 0 || __syscall3(SYS_bind, lfd, &a, sizeof a) < 0 || __syscall2(SYS_listen, lfd, 16) < 0) { fprintf(stderr, "audiod: cannot listen on " SOCK_PATH "\n"); return 1; }
+  struct { unsigned short family; char path[108]; } a = {1, ""};
+  snprintf(a.path, sizeof a.path, "%s", SOCK_PATH);
+  if (lfd < 0 || __syscall3(SYS_bind, lfd, &a, sizeof a) < 0 || __syscall2(SYS_listen, lfd, 16) < 0) { fprintf(stderr, "audiod: cannot listen on %s\n", SOCK_PATH); return 1; }
   nonblock(lfd);
   if (verbose) fprintf(stderr, "audiod: listening on %s\n", SOCK_PATH);
   for (;;) {

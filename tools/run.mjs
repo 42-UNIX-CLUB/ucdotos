@@ -4,6 +4,9 @@
 //                      [--audio-capture=FILE]   save what /dev/dsp plays (raw 16-bit stereo, 48 kHz)
 //                      [--remote-rate=BYTES_PER_SECOND] [--remote-off]   (remote files: tools/remote-node.mjs)
 //                      [--net-test=http://127.0.0.1:PORT]   the router's host in test mode (boot/hostnet.mjs)
+//   --admin: this session is entitled to administration (boot parameter ucos.admin=1: su, sudo, set-user-ID)
+//   --quota=BYTES: with --store, the store behaves as if the browser gave it this much room (tests of a full store)
+//   --quota-report=BYTES: ...but tells the kernel this larger figure (the browser refuses a batch the kernel thought fit)
 import fs from 'node:fs';
 import { boot, checkSupport } from '../boot/host.mjs';
 import { openStore } from '../boot/store.mjs';
@@ -14,11 +17,11 @@ const opt = (n, d) => { const a = args.find((x) => x.startsWith(`--${n}=`)); ret
 const missing = checkSupport();
 if (missing.length) { console.error('missing: ' + missing.join(', ')); process.exit(2); }
 // --store=FILE keeps the file system in FILE across runs (boot/store.mjs); --store-crash=N stops after N storage writes
-const store = opt('store', null) && await openStore({ kind: 'file', fs, path: opt('store'), crashAfter: Number(opt('store-crash', 0)), log: (s) => process.stdout.write(s) });
+const store = opt('store', null) && await openStore({ kind: 'file', fs, path: opt('store'), crashAfter: Number(opt('store-crash', 0)), quota: Number(opt('quota', 0)), reportQuota: Number(opt('quota-report', 0)), log: (s) => process.stdout.write(s) });
 const sys = await boot({
   kernel: fs.readFileSync(root + opt('build', 'build') + '/kernel.wasm'),
   initrd: fs.readFileSync(root + opt('build', 'build') + '/initrd.tar'),
-  cmdline: 'init=' + opt('init', '/bin/init') + (opt('args', '') ? ' -- ' + opt('args', '') : ''),
+  cmdline: 'init=' + opt('init', '/bin/init') + (args.includes('--admin') ? ' ucos.admin=1' : '') + (opt('args', '') ? ' -- ' + opt('args', '') : ''),
   screen: { width: 640, height: 400 },
   log: (s) => process.stdout.write(s),
   debug: args.includes('--debug'),

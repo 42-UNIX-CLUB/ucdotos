@@ -269,14 +269,14 @@ long sys_sendto(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 alen) {
   struct file *f = fd_get(fd);
   if (!f) return -EBADF;
   if (f->ops == &inet_fops) return do_send(f, ubuf, len, flags, uaddr, alen);
-  if (unix_sock(f)) return f->ops->write(f, ubuf, len);
+  if (unix_sock(f)) return unix_sendto(fd, ubuf, len, flags, uaddr); /* flags, SIGPIPE and MSG_NOSIGNAL: sock.c */
   return -ENOTSOCK;
 }
 long sys_recvfrom(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 ulen) {
   struct file *f = fd_get(fd);
   if (!f) return -EBADF;
   if (f->ops == &inet_fops) return do_recv(f, ubuf, len, flags, uaddr, ulen);
-  if (unix_sock(f)) return f->ops->read(f, ubuf, len);
+  if (unix_sock(f)) return unix_recvfrom(fd, ubuf, len, flags, uaddr, ulen);
   return -ENOTSOCK;
 }
 long sys_setsockopt(int fd, int level, int opt, u32 uval, u32 len) {

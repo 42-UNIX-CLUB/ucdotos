@@ -40,7 +40,7 @@ export async function waitPrompt(t, ms = 5000) {
   while (Date.now() - t0 < ms) {
     s = await screen(t);
     const last = s.rows.filter((r) => r.trim()).pop() || '';
-    if (/\$$/.test(last.trim())) return s;
+    if (/[$#]$/.test(last.trim())) return s; // "#": a root shell (term as pid 1 runs as root)
     await t.sleep(100);
   }
   return s;

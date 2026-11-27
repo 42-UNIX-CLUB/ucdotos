@@ -1990,6 +1990,35 @@ t 'fix-dot-path-only' 'not-found
 ~0' 'echo '\''echo in-cwd'\'' > fdp.sh; PATH=/nonexistent_dir; (. fdp.sh) 2>/dev/null || echo not-found'
 t 'fix-dot-path-found' 'via-path
 ~0' 'mkdir -p fdpp; echo '\''echo via-path'\'' > fdpp/fdp2.sh; PATH="$PWD/fdpp:$PATH"; . fdp2.sh'
+t 'sigpipe-yes-head' 'y
+~0' 'yes | head -1'
+t 'sigpipe-seq-head' '1
+2
+3
+~0' 'seq 100000 | head -3'
+t 'sigpipe-cat-big-true' '0
+~0' 'seq 50000 > sp1.f; cat sp1.f | true; echo $?'
+t 'sigpipe-pipefail-141' '141
+~0' 'set -o pipefail; yes | head -1 >/dev/null; echo $?'
+t 'sigpipe-pipefail-seq' '141
+~0' 'set -o pipefail; seq 100000 | head -1 >/dev/null; echo $?'
+t 'sigpipe-no-pipefail' '0
+~0' 'yes | head -1 >/dev/null; echo $?'
+t 'sigpipe-builtin-loop' 'y
+y
+alive
+~0' 'while :; do echo y; done | head -2; echo alive'
+t 'sigpipe-trap-ignore-inherited' '1
+~0' 'set -o pipefail; trap '\'''\'' PIPE; yes | head -1 >/dev/null; echo $?'
+t 'sigpipe-trap-reset' 'alive
+~0' 'trap - PIPE; while :; do echo y; done | head -1 >/dev/null; echo alive'
+t 'sigpipe-exec-writer' 'y
+~0' 'sh -c '\''exec yes'\'' | head -1'
+t 'sigpipe-subst' 'y
+y
+~0' 'x=$(yes | head -2); echo "$x"'
+t 'sigpipe-background' 'y
+~0' '{ yes | head -1; } & wait'
 echo "sh-posix: $((pass + fail)) cases, $pass passed, $fail failed"
 cd /
 [ $fail = 0 ]

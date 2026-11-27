@@ -105,7 +105,8 @@ static void ob_fg(unsigned rgb) { ob_printf("\033[38;2;%u;%u;%um", rgb >> 16, (r
 static void ob_bg(unsigned rgb) { ob_printf("\033[48;2;%u;%u;%um", rgb >> 16, (rgb >> 8) & 255, rgb & 255); }
 static void ob_goto(int row, int col) { ob_printf("\033[%d;%dH", row + 1, col + 1); }
 
-/* --- themes: the active theme's /usr/share/themes/NAME.uconf, read with libuconf ---
+/* --- themes: the active theme's NAME.uconf (the user's own in ~/.config/themes first, then
+ * /usr/share/themes), read with libuconf ---
  * The colours come from the theme file, so every theme works here too:
  *   bg colors.bg, bg1 colors.bar.bg, bg2 colors.surface (else colors.border.normal),
  *   fg colors.fg, grey colors.dim, orange colors.accent, and red yellow green aqua blue
@@ -124,12 +125,10 @@ static const struct theme theme_brand = {"brand", "42 brand", 0x0e362e, 0x174a3f
 static struct theme theme_cur;
 static char theme_cur_name[32], theme_cur_desc[48];
 static const struct theme *th = &theme_deck;
-/* Fill theme_cur from /usr/share/themes/NAME.uconf; 0 if the file was read. */
+/* Fill theme_cur from the theme's file; 0 if it was read. */
 static int theme_from_file(const char *name) {
-  char path[96];
-  snprintf(path, sizeof path, "/usr/share/themes/%s.uconf", name);
   uconf c;
-  if (uconf_load(&c, path) < 0) { uconf_free(&c); return -1; }
+  if (uconf_load_theme(&c, name) < 0) { uconf_free(&c); return -1; }
   const struct theme *d = !strcmp(name, "brand") ? &theme_brand : &theme_deck; /* for keys a theme leaves out */
   struct theme t;
   snprintf(theme_cur_name, sizeof theme_cur_name, "%s", name);

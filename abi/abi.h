@@ -196,6 +196,7 @@ struct pollfd {
   short events, revents;
 };
 #define POLLIN 1
+#define POLLPRI 2
 #define POLLOUT 4
 #define POLLERR 8
 #define POLLHUP 16
@@ -678,5 +679,23 @@ struct statfs {
 };
 #define UCOSFS_MAGIC 0x858458f6 /* RAMFS_MAGIC: the tree lives in memory */
 #define PROC_SUPER_MAGIC 0x9fa0
+
+/* --- sockets: send and receive with flags (added for SIGPIPE on sockets) --- */
+#define SYS_sendmsg 211  /* (fd, struct msghdr *, flags) */
+#define SYS_recvmsg 212  /* (fd, struct msghdr *, flags) */
+#ifndef EMSGSIZE
+#define EMSGSIZE 90
+#endif
+#ifndef EISCONN
+#define EISCONN 106
+#endif
+#ifndef ENOTCONN
+#define ENOTCONN 107
+#endif
+#define MSG_WAITALL 0x100
+#define MSG_NOSIGNAL 0x4000 /* a send to a peer that is gone gives EPIPE without SIGPIPE */
+struct k_msghdr {        /* Linux's struct msghdr on a 32-bit machine */
+  u32 name, namelen, iov, iovlen, control, controllen, flags;
+};
 
 #endif

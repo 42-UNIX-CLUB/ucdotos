@@ -18,6 +18,9 @@
 //   t.log                        everything the page printed to its console so far
 //   t.requests                   every network request so far: { url, bytes (on the wire, once finished), status }
 //   t.send(method, params)       a raw DevTools protocol call (network throttling, file chooser...)
+//   t.openTab(query)             another tab of the same origin and profile: { eval, shot, close, log, cdp }
+//   t.cdp(method, params)        a raw DevTools call on the first tab (for example Storage.*)
+//   t.origin                     the origin the pages are served from
 //   t.on(method, f)              call f(params) for every DevTools event of that name
 import fs from 'node:fs';
 import os from 'node:os';
@@ -71,6 +74,10 @@ ws.onmessage = (m) => {
     const { resolve, reject } = pending.get(msg.id);
     pending.delete(msg.id);
     msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
+  } else if (msg.sessionId && tabLogs.has(msg.sessionId) && msg.method === 'Runtime.consoleAPICalled') {
+    tabLogs.set(msg.sessionId, tabLogs.get(msg.sessionId) + msg.params.args.map((a) => a.value ?? a.description ?? '').join(' ') + '\n');
+  } else if (msg.sessionId && tabLogs.has(msg.sessionId)) {
+    // another tab's events
   } else if (msg.method === 'Runtime.consoleAPICalled') {
     logText += msg.params.args.map((a) => a.value ?? a.description ?? '').join(' ') + '\n';
   } else if (msg.method === 'Network.requestWillBeSent') {
@@ -85,11 +92,13 @@ ws.onmessage = (m) => {
   }
   if (msg.method && listeners.has(msg.method)) for (const f of listeners.get(msg.method)) f(msg.params);
 };
-const send = (method, params = {}) => new Promise((resolve, reject) => {
+const tabLogs = new Map(); // sessionId -> console text of a tab made by t.openTab
+const sendTo = (sid, method, params = {}) => new Promise((resolve, reject) => {
   const id = nextId++;
   pending.set(id, { resolve, reject });
-  ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
+  ws.send(JSON.stringify({ id, method, params, ...(sid ? { sessionId: sid } : {}) }));
 });
+const send = (method, params = {}) => sendTo(sessionId, method, params);
 const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
 sessionId = (await send('Target.attachToTarget', { targetId, flatten: true })).sessionId;
 await send('Page.enable');
@@ -154,6 +163,34 @@ const t = {
   },
   async wheel(dy) { await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: mouseX, y: mouseY, deltaX: 0, deltaY: dy > 0 ? -120 : 120 }); },
   async resize(w, h) { W = w; H = h; await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }); },
+  origin: url.replace(/\/\?.*$/, ''),
+  cdp: (method, params) => send(method, params),
+  async closeFirst() { await sendTo(null, 'Target.closeTarget', { targetId }); }, // the first tab goes away, as when the user closes it
+  async openTab(query) {
+    const { targetId: tid } = await sendTo(null, 'Target.createTarget', { url: 'about:blank' });
+    const sid = (await sendTo(null, 'Target.attachToTarget', { targetId: tid, flatten: true })).sessionId;
+    tabLogs.set(sid, '');
+    await sendTo(sid, 'Runtime.enable');
+    await sendTo(sid, 'Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
+    await sendTo(sid, 'Page.navigate', { url: url.replace(/\?.*$/, '?' + (query ?? opt('query', 'scale=1'))) });
+    return {
+      get log() { return tabLogs.get(sid); },
+      async eval(expression) {
+        const r = await sendTo(sid, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+        if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+        return r.result.value;
+      },
+      async shot(name) {
+        const { data } = await sendTo(sid, 'Page.captureScreenshot', { format: 'png' });
+        const file = `${outDir}/${name}.png`;
+        fs.writeFileSync(file, Buffer.from(data, 'base64'));
+        console.error(`[browser] ${file}`);
+        return file;
+      },
+      cdp: (method, params) => sendTo(sid, method, params),
+      async close() { await sendTo(null, 'Target.closeTarget', { targetId: tid }); tabLogs.delete(sid); },
+    };
+  },
 };
 
 let code = 0;

@@ -339,10 +339,8 @@ static void load_config(void) {
   const char *f = uconf_str(&c, "fetch.font", NULL);
   if (f) snprintf(font_name, sizeof font_name, "%s", f);
   else { /* the active theme's [font] name */
-    char tpath[96];
-    snprintf(tpath, sizeof tpath, "/usr/share/themes/%s.uconf", th->name);
     uconf t;
-    if (uconf_load(&t, tpath) == 0) snprintf(font_name, sizeof font_name, "%s", uconf_str(&t, "font.name", font_name));
+    if (uconf_load_theme(&t, th->name) == 0) snprintf(font_name, sizeof font_name, "%s", uconf_str(&t, "font.name", font_name));
     uconf_free(&t);
   }
   snprintf(logo_name, sizeof logo_name, "%s", uconf_str(&c, "fetch.logo", logo_name));

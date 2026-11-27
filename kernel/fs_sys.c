@@ -129,13 +129,15 @@ long fs_openat(int dirfd, u32 upath, int flags, int mode) {
   struct nameidata nd;
   if ((err = at_walk(dirfd, path, (flags & O_NOFOLLOW) || excl ? 0 : W_FOLLOW, 0, &nd))) return err;
   struct inode *i = nd.ino;
-  /* the common case: an existing file or directory, plain flags, enforcement off */
-  if (i && !nd.trailing && !i->kind && !(i->sflags & S_LAZY_BIT) && !i->priv && vfs_enforce < 2 &&
+  /* the common case: an existing file or directory, plain flags (with enforcement, the same
+   * permission test open_nd makes) */
+  if (i && !nd.trailing && !i->kind && !(i->sflags & S_LAZY_BIT) && !i->priv &&
       !(flags & (O_CREAT | O_TRUNC | O_PATH | O_DIRECTORY))) {
     struct file *f;
-    if (S_ISREG(i->mode)) f = file_new(&reg_fops, i, flags, NULL);
-    else if (S_ISDIR(i->mode) && (flags & O_ACCMODE) == O_RDONLY) f = file_new(&dir_fops, i, flags, NULL);
-    else return open_nd(&nd, flags, mode);
+    int acc = flags & O_ACCMODE;
+    if (!S_ISREG(i->mode) && !(S_ISDIR(i->mode) && acc == O_RDONLY)) return open_nd(&nd, flags, mode);
+    if (vfs_enforce >= 2 && (err = vfs_may(i, acc == O_RDONLY ? 4 : acc == O_WRONLY ? 2 : 6))) return err;
+    f = file_new(S_ISREG(i->mode) ? &reg_fops : &dir_fops, i, flags, NULL);
     return f ? install(f, flags) : -ENOMEM;
   }
   return open_nd(&nd, flags, mode);
@@ -400,7 +402,12 @@ static long do_chmod(struct inode *i, u32 mode) {
   if (!owner_or_root(i)) return -EPERM;
   if (i->kind) return -EPERM;
   mode &= 07777;
-  if (vfs_enforce >= 2 && cred()->fsuid && !S_ISDIR(i->mode) && cred()->fsgid != i->gid) mode &= ~S_ISGID;
+  if (vfs_enforce >= 2 && cred()->fsuid && !S_ISDIR(i->mode)) { /* as Linux: set-group-ID only for a group the caller is in */
+    struct fscred *c = cred();
+    int member = c->fsgid == i->gid;
+    for (u32 k = 0; k < c->ngroups && !member; k++) member = c->groups[k] == i->gid;
+    if (!member) mode &= ~S_ISGID;
+  }
   i->mode = (i->mode & S_IFMT) | mode;
   vfs_touch(i, 4);
   return 0;
@@ -424,8 +431,16 @@ static long fs_fchmodat(int dirfd, u32 upath, u32 mode, int flags) {
 static long do_chown(struct inode *i, u32 uid, u32 gid) {
   if (i->kind) return -EPERM;
   if (vfs_enforce >= 2 && cred()->fsuid) {
-    if (uid != (u32)-1 && uid != i->uid) return -EPERM;
-    if (gid != (u32)-1 && (cred()->fsuid != i->uid || (gid != cred()->fsgid && !(cred()->ngroups)))) return -EPERM;
+    /* as Linux: only root gives a file away; the owner may change its group to one of
+     * the groups the owner is in (the effective group or a supplementary one) */
+    struct fscred *c = cred();
+    if (uid != (u32)-1 && (uid != i->uid || c->fsuid != i->uid)) return -EPERM;
+    if (gid != (u32)-1) {
+      if (c->fsuid != i->uid) return -EPERM;
+      int member = gid == c->fsgid;
+      for (u32 k = 0; k < c->ngroups && !member; k++) member = c->groups[k] == gid;
+      if (!member && gid != i->gid) return -EPERM;
+    }
   }
   if (uid != (u32)-1) i->uid = uid;
   if (gid != (u32)-1) i->gid = gid;

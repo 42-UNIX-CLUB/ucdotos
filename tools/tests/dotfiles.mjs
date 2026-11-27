@@ -70,8 +70,8 @@ export default async (t) => {
 
   // bar.uconf: a clock format and fewer stats; the bar re-reads it on a theme change
   await run(t, `printf '[clock]\\nformat = CLOCK %%Y\\n[stats]\\nshow = procs\\n' > ${H}/bar/bar.uconf`);
-  // a theme of our own: the wallpaper colour, through a theme change
-  await run(t, `printf '[colors]\\ndesktop = #ff00ff\\n' > /usr/share/themes/mine.uconf`);
+  // a theme of our own, in the user's own themes folder: the wallpaper colour, through a theme change
+  await run(t, `mkdir -p ${H}/themes; printf '[colors]\\ndesktop = #ff00ff\\n' > ${H}/themes/mine.uconf`);
   for (let i = 0; i < 64 && !/wm: theme mine/.test(t.log); i++) { // $mod t cycles every theme in name order
     const n = (t.log.match(/wm: theme \S+/g) || []).length;
     await t.tap('KeyT', { alt: true });

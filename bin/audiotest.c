@@ -27,7 +27,8 @@ static short pattern(long i, int ch) { int l = (int)((i * 97) % 30000) - 15000; 
 struct audiod_hello { char magic[4]; unsigned rate; unsigned short channels, bits, volume, pad; unsigned total; };
 static int unix_socket(void) { return (int)__syscall3(SYS_socket, 1 /* AF_UNIX */, 1 /* SOCK_STREAM */, 0); }
 static long unix_connect(int fd) {
-  struct { unsigned short family; char path[108]; } a = {1, "/run/audiod.sock"};
+  struct { unsigned short family; char path[108]; } a = {1, ""};
+  { const char *x = getenv("XDG_RUNTIME_DIR"); snprintf(a.path, sizeof a.path, "%s/audiod.sock", x && *x ? x : "/run"); } /* audiod's socket, in the session (bin/audiod.c) */
   return __syscall3(SYS_connect, fd, &a, sizeof a);
 }
 static int client(unsigned rate, int bits, int volume, unsigned total) {

@@ -170,6 +170,8 @@ static long sys_spawn(u32 upath, u32 uargv, u32 uenvp, u32 ufdmap) {
     }
   }
   memcpy(args, counts, 8);
+  u8 *fit = kmalloc(len); /* the 64 KiB block was working room: the process keeps only what was used */
+  if (fit) { memcpy(fit, args, len); kfree(args); args = fit; }
   int fdmap[3] = {-1, -1, -1};
   if (ufdmap && copy_from_user(fdmap, ufdmap, sizeof fdmap)) { kfree(args); return -EFAULT; }
   int pid = proc_spawn(cur, path, args, len, ufdmap ? fdmap : NULL);
@@ -294,6 +296,8 @@ static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long
   case SYS_getpeername: return sys_getpeername(a, b, c);
   case SYS_sendto: return sys_sendto(a, b, c, d, e, f);
   case SYS_recvfrom: return sys_recvfrom(a, b, c, d, e, f);
+  case SYS_sendmsg: return sys_sendmsg(a, b, c);
+  case SYS_recvmsg: return sys_recvmsg(a, b, c);
   case SYS_setsockopt: return sys_setsockopt(a, b, c, d, e);
   case SYS_getsockopt: return sys_getsockopt(a, b, c, d, e);
   case SYS_shutdown: return sys_shutdown(a, b);

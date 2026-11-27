@@ -614,6 +614,10 @@ static void one_call(void) {
 }
 
 static int worker(unsigned long long seed, long iters) {
+  /* Workers run as the desktop user, as every process did before users existed: as root
+   * (pid 1 is root now) their random chmod and chown calls could change the image and /dev,
+   * which no unprivileged program can. Root's own paths are covered by ktest. */
+  if (geteuid() == 0) { gid_t none[1]; if (setgroups(0, none) || setresgid(1000, 1000, 1000) || setresuid(1000, 1000, 1000)) return 3; }
   rs = mix(seed) | 1;
   /* relative names (including random ones from gen_ptr) must land inside KDIR, which is removed
    * at the end: a worker that started in "/" left names there ("1 names left behind") */
@@ -668,7 +672,9 @@ static void setup(void) {
   mkdir(KDIR "/d", 0755);
 #define AT(n, expr) do { int _f = (expr); if (_f >= 0 && _f != (n)) { dup2(_f, (n)); close(_f); } } while (0)
   AT(F_DIR, open(KDIR, O_RDONLY | O_DIRECTORY));
+  chown(KDIR, 1000, 1000); chown(KDIR "/d", 1000, 1000); /* the workers' playground (they run as uid 1000) */
   AT(F_FILE, open(KDIR "/f", O_RDWR | O_CREAT, 0644));
+  chown(KDIR "/f", 1000, 1000);
   AT(F_APPEND, open(KDIR "/f", O_WRONLY | O_APPEND));
   AT(F_ROFILE, open("/etc/motd", O_RDONLY));
   pipe(fds); AT(F_PIPE_R, fds[0]); AT(F_PIPE_W, fds[1]);
@@ -710,6 +716,7 @@ static void drain(void) { /* keep shared buffers moving without ever blocking ou
 /* Remove a tree with chdir and relative names: renames can nest it deeper than PATH_MAX. */
 static void remove_tree(const char *name, int depth) {
   static char names[16][32][260]; /* names may be 255 bytes since 2026-11-26 */
+  chmod(name, 0700); /* a worker may have taken its own rights away; the supervisor may not be root either */
   if (depth < 16 && chdir(name) == 0) {
     for (int pass = 0; pass < 1000; pass++) { /* collect a batch, close, then remove it */
       DIR *d = opendir(".");

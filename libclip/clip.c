@@ -14,7 +14,8 @@
 extern char **environ;
 
 static int try_connect(void) {
-  struct { unsigned short fam; char path[108]; } addr = {1, CLIP_SOCKET};
+  struct { unsigned short fam; char path[108]; } addr = {1, ""};
+  clip_socket(addr.path);
   int fd = __syscall3(SYS_socket, 1, 1 | O_NONBLOCK | O_CLOEXEC, 0);
   if (fd < 0) return fd;
   int r = __syscall3(SYS_connect, fd, &addr, sizeof addr);

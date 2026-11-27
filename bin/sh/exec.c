@@ -765,6 +765,7 @@ static pid_t spawn_ext(struct prep *pr, int in, int out, int *st) {
   } else {
     char **env = make_env(pr->n);
     fflush(stdout);
+    child_sigs(1);
     pid = spawn(path, argv, env, NULL);
     if (pid < 0 && errno == ENOEXEC) { /* not a program: run it as a shell script */
       char **av = malloc((argc + 2) * sizeof *av);
@@ -773,6 +774,7 @@ static pid_t spawn_ext(struct prep *pr, int in, int out, int *st) {
       pid = spawn("/bin/sh", av, env, NULL);
       free(av);
     }
+    { int e = errno; child_sigs(0); errno = e; }
     if (pid < 0) {
       outf(2, "sh: %s: %s\n", argv[0], errno == 7 ? "argument list too long" : strerror(errno));
       *st = errno == ENOENT ? 127 : 126;
@@ -805,6 +807,7 @@ int exec_cmd(int argc, char **argv) {
   /* inside a subshell that runs in this process, replacing the process would
    * end the parent shell too: run the command and leave the subshell instead */
   long r = -ENOSYS;
+  child_sigs(1); /* the new program starts with SIGPIPE at its default */
   if (!cur_sub) {
     if (interactive) tty_restore();
     r = __syscall3(SYS_execve, path, argv, env);
@@ -825,6 +828,7 @@ int exec_cmd(int argc, char **argv) {
       pid = spawn("/bin/sh", av, env, NULL);
       free(av);
     }
+    child_sigs(0);
     if (pid > 0) {
       fg_begin(pid, &pid, 1);
       st = wait_pid(pid);
@@ -837,6 +841,7 @@ int exec_cmd(int argc, char **argv) {
     }
     r = -errno;
   }
+  child_sigs(0); /* exec failed: the shell goes on, with SIGPIPE ignored again */
   outf(2, "sh: exec: %s: %s\n", argv[0], strerror(-r));
   st = r == -ENOENT ? 127 : 126;
   free(path);
