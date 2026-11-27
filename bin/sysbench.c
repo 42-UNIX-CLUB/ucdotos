@@ -8,6 +8,7 @@
  *        --only NAME,NAME runs only those rows, for A/B comparisons)
  * Builds for the OS and natively on Linux (cc -O2 bin/sysbench.c). */
 #include <stdio.h>
+#include "uconf.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -161,7 +162,9 @@ static void run_bench(struct bench *b) {
   b->avg = total / calls / scale;
 }
 
-/* --- colours: THEME=deck (gruvbox, default) or THEME=brand --- */
+/* --- colours: from the active theme's /usr/share/themes/NAME.uconf (fg, accent, dim and the
+ * bright green, red, yellow and cyan); deck and brand are also built in, for when no theme
+ * file can be read --- */
 struct theme { const char *fg, *accent, *good, *warn, *dim, *head, *key; };
 static const struct theme deck = {"235;219;178", "254;128;25", "184;187;38", "251;73;52", "146;131;116", "250;189;47", "142;192;124"};
 static const struct theme brand = {"237;230;197", "254;119;0", "173;199;135", "252;65;58", "122;150;132", "255;199;46", "173;199;135"};
@@ -175,6 +178,26 @@ static void load_theme(void) { /* first word of ~/.config/ucos/theme, else $THEM
   if (f) { if (fscanf(f, "%31s", name) != 1) name[0] = 0; fclose(f); }
   if (!name[0]) { const char *t = getenv("THEME"); snprintf(name, sizeof name, "%s", t ? t : "deck"); }
   th = !strcmp(name, "brand") ? &brand : &deck;
+  char tpath[96];
+  snprintf(tpath, sizeof tpath, "/usr/share/themes/%s.uconf", name);
+  uconf c;
+  if (uconf_load(&c, tpath) == 0) {
+    static char buf[7][16];
+    static struct theme file;
+    static const char *keys[7] = {"colors.fg", "colors.accent", "terminal.bright.green", "terminal.bright.red",
+                                  "colors.dim", "terminal.bright.yellow", "terminal.bright.cyan"};
+    const char *fallback[7] = {th->fg, th->accent, th->good, th->warn, th->dim, th->head, th->key};
+    const char **dst[7] = {&file.fg, &file.accent, &file.good, &file.warn, &file.dim, &file.head, &file.key};
+    for (int i = 0; i < 7; i++) {
+      unsigned rgb;
+      if (uconf_parse_color(uconf_str(&c, keys[i], ""), &rgb) == 0) {
+        snprintf(buf[i], sizeof buf[i], "%u;%u;%u", rgb >> 16, (rgb >> 8) & 255, rgb & 255);
+        *dst[i] = buf[i];
+      } else *dst[i] = fallback[i];
+    }
+    th = &file;
+  }
+  uconf_free(&c);
 }
 static void fgc(const char *rgb) { if (color) printf("\033[38;2;%sm", rgb); }
 static void bold(void) { if (color) printf("\033[1m"); }

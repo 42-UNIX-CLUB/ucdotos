@@ -68,6 +68,16 @@ int fchown(int, uid_t, gid_t);
 int fsync(int);
 void sync(void);
 char *ttyname(int);
+/* links and owners (libc/src/arc_compat.c; the kernel may answer ENOSYS) */
+int symlink(const char *, const char *);
+int symlinkat(const char *, int, const char *);
+int link(const char *, const char *);
+int linkat(int, const char *, int, const char *, int);
+ssize_t readlink(const char *, char *, size_t);
+ssize_t readlinkat(int, const char *, char *, size_t);
+int fchownat(int, const char *, uid_t, gid_t, int);
+/* durability (libc/src/pkg_compat.c; the kernel may answer ENOSYS); fsync is above */
+int fdatasync(int);
 /* fork and exec (libc/src/fork.c, exec.c). fork() and vfork() work only in programs built
  * with the stack transform (USE_FORK; see docs/ARCHITECTURE.md section 5); elsewhere they
  * fail with ENOSYS. fork_call(fn, arg) works everywhere: the child runs fn(arg) and exits. */

@@ -29,12 +29,12 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
   cannot corrupt each other.
 - `PROGS=` exists because every `bin/*.c` and `bin/*/` is a program, and someone else's
   half-written program would otherwise break your build.
-- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `bin/NAME` (wasm files with no
-  extension), `root/` (the staged filesystem), `initrd.tar`, and with `dist`: `initrd.tar.gz`
-  (the same archive, `gzip -9`) and `dist/`, which holds both. The page fetches
-  `initrd.tar.gz` and unpacks it with the browser's `DecompressionStream`, and falls back to
-  `initrd.tar` when there is no `.gz`; the Node tools read `initrd.tar`. Whether to ship the
-  `.gz` is an open owner decision.
+- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `libarc.a`, `libpkg.a`,
+  `libsig.a`, `bin/NAME` (wasm files with no extension), `root/` (the staged filesystem),
+  `initrd.tar`, and with `dist`: `initrd.tar.gz` (the same archive, `gzip -9`) and `dist/`,
+  which holds both. The page fetches `initrd.tar.gz` and unpacks it with the browser's
+  `DecompressionStream`, and falls back to `initrd.tar` when there is no `.gz`; the Node
+  tools read `initrd.tar`. Whether to ship the `.gz` is an open owner decision.
 - Every `make` runs `tools/remote-files.sh`, which writes `B/files/` (the remote files, a
   `.gz` copy where that is smaller, Freedoom's licence, small test files) and the list
   `B/root/etc/remote-files` (section "Remote files" in ARCHITECTURE section 7). `make dist`
@@ -60,6 +60,9 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
 | `bin/NAME/*.c` | every `.c` directly in the directory is compiled and linked. Subdirectories are not picked up (put tests there) |
 | `bin/NAME/CFLAGS` | optional file: extra compiler and linker flags for that program |
 | `bin/NAME/USE_GFX` | optional empty file: also link `libui.a` and `libgfx.a` |
+| `bin/NAME/USE_PKG` | optional empty file: also link `libpkg.a`, `libsig.a` and then `libarc.a` (the package tools use it) |
+| `bin/NAME/USE_ARC` | optional empty file: also link `libarc.a` (compression, tar, ar, checksums; `libarc/arc.h`) |
+| `bin/NAME/ALIASES` | optional: more names, one per line, under which the same program is copied into `/bin` (there are no links in the file system yet). The program looks at `argv[0]`. `bin/gzip/ALIASES` gives `gunzip`, `zcat`, `xz`, `xzcat`, ... |
 | `bin/NAME/USE_CLIP` | optional empty file: also link `libclip.a` (the clipboard client) |
 | `bin/NAME/USE_FORK` | optional empty file: run the stack transform (`tools/wasmfork.c`) after linking, so `fork()` works in that program (ARCHITECTURE.md section 5). Only `bin/forktest/` has it. A unified diff does not carry an empty new file: add it by hand when you move a patch |
 
@@ -116,13 +119,14 @@ parameters: `?scale=1` (one framebuffer pixel per CSS pixel), `?cmdline=init=/bi
 ## 4. Tests
 
 Run the system suites before you say something works: `make B=build-NAME test` runs the
-first six and fails if any check fails. Counts as of 2026-11-26.
+first seven and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|
 | kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 152 checks, 0 failed` |
 | C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 298 checks, 0 failed` (292 if `/bin/sh` is not in the image) |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
+| .uconf parser | `node tools/run.mjs --build=B --init=/bin/uconftest` (part of `make test`); natively: `cc -Ilibuconf bin/uconftest.c libuconf/uconf.c` | `uconftest: 63 checks, 0 failed` |
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
 | network | `node tools/run.mjs --build=B --init=/bin/nettest` | `nettest: 89 checks, 0 failed` |
 | router (HTTP path, offline) | `node tools/tests/router-http.mjs --build=B` | `routertest: 24 checks, 0 failed` |
@@ -143,7 +147,11 @@ Component suites:
 | clipboard in the terminal | `bin/term/tests/os/clipboard.mjs` | `shot.mjs --init=/bin/term` | 28 checks: selection, copy, paste, mouse reporting, the computer's clipboard both ways, pastes up to 589 KB |
 | clipboard window | `bin/clipboard/shots.mjs` | `shot.mjs --init=/bin/wm` | 4 checks |
 | the computer's clipboard in a real browser | `tools/tests/browser-clipboard.mjs` | `browser.mjs` (needs `make dist`) | in: by eye on 2 screenshots; out: `[test]` lines show what reached the browser's clipboard |
-| window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`) | 9 scripts, 142 checks (2026-11-26) |
+| dotfiles | `tools/tests/dotfiles.mjs` | `shot.mjs --init=/bin/wm` | 13 checks; bar and launcher by eye on the screenshots |
+| split layout | `bin/wm/tests/split.mjs` (in `run.sh`) | `shot.mjs --init=/bin/wm` | 8 checks, needs term, ps and awk in the image |
+| keybinding cheat sheet | `bin/keys/shots.mjs` | `shot.mjs --init=/bin/wm` | 15 checks; the window manager tests hide the sheet first (`boot()` in `bin/wm/tests/lib.mjs`) |
+| themes and picker | `bin/themes/shots.mjs` | `shot.mjs --init=/bin/wm` | 19 checks: every theme's colour, Escape, Enter, memory on a second lap |
+| window manager | `bin/wm/tests/*.mjs` | `sh bin/wm/tests/run.sh build-NAME` (build with `PROGS="wm bar launcher uidemo term sh"`: `zoom.mjs` needs `term`; `split.mjs` also needs `ps` and `awk`) | 11 scripts, 163 checks (2026-11-26) |
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | core tools | `tools/tests/coretools/` | native, against the host's tools: `node tools/tests/coretools/run.mjs [TOOL...]` (`--regen` rewrites expectations from the host, `--emit-os` writes the in-OS script); in the OS: `sh /usr/share/tests/coretools.sh [-v] [TOOL...]`; fuzzing: `node tools/tests/coretools/fuzz.mjs sed\|diff SECONDS` and `tools/tests/coretools/fuzzre.c`. On this machine the host's grep is ugrep and its find is bfs, not GNU | 19,072 native, 1,755 in the OS (2026-11-26; cases marked `@noos` run natively only) |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
@@ -154,7 +162,21 @@ Component suites:
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs the data files in the build (`make WADS=DIR`, or `tools/get-doom-data.sh` first). `mkimage.sh` no longer puts a data file in the image: it arrives as a remote file. `launcher.mjs`, `message.mjs`, `import.mjs` and `browser.mjs` cover the launcher entries, the messages, a dropped file and Chromium | play, demo, window tests pass |
 | Linux programs (`lx`) | `bin/lx/tests/` | native: `sh bin/lx/tests/run.sh` (add `LX_SCRATCH=DIR` after `LX_SCRATCH=DIR sh bin/lx/tests/fetch-debian.sh`, which downloads Debian riscv64 packages outside the repository, for the Debian milestones); in UC.OS: `sh bin/lx/tests/mkimage.sh BUILD FILE:PATH...` then for example `node tools/run.mjs --build=BUILD --init=/bin/lx --args="/usr/bin/busybox sh /lx/m2.sh /usr/bin/busybox /tmp"` (busybox script) or `--args="/usr/bin/dash /lx/m34.sh"` (dynamic programs), with the small Debian root from `bin/lx/tests/mkimage-debian.sh`. The scripts need exactly these arguments: without them the busybox script reports 29 failures that are not real. Full commands in `docs/LINUX-BINARIES.md` section 11 | 23 of 23 native; in the OS 37 of 37 (busybox) and 10 of 10 (dynamic programs), 2026-11-26 |
-| blueprint | `bin/blueprint/tests/navtest.c`, `bin/blueprint/shots.mjs` | native: `cc -o /tmp/navtest bin/blueprint/tests/navtest.c`; `shot.mjs` | 14 of 14 navigation cases; 11 screenshots |
+| blueprint | `bin/blueprint/tests/navtest.c`, `bin/blueprint/shots.mjs` | native: `cc -Ilibuconf -o /tmp/navtest bin/blueprint/tests/navtest.c libuconf/uconf.c`; `shot.mjs` | 14 of 14 navigation cases; 11 screenshots |
+| libarc and the archive tools | `libarc/tests/run.sh` | native, one command: `bash libarc/tests/run.sh` (add `ARC_DEBS=dir` to also compare real `.deb` files with GNU tar and bsdtar). Needs host gzip, xz, zstd, GNU tar, bsdtar, binutils ar, python3 | see STATUS.md |
+| libarc fuzzing | `libarc/tests/fuzz.c` | native, build line in its header; `./fuzz SECONDS seed...` | see STATUS.md |
+| archive tools in the OS | `rootfs/usr/share/tests/arc-tests.sh` | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/arc-tests.sh\nexit\n'` (needs `sh echo cat cp ls mkdir rm head seq wc gzip tar ar sha256sum` in the image) | `arc-tests: 52 checks, 52 passed` |
+| real packages in the OS | `libarc/tests/os-debs.sh` | `sh libarc/tests/os-debs.sh BUILD DEB...`: extracts each `.deb` inside UC.OS with `ar x` and `tar xf` and compares the file contents with the host's GNU tar | 7 of 7 identical (2026-11-26) |
+| package manager | `libpkg/tests/run.sh` | native, no network: `sh libpkg/tests/run.sh [OUTDIR]` (builds with ASan and UBSan, makes .deb fixtures from text with tar and ar; needs the host's gpg, which signs the test repositories) | 321 checks, 2026-11-26 |
+| package manager in the OS | `libpkg/tests/os-test.sh`, `os/pkg-os.sh` | `sh libpkg/tests/os-test.sh build-NAME` (builds an image, stages fixtures, signs the test repository with the host's gpg, boots under Node) | 49 checks, 2026-11-26 |
+| real signed archive in the OS | `libpkg/tests/os-signed.sh` | `sh libpkg/tests/os-signed.sh BUILD [DATA]` with a full build (it needs `lx`). DOWNLOADS once from deb.debian.org: today's trixie InRelease, `main/binary-riscv64/Packages.xz` (about 10 MB) and 14 riscv64 packages. Checks with the keys in `keyrings/`: `apt update` with no warning, installs hello, base-files, mawk, busybox-static; runs busybox through `lx`; refuses a changed InRelease, a missing signature, no keys, a clock in 2040 | 16 checks, 2026-11-26 |
+| shipped archive keys | `libpkg/tests/keyrings-check.sh` | `sh libpkg/tests/keyrings-check.sh [OUT]`. DOWNLOADS Debian's key page (ftp-master.debian.org/keys.html) and today's trixie InRelease: every fingerprint in `keyrings/` must be on the page, and the InRelease must verify with those keys alone | 3 of 3 listed, InRelease trusted, 2026-11-26 |
+| OpenPGP verification | `libsig/tests/run.sh` | native: `sh libsig/tests/run.sh [OUTDIR]` (default `build-sig/`: pass another name if that is your build directory). Each part says SKIP when its input is missing: published vectors (`sh libsig/tests/fetch-vectors.sh` first, DOWNLOADS), crafted cases (Python's `cryptography`), interop with the host's gpg, real archives (`libpkg/tests/fetch-signed.sh` and `fetch-keyrings.sh` first, DOWNLOAD) | 148 checks, 0 failed, 2026-11-26; the vector checks inside depend on the vector files present (18,470 in one run, 8,367 in another with fewer files), crafted cases 161 |
+| libsig fuzzing and timing | `libsig/tests/fuzz.c`, `os-bench.sh` | fuzz: build line in its header, modes keyring, armor, clear, detached, bignum; `sh libsig/tests/os-bench.sh BUILD KEYRING INRELEASE...` times verification inside UC.OS | see STATUS.md |
+| package manager on real repositories | `libpkg/tests/real-repos.sh`, `check-plan.py` | optional, DOWNLOADS about 75 MB of Debian and Ubuntu indexes; resolves packages per distribution and architecture | 48 resolutions; plans checked by `check-plan.py` |
+| maintainer script survey | `libpkg/tests/survey-scripts.py` | optional, DOWNLOADS the first few KiB of about 50 .debs | |
+| full index inside the OS | `libpkg/tests/os-bigindex.sh` | optional: `sh libpkg/tests/os-bigindex.sh PACKAGES_FILE [BUILD] [PKG...]` with a plain `Packages` or a `Packages.xz`; runs `apt update` on it inside UC.OS and samples apt's memory with `ps` | about 35 MB peak for Debian 13 `main` amd64 (68,829 stanzas), 2026-11-26 on the previous `main`; not run for riscv64 |
+| real Debian packages installed in the OS | `libpkg/tests/os-real.sh` | optional: `sh libpkg/tests/os-real.sh BUILD DEBIAN_DEB... -- UBUNTU_DEB...` (the .deb files are not in the repository): `apt update`, `apt install -y hello`, `dpkg -l/-L/-V`, remove, purge, autoremove, the name-length limit, inside UC.OS | passes with Debian hello and its three dependencies (amd64, 2026-11-26, previous `main`); the script was not updated for riscv64 |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
 | C compiler and linker | `bin/cc/tests/` | `sh bin/cc/tests/build.sh B` once, then `sh bin/cc/tests/run.sh B` | 37: 19 programs compared with clang, 3 mixed links, 15 diagnostics (2026-11-26) |
 | cc random expressions | `bin/cc/tests/fuzz.py`, `fuzz.sh` | `sh bin/cc/tests/fuzz.sh B SEED COUNT` (keep runs under a minute) | 6,750 expressions, 0 differences |
@@ -216,11 +238,22 @@ from `dev_open()` in `kernel/main.c`, and implement `struct fops`.
 **Add a launcher entry.** `rootfs/usr/share/applications/NAME.app` with `name=`, `exec=`,
 `comment=`. Use `exec=term -e PROGRAM` for terminal programs.
 
-**Add a theme.** `rootfs/usr/share/themes/NAME.theme` (format in `libui/theme.h`).
+**Add a theme.** `rootfs/usr/share/themes/NAME.uconf` (format in `libui/theme.h`; copy `deck.uconf`).
 `Alt+t` cycles through the themes that exist.
 
 **Change a default dotfile.** They are in `rootfs/etc/` and `rootfs/home/user/`. They are
 written to teach: keep every line commented.
+
+**Work on the package manager.** The logic is plain C in `libpkg/` and builds for the host:
+`sh libpkg/tests/build-native.sh OUTDIR` gives `OUTDIR/bin/dpkg`, `apt` and the rest
+(`apt-get`, `apt-cache` and `dpkg-query` are copies of `apt` and `dpkg`, which pick their
+behaviour from `argv[0]`, as the alias names do in the image). A host build refuses to touch
+`/`: always pass `--root=DIR` (dpkg) or `-o Dir=DIR` (apt), or set `DPKG_ROOT`.
+`UCOS_PKG_CONFDIR` points dpkg at another `dpkg.cfg` directory (tests use an empty one).
+Maintainer scripts in another root need `--force-script-chrootless`. The archive formats
+come from the real `libarc`, natively as well (`build-native.sh` compiles `libpkg/*.c`,
+`libarc/*.c` and `libsig/*.c`). `apt -o Debug::Acquire::Signature-Time=EPOCH` sets the clock
+used for key expiry in tests.
 
 **Start a process from C.** `spawn(path, argv, envp, fdmap)` or `spawnp(file, argv,
 fdmap)`. For a pipeline: create pipes with `pipe2(p, O_CLOEXEC)`, spawn each stage with

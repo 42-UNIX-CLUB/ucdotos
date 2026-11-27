@@ -1,0 +1,8 @@
+gunzip
+zcat
+xz
+unxz
+xzcat
+zstd
+unzstd
+zstdcat

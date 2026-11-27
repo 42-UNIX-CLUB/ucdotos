@@ -287,6 +287,53 @@ struct audio_errinfo {
   long play_errorparm, rec_errorparm;
   int filler[16];
 };
+/* --- links, permissions, owners, special files (added for tar; the kernel may answer ENOSYS) --- */
+#ifndef SYS_mknodat
+#define SYS_mknodat 33
+#endif
+#ifndef SYS_symlinkat
+#define SYS_symlinkat 36
+#endif
+#ifndef SYS_linkat
+#define SYS_linkat 37
+#endif
+#ifndef SYS_fchmod
+#define SYS_fchmod 52
+#endif
+#ifndef SYS_fchmodat
+#define SYS_fchmodat 53
+#endif
+#ifndef SYS_fchownat
+#define SYS_fchownat 54
+#endif
+#ifndef SYS_fchown
+#define SYS_fchown 55
+#endif
+#ifndef SYS_readlinkat
+#define SYS_readlinkat 78
+#endif
+#ifndef AT_SYMLINK_NOFOLLOW
+#define AT_SYMLINK_NOFOLLOW 0x100
+#endif
+#ifndef S_IFLNK
+#define S_IFLNK 0120000
+#endif
+#ifndef S_IFBLK
+#define S_IFBLK 0060000
+#endif
+#ifndef UTIME_NOW
+#define UTIME_NOW ((1l << 30) - 1l)
+#define UTIME_OMIT ((1l << 30) - 2l)
+#endif
+#ifndef EXDEV
+#define EXDEV 18
+#endif
+#ifndef ELOOP
+#define ELOOP 40
+#endif
+#ifndef EOPNOTSUPP
+#define EOPNOTSUPP 95
+#endif
 /* --- sockets (Linux values) --- */
 #define AF_UNIX 1
 #define AF_INET 2
@@ -382,6 +429,20 @@ struct ifinfo {
 #define HNIOC_OPEN 0x4802 /* arg: struct hn_open * */
 #define HNIOC_DONE 0x4803 /* the request (or our half of the stream) is complete */
 struct hn_open { int op, port; char host[256]; };
+/* --- added for the package manager (durability, the file creation mask); the
+ * kernel may answer ENOSYS until it implements them --- */
+#ifndef SYS_fsync
+#define SYS_fsync 82
+#endif
+#ifndef SYS_fdatasync
+#define SYS_fdatasync 83
+#endif
+#ifndef SYS_umask
+#define SYS_umask 166
+#endif
+#ifndef ENOTSUP
+#define ENOTSUP EOPNOTSUPP
+#endif
 
 /* --- processes and signals (added for fork, exec and signal delivery) --- */
 #define SYS_execve 221

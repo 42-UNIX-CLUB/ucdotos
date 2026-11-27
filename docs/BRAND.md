@@ -30,7 +30,10 @@ abandoned working name).
 
 ## 3. The two themes
 
-Both ship. The user switches with Alt+t or by editing `~/.config/ucos/theme`.
+Both ship, with ten example themes from the ricing scene (Catppuccin, Nord, Tokyo Night and
+others: palettes of their own projects, not the club's). The user switches with the theme
+picker (Alt+Shift+t), with Alt+t, or by editing `~/.config/ucos/theme`. Only `deck` and `brand`
+are the club's looks.
 
 ### `deck` (default): the look of the club's intro deck
 
@@ -131,5 +134,6 @@ man pages, dotfiles, docs, commit messages.
 - `~/unix_club/`: the intro deck as text files, mirroring the deck's own tree
   (`01_what_is_unix/` through `07_join_us/`), readable with `cat` at 80 columns.
 - `man unix-club`: the club in one manual page.
-- `/etc/motd`: the greeting. `~/.shrc`, `/etc/profile`, `~/.config/wm/config`,
-  `/usr/share/themes/*.theme`: the dotfiles, commented line by line.
+- `/etc/motd`: the greeting. `~/.shrc`, `/etc/profile`, the `.uconf` files in `~/.config`
+  (`wm`, `term`, `fetch`, `bar`, `launcher`) and `/usr/share/themes/*.uconf`: the dotfiles,
+  commented line by line.

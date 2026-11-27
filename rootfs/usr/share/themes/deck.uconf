@@ -1,0 +1,61 @@
+# deck: the look of the 42 UNIX Club slides. Gruvbox colours, Fira Code.
+#
+# Every graphical program (the window manager, the bar, the launcher, the
+# terminal) reads the active theme. The active theme is named in
+# ~/.config/ucos/theme. Copy this file to make your own rice, give the copy
+# a new name, then press Mod+t to cycle to it.
+#
+# The format is .uconf, like every dotfile here: [sections], blocks in { },
+# key = value, and "# " starts a comment. Colours are #rrggbb.
+
+[theme]
+description = gruvbox   # what fetch shows on its Theme line
+
+[colors]
+bg      = #282828   # window background (the terminal paints this)
+fg      = #ebdbb2   # text
+accent  = #fe8019   # the orange: current workspace, highlights
+dim     = #928374   # secondary text: labels, comments
+desktop = #1d2021   # the wallpaper colour behind everything
+panel   = #3c3836   # raised surfaces: launcher background
+surface = #504945   # a second raised shade (fetch, htop and vi use it)
+bar {
+    bg = #3c3836
+    fg = #ebdbb2
+}
+border {
+    focus  = #fe8019   # 2 px border of the focused window
+    normal = #665c54   # thin grey border of the other windows
+    float  = #fabd2f   # border of floating windows: the launcher
+}
+
+[terminal]          # the 16 terminal colours (gruvbox dark)
+black   = #282828
+red     = #cc241d
+green   = #98971a
+yellow  = #d79921
+blue    = #458588
+magenta = #b16286   # gruvbox calls it purple
+cyan    = #689d6a   # gruvbox calls it aqua
+white   = #a89984
+bright {
+    black   = #928374   # grey
+    red     = #fb4934
+    green   = #b8bb26
+    yellow  = #fabd2f
+    blue    = #83a598
+    magenta = #d3869b
+    cyan    = #8ec07c
+    white   = #ebdbb2
+}
+
+[font]
+name    = Fira Code     # what fetch shows on its Font line
+regular = FiraCode-Regular.ttf   # a file in /usr/share/fonts, or a full path
+bold    = FiraCode-Bold.ttf
+size    = 15                     # pixels
+
+[geometry]
+gap    = 12   # space between windows (~/.config/wm/wm.uconf can override it)
+border = 2    # window border width
+radius = 8    # corner radius

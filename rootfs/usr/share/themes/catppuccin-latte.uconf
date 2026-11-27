@@ -1,0 +1,57 @@
+# catppuccin-latte: Catppuccin Latte. The light flavour of Catppuccin: warm off-white base, mauve accent.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = catppuccin latte
+
+[colors]
+bg      = #eff1f5
+fg      = #4c4f69
+accent  = #8839ef
+dim     = #8c8fa1
+desktop = #dce0e8
+panel   = #ccd0da
+surface = #bcc0cc
+bar {
+    bg = #e6e9ef
+    fg = #4c4f69
+}
+border {
+    focus  = #8839ef
+    normal = #bcc0cc
+    float  = #fe640b
+}
+
+[terminal]
+black   = #5c5f77
+red     = #d20f39
+green   = #40a02b
+yellow  = #df8e1d
+blue    = #1e66f5
+magenta = #ea76cb
+cyan    = #179299
+white   = #acb0be
+bright {
+    black   = #6c6f85
+    red     = #d20f39
+    green   = #40a02b
+    yellow  = #df8e1d
+    blue    = #1e66f5
+    magenta = #ea76cb
+    cyan    = #179299
+    white   = #bcc0cc
+}
+
+[font]
+name    = JetBrains Mono
+regular = JetBrainsMonoNerdFontMono-Regular.ttf
+bold    = JetBrainsMonoNerdFontMono-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 12
+border = 2
+radius = 10

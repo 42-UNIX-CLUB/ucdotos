@@ -27,6 +27,7 @@ typedef struct {
   /* Set after render_init when the fallback font is wanted but not loaded yet: called once,
    * the first time a glyph is missing from the regular font. May return NULL. */
   const ttf_font *(*load_fallback)(void);
+  int cursor_default;       /* DECSCUSR style used while the program has not set one (0 = block) */
 } render;
 
 int render_init(render *r, const ttf_font *reg, const ttf_font *bold, const ttf_font *fallback, float px);

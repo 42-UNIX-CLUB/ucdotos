@@ -61,18 +61,27 @@ export default async (t) => {
   check('launcher: Enter starts the entry', await until(t, () => demos(t).size === n + 1), `${demos(t).size}`);
   await t.sleep(300);
 
-  // theme: deck -> brand -> deck, every client redraws (they get a RESIZE to the same size)
+  // theme: deck -> brand -> deck, every client redraws (they get a RESIZE to the same size).
+  // $mod t cycles every theme in name order, so press it until the one wanted comes up.
+  const cycleTo = async (name) => {
+    for (let i = 0; i < 64; i++) {
+      const n = (t.log.match(/wm: theme \S+/g) || []).length;
+      await t.tap('KeyT', { alt: true });
+      await until(t, () => (t.log.match(/wm: theme \S+/g) || []).length > n, 2000);
+      const all = t.log.match(/wm: theme \S+/g) || [];
+      if (all[all.length - 1] === 'wm: theme ' + name) return true;
+    }
+    return false;
+  };
   const resizes = (t.log.match(/RESIZE/g) || []).length;
-  await t.tap('KeyT', { alt: true });
-  await until(t, () => /wm: theme brand/.test(t.log));
+  check('$mod t reaches brand', await cycleTo('brand'));
   await t.sleep(600);
   t.shot('15-theme-brand');
   check('brand: desktop is dark green', same(t.pixel(301, 712), BRAND.desktop, 3) || same(t.pixel(2, 2), BRAND.desktop, 3), hex(t.pixel(2, 2)));
   check('brand: bar is green', same(t.pixel(400, 14), BRAND.bar), hex(t.pixel(400, 14)));
   check('brand: focus border orange FE7700', same(t.pixel(G.stackX, 600), BRAND.focus), hex(t.pixel(G.stackX, 600)));
   check('brand: clients were told to redraw', (t.log.match(/RESIZE/g) || []).length >= resizes + 3);
-  await t.tap('KeyT', { alt: true });
-  await until(t, () => /wm: theme deck/.test(t.log));
+  check('$mod t comes back to deck', await cycleTo('deck'));
   await t.sleep(600);
   check('deck again: desktop colour back', same(t.pixel(2, 2), DECK.desktop), hex(t.pixel(2, 2)));
   check('wm still running', !/wm: exit/.test(t.log));
