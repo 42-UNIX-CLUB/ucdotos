@@ -122,6 +122,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
 | `libuconf/` | the `.uconf` dotfile parser every program links | 440 |
 | `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 48,000 + Doom (without tests) |
+| `libarc/` | gzip, xz and zstd decoders, a deflate encoder, tar and ar, checksums; programs opt in with `USE_ARC` | 3,500 |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
 | `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 1,120 (plus the suites under `tests/`) |
 | `docs/` | the detailed context files listed below | |

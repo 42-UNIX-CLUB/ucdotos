@@ -701,6 +701,48 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
   or three parameters and wasm checks signatures.
 - Each program is statically linked. A minimal program is about 1.6 KB; `sh` about 100 KB.
 
+### libarc: compression, archives, checksums (`libarc/`)
+
+A static library like `libgfx` and `libui`; a program opts in with a `USE_ARC` file in
+its directory. The interface is `libarc/arc.h`; the package manager is written against
+it, so its first block of declarations does not change (only additions below it).
+
+- **Decoders** behind one pull stream (`arc_open`, `arc_read`): gzip (with concatenated
+  members), zlib, raw deflate, xz (LZMA2, delta filter, concatenated streams, CRC32,
+  CRC64 and SHA-256 checks), Zstandard (skippable frames, XXH64 checksum). `ARC_AUTO`
+  recognises gzip, xz, zstd and otherwise passes bytes through. The caller supplies
+  compressed bytes through a callback (`arc_src`), so any source works: a file, an `ar`
+  member, a socket later.
+- **Encoder**: deflate with gzip, zlib or raw framing (`arc_wopen`, `arc_write`), levels
+  0 to 9. xz and zstd compression are not written.
+- **Containers**: `ar` reading and writing (GNU and BSD long names), `tar` reading
+  (ustar, GNU, pax) and writing (the GNU format).
+- **Checksums**: CRC32, CRC64, Adler-32, XXH64, MD5, SHA-256, SHA-512.
+- **Memory**: input is buffered 64 KiB at a time. Output goes into a window buffer that
+  holds the format's history (32 KiB for deflate, the dictionary for xz, the window for
+  zstd) plus room for new output; it grows only as data actually arrives, so a short
+  stream that declares a large dictionary stays small. Use does not grow with the length
+  of the data. A header asking for more than the memory limit (`arc_set_memlimit`,
+  128 MiB by default) is refused before anything is allocated.
+- **Hostile input**: every length is checked against its buffer; every integrity check
+  the format carries is verified (gzip CRC32 and length, xz header, block, index and
+  footer checks, zstd checksum and frame size, tar header checksums). The xz index is
+  compared with the blocks through running sums and a hash, so its memory does not grow
+  with the number of blocks.
+- **Not supported**: bzip2, LZMA-alone (`.lzma`), xz BCJ filters, zstd dictionaries,
+  sparse tar members, multi-volume tar. Each gives a clear error.
+
+The tools built on it are `gzip` (also `gunzip zcat xz unxz xzcat zstd unzstd zstdcat`
+through `bin/gzip/ALIASES`), `tar`, `ar`, `sha256sum` (also `sha512sum md5sum`).
+`libc/src/arc_compat.c` adds the POSIX calls tar needs to restore files (`symlink`,
+`link`, `readlink`, `fchmodat`, `fchownat`, `utimensat`, `mknod`, `mkfifo`, ...) as thin
+system call wrappers; `chmod`, `chown` and their relatives come from
+`libc/src/tools_compat.c`. The kernel answers `ENOSYS` for most of them today and tar
+reports that once per kind. Each alias name in a `bin/NAME/ALIASES` file is a small
+starter program (`tools/alias/stub.c`, about 2.8 KB) that starts `NAME` with the same
+arguments and name, waits, and passes on its status: one extra process per call, until the
+kernel has links.
+
 ## 13. The toolchain
 
 - `clang --target=wasm32-unknown-unknown -O2 -ffreestanding -nostdlib -fvisibility=hidden`
@@ -833,6 +875,8 @@ How it maps onto UC.OS:
 | `/dev/hostnet` requests open at once | 32 | `HN_MAX` in `hostnet.c` |
 | window manager clients | 24 | |
 | time slice | 8 ms | `SLICE_MS` |
+| libarc window or dictionary | 128 MiB by default | `ARC_MEMLIMIT_DEFAULT`, `arc_set_memlimit`, `xz -M`, `zstd -M` |
+| tar extended header (pax, GNU long name) | 1 MiB; names up to 4095 bytes | `libarc/tar.c` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
 `fork`, signals, threads, shared memory, persistence, networking beyond the machine

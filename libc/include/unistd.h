@@ -68,4 +68,12 @@ int fchown(int, uid_t, gid_t);
 int fsync(int);
 void sync(void);
 char *ttyname(int);
+/* links and owners (libc/src/arc_compat.c; the kernel may answer ENOSYS) */
+int symlink(const char *, const char *);
+int symlinkat(const char *, int, const char *);
+int link(const char *, const char *);
+int linkat(int, const char *, int, const char *, int);
+ssize_t readlink(const char *, char *, size_t);
+ssize_t readlinkat(int, const char *, char *, size_t);
+int fchownat(int, const char *, uid_t, gid_t, int);
 #endif

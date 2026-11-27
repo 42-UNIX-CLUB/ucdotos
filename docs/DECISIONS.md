@@ -129,6 +129,13 @@ Notes that go with these:
 | make: `MAKE_VERSION` is `4.4.1` and `.FEATURES` lists what is implemented. | Makefiles test these to pick GNU Make features. | `main.c`. |
 | make: built-in rules and variables are GNU Make's C, C++, assembler, lex and yacc subset; `CC = cc`, `AR = ar`, `ARFLAGS = -rv`. | What C projects rely on; `cc` is what the compiler stream provides. | `bin/make/builtin.c`. |
 | make: no jobserver; `-jN` is passed to sub-makes in MAKEFLAGS and each runs up to N jobs. | One CPU thread today, so the total gives no speed-up either way. | Add a pipe-based jobserver in `run.c`/`sys.c`. |
+| libarc refuses a window or dictionary over **128 MiB** unless the caller raises the limit. | Covers xz `-9`/`-e` (64 MiB) and zstd's own default decoder limit (128 MiB). Real packages use 8 MiB (Debian xz, Ubuntu zstd, checked on 8 packages). | `ARC_MEMLIMIT_DEFAULT` in `libarc/arc.h`; `-M` on xz and zstd. |
+| One program for **gzip, gunzip, zcat, xz, unxz, xzcat, zstd, unzstd, zstdcat**, behaviour chosen by `argv[0]`; same for `sha256sum`/`sha512sum`/`md5sum`. Each extra name (`bin/NAME/ALIASES`) is a starter program of about 2.8 KB (`tools/alias/stub.c`) that starts the real program with the same arguments and name and passes on its status. | No links in the file system yet; one source avoids three copies of the same option handling. A full copy per name would have cost about 0.9 MB for gzip's 9 names; the starter costs one extra process per call. | Split into `bin/xz/`, `bin/zstd/`; or copies of the program; or links once the kernel has them. |
+| `xz` and `zstd` only decompress, test and list. | Compression for them was out of scope. | Add encoders to libarc. |
+| `tar` writes the **GNU format** (`L`/`K` long names, base-256 numbers) and pads archives to 10240 bytes. | It is what GNU tar writes by default and what dpkg-deb produces. | `libarc/tar.c` (pax instead). |
+| `ar` writes member names **without the GNU trailing slash** (as dpkg-deb does) and uses the BSD `#1/len` form for names over 15 bytes; it records real times, owners and modes unless `D` is given. | Matches real `.deb` files; GNU binutils reads both forms. | `libarc/ar.c`, `bin/ar/ar.c`. |
+| `tar -x` replaces a **hard link it cannot make by a copy** of the target. | The kernel has no `link()` yet; without a copy a package would miss files. | `bin/tar/tar.c`, case `'1'`. |
+| `tar -x` restores owners only when running as uid 0 or with `--same-owner`, and sets special mode bits (setuid, setgid, sticky) with `chmod` only when the archive has them or `-p` is given. | GNU tar's defaults for a non-root user. | `bin/tar/tar.c`. |
 
 ## 3. Open: an owner needs to choose
 
