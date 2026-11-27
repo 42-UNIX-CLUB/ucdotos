@@ -112,7 +112,16 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   // A process that keeps yielding must not starve sleeping ones: some event loops serve a
   // steady stream of messages ahead of timers. So every yield first wakes sleepers that are due.
   const sleepers = new Set();
+  // turnAt: when the event loop last had a turn that we know of. Two programs that only wake
+  // each other (a writer filling a terminal and the terminal emptying it) resume through
+  // promises alone, and no single run is long enough for the kernel's time slice: without a
+  // forced turn the page would never draw, read a key or fire a timer again. So a program
+  // that resumes more than TURN_MS after the last turn waits for one first (makeBlock).
+  const TURN_MS = 8;
+  let turnAt = performance.now();
+  const turn = () => { turnAt = performance.now(); }; // called where a new turn begins: a timer, input, a yield
   yieldChannel.port1.onmessage = () => {
+    turn();
     if (sleepers.size) { const now = performance.now(); for (const S of sleepers) if (S.deadline <= now) S.fire(); }
     const f = yieldQueue.shift();
     if (f) f();
@@ -121,6 +130,9 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   const port = yieldChannel.port1;
   if (port.unref) port.unref();
   const yieldTask = (f) => { if (port.ref) port.ref(); yieldQueue.push(f); yieldChannel.port2.postMessage(0); };
+  // The forced turn must be a whole one. Node serves up to a thousand messages in a row
+  // before it looks at its timers again, so there it takes setImmediate (the test tools wait on timers).
+  const fullTurn = typeof setImmediate === 'function' ? (f) => setImmediate(() => { turn(); f(); }) : yieldTask;
   const shimModule = await WebAssembly.compile(SHIM);
   const trampModule = await WebAssembly.compile(TRAMPOLINE);
   const zcopyModule = await WebAssembly.compile(ZCOPY);
@@ -166,7 +178,7 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
       const g = ++kgen;
       if (ms < 0) return;
       const fire = () => { if (g === kgen) k.timer_fire(); };
-      if (ms === 0) yieldTask(fire); else ktimer = setTimeout(fire, ms);
+      if (ms === 0) yieldTask(fire); else ktimer = setTimeout(() => { turn(); fire(); }, ms);
     },
     clip_out(p, n, flags) {
       if (flags & 1) clipParts = [];
@@ -306,13 +318,15 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
         P.wake = resolve;
         const fire = () => { if (P.wake === resolve) { P.wake = null; resolve(); } };
         if (ms === 0) yieldTask(fire);
-        else if (ms > 0) { P.deadline = performance.now() + ms; P.fire = fire; sleepers.add(P); P.timer = setTimeout(fire, ms); }
+        else if (ms > 0) { P.deadline = performance.now() + ms; P.fire = fire; sleepers.add(P); P.timer = setTimeout(() => { turn(); fire(); }, ms); }
       });
       sleepers.delete(P);
       clearTimeout(P.timer);
+      let now = performance.now();
+      if (now - turnAt > TURN_MS) { await new Promise(fullTurn); now = performance.now(); } // see turnAt
       if (!alive()) throw EXIT;
       k.set_current(pid);
-      P.t0 = performance.now();
+      P.t0 = now;
       k.proc_resumed(pid, P.t0);
     });
   }
@@ -446,8 +460,8 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     },
     resize(width, height) { k.fb_resize(width, height); },
     // Input: Linux evdev triples (type, code, value); a batch ends with (0, 0, 0).
-    input(type, code, value) { k.input_event(type, code, value); },
-    consoleInput(str) { for (const b of new TextEncoder().encode(str)) k.console_input(b); },
+    input(type, code, value) { turn(); k.input_event(type, code, value); },
+    consoleInput(str) { turn(); for (const b of new TextEncoder().encode(str)) k.console_input(b); },
     consoleEOF() { k.console_input(-1); },
     importFile,
     // The last text the clipboard sent out for the computer's clipboard (tests read it).

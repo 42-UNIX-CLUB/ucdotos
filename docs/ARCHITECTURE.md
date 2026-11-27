@@ -243,6 +243,18 @@ because some event loops serve a stream of messages ahead of timers.
 Verified in Chromium: with `yes > /dev/null` running (about 27 million system calls per
 second), new windows open, other shells work and Ctrl-C kills it.
 
+**Programs that keep waking each other.** Two processes can hand work back and forth
+without ever reaching the slice check: `yes` in a terminal blocks on a full pty, the
+terminal empties it and blocks, and each wakes the other through a resolved promise, so
+no run lasts 8 ms and the event loop never gets a turn (no frame, no key, no timer). The
+host therefore remembers when the event loop last had a turn it knows of (`turnAt` in
+`boot/host.mjs`: a yield task, a timer firing, input arriving). A process that resumes from
+`block()` more than `TURN_MS` (8 ms) after that turn first waits for one full turn: the same
+`MessageChannel` task in a browser, `setImmediate` under Node (Node serves up to 1,000
+queued messages before it looks at its timers again; DEVELOPMENT.md, traps). Checked by
+`tools/tests/desktop-flood.mjs` and `browser-flood.mjs`: with the fix the page keeps
+drawing during `yes` and `yes | cat` in a terminal; without it the page froze.
+
 **Not covered:** a program that loops without making any system call. The shell is
 being changed to call `intr()` in its loops for this reason. A pure CPU loop in a C
 program still freezes the tab. The planned fix is the Worker half of the hybrid model.
@@ -1021,6 +1033,7 @@ How it maps onto UC.OS:
 | `/dev/hostnet` requests open at once | 32 | `HN_MAX` in `hostnet.c` |
 | window manager clients | 24 | |
 | time slice | 8 ms | `SLICE_MS` |
+| longest stretch without an event loop turn before a resumed process waits for one | 8 ms | `TURN_MS` in `boot/host.mjs` |
 | libarc window or dictionary | 128 MiB by default | `ARC_MEMLIMIT_DEFAULT`, `arc_set_memlimit`, `xz -M`, `zstd -M` |
 | tar extended header (pax, GNU long name) | 1 MiB; names up to 4095 bytes | `libarc/tar.c` |
 
