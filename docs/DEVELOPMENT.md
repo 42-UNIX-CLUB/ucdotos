@@ -29,12 +29,12 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
   cannot corrupt each other.
 - `PROGS=` exists because every `bin/*.c` and `bin/*/` is a program, and someone else's
   half-written program would otherwise break your build.
-- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `bin/NAME` (wasm files with no
-  extension), `root/` (the staged filesystem), `initrd.tar`, and with `dist`: `initrd.tar.gz`
-  (the same archive, `gzip -9`) and `dist/`, which holds both. The page fetches
-  `initrd.tar.gz` and unpacks it with the browser's `DecompressionStream`, and falls back to
-  `initrd.tar` when there is no `.gz`; the Node tools read `initrd.tar`. Whether to ship the
-  `.gz` is an open owner decision.
+- Outputs: `kernel.wasm`, `libc.a`, `libgfx.a`, `libui.a`, `libarc.a`, `bin/NAME` (wasm
+  files with no extension), `root/` (the staged filesystem), `initrd.tar`, and with `dist`:
+  `initrd.tar.gz` (the same archive, `gzip -9`) and `dist/`, which holds both. The page
+  fetches `initrd.tar.gz` and unpacks it with the browser's `DecompressionStream`, and falls
+  back to `initrd.tar` when there is no `.gz`; the Node tools read `initrd.tar`. Whether to
+  ship the `.gz` is an open owner decision.
 - Every `make` runs `tools/remote-files.sh`, which writes `B/files/` (the remote files, a
   `.gz` copy where that is smaller, Freedoom's licence, small test files) and the list
   `B/root/etc/remote-files` (section "Remote files" in ARCHITECTURE section 7). `make dist`
@@ -60,6 +60,8 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
 | `bin/NAME/*.c` | every `.c` directly in the directory is compiled and linked. Subdirectories are not picked up (put tests there) |
 | `bin/NAME/CFLAGS` | optional file: extra compiler and linker flags for that program |
 | `bin/NAME/USE_GFX` | optional empty file: also link `libui.a` and `libgfx.a` |
+| `bin/NAME/USE_ARC` | optional empty file: also link `libarc.a` (compression, tar, ar, checksums; `libarc/arc.h`) |
+| `bin/NAME/ALIASES` | optional: more names, one per line, under which the same program is copied into `/bin` (there are no links in the file system yet). The program looks at `argv[0]`. `bin/gzip/ALIASES` gives `gunzip`, `zcat`, `xz`, `xzcat`, ... |
 
 `main` may be `main(void)`, `main(int, char **)` or `main(int, char **, char **)`.
 The link tries `crt0_2.o` first and falls back to `crt0_3.o`.
@@ -156,6 +158,10 @@ Component suites:
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs the data files in the build (`make WADS=DIR`, or `tools/get-doom-data.sh` first). `mkimage.sh` no longer puts a data file in the image: it arrives as a remote file. `launcher.mjs`, `message.mjs`, `import.mjs` and `browser.mjs` cover the launcher entries, the messages, a dropped file and Chromium | play, demo, window tests pass |
 | Linux programs (`lx`) | `bin/lx/tests/` | native: `sh bin/lx/tests/run.sh` (add `LX_SCRATCH=DIR` after `LX_SCRATCH=DIR sh bin/lx/tests/fetch-debian.sh`, which downloads Debian riscv64 packages outside the repository, for the Debian milestones); in UC.OS: `sh bin/lx/tests/mkimage.sh BUILD FILE:PATH...` then for example `node tools/run.mjs --build=BUILD --init=/bin/lx --args="/usr/bin/busybox sh /lx/m2.sh /usr/bin/busybox /tmp"` (busybox script) or `--args="/usr/bin/dash /lx/m34.sh"` (dynamic programs), with the small Debian root from `bin/lx/tests/mkimage-debian.sh`. The scripts need exactly these arguments: without them the busybox script reports 29 failures that are not real. Full commands in `docs/LINUX-BINARIES.md` section 11 | 23 of 23 native; in the OS 37 of 37 (busybox) and 10 of 10 (dynamic programs), 2026-11-26 |
 | blueprint | `bin/blueprint/tests/navtest.c`, `bin/blueprint/shots.mjs` | native: `cc -Ilibuconf -o /tmp/navtest bin/blueprint/tests/navtest.c libuconf/uconf.c`; `shot.mjs` | 14 of 14 navigation cases; 11 screenshots |
+| libarc and the archive tools | `libarc/tests/run.sh` | native, one command: `bash libarc/tests/run.sh` (add `ARC_DEBS=dir` to also compare real `.deb` files with GNU tar and bsdtar). Needs host gzip, xz, zstd, GNU tar, bsdtar, binutils ar, python3 | see STATUS.md |
+| libarc fuzzing | `libarc/tests/fuzz.c` | native, build line in its header; `./fuzz SECONDS seed...` | see STATUS.md |
+| archive tools in the OS | `rootfs/usr/share/tests/arc-tests.sh` | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/arc-tests.sh\nexit\n'` (needs `sh echo cat cp ls mkdir rm head seq wc gzip tar ar sha256sum` in the image) | `arc-tests: 52 checks, 52 passed` |
+| real packages in the OS | `libarc/tests/os-debs.sh` | `sh libarc/tests/os-debs.sh BUILD DEB...`: extracts each `.deb` inside UC.OS with `ar x` and `tar xf` and compares the file contents with the host's GNU tar | 7 of 7 identical (2026-11-26) |
 | vi, htop, fetch | native builds driven through a pty from Python | scripts were kept in a scratch directory and are NOT in the repo | vi 129, htop 72, fetch 64 |
 | C compiler and linker | `bin/cc/tests/` | `sh bin/cc/tests/build.sh B` once, then `sh bin/cc/tests/run.sh B` | 37: 19 programs compared with clang, 3 mixed links, 15 diagnostics (2026-11-26) |
 | cc random expressions | `bin/cc/tests/fuzz.py`, `fuzz.sh` | `sh bin/cc/tests/fuzz.sh B SEED COUNT` (keep runs under a minute) | 6,750 expressions, 0 differences |

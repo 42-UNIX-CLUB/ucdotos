@@ -455,7 +455,30 @@ Measured on the built system:
   fps, 33.7 / 33.6 / 33.6 ms, 34.0 / 35.0 / 33.9 ms; 0 underruns either way. The 99th
   percentile is about 0.8 ms higher on average with music, inside the spread between runs.
 
-## 13. How to measure properly
+## 13. Decompression (libarc)
+
+Output throughput in MB/s (10^6 bytes of decompressed data per second), on the same
+laptop, single thread. "Native" is libarc compiled with the host `cc -O2`; the host
+tools are GNU gzip 1.15, xz 5.8.4 (`-T1`), zstd 1.5.7.
+
+Baseline, before any tuning (2026-11-26 06:28, load average 1.9), whole-process time,
+best of 3, on the data member of Debian's `libllvm19` package (a 124 MB tar; xz as
+shipped, gzip -6 and zstd -19 made from the same tar):
+
+| Format | libarc native | host tool |
+|---|---|---|
+| gzip | 288 | 240 |
+| xz | 60.5 | 101.5 |
+| zstd | 231 | 486 |
+
+After the decoders were tuned, and inside UC.OS: not measured yet (the machine stayed too
+loaded for a valid benchmark on 2026-11-26).
+
+How: `libarc/tests/arcbench.c` decompresses a file from memory several times and prints
+the first (cold) run and the best run; it builds natively and for UC.OS, and
+`libarc/tests/os-bench.sh BUILD FILE...` runs it inside UC.OS under Node.
+
+## 14. How to measure properly
 
 1. Put the timed loop in a `noinline` function and call it many times. V8 does not
    replace a running wasm loop with optimised code, so a loop entered once measures
