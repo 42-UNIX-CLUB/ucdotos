@@ -136,6 +136,15 @@ Notes that go with these:
 | `ar` writes member names **without the GNU trailing slash** (as dpkg-deb does) and uses the BSD `#1/len` form for names over 15 bytes; it records real times, owners and modes unless `D` is given. | Matches real `.deb` files; GNU binutils reads both forms. | `libarc/ar.c`, `bin/ar/ar.c`. |
 | `tar -x` replaces a **hard link it cannot make by a copy** of the target. | The kernel has no `link()` yet; without a copy a package would miss files. | `bin/tar/tar.c`, case `'1'`. |
 | `tar -x` restores owners only when running as uid 0 or with `--same-owner`, and sets special mode bits (setuid, setgid, sticky) with `chmod` only when the archive has them or `-p` is given. | GNU tar's defaults for a non-root user. | `bin/tar/tar.c`. |
+| Package tools are named **`dpkg`, `dpkg-deb`, `dpkg-query`, `apt`, `apt-get`, `apt-cache`**, with Debian's options and output. `apt-get` and `apt-cache` are alias names of `apt`, `dpkg-query` of `dpkg` (`bin/apt/ALIASES`, `bin/dpkg/ALIASES`, the starter program of `tools/alias/stub.c`); the program picks its behaviour from `argv[0]`. | Debian documentation and scripts then apply as written. Full copies of the three programs cost about 680 KB in the image; the starters cost about 3 KB each and one extra process per call. Chosen by the developer session under the owner's delegation, for image size, 2026-11-26. | `bin/dpkg/`, `bin/dpkg-deb/`, `bin/apt/`; copies instead: one-line mains in `bin/apt-get/`, `bin/apt-cache/`, `bin/dpkg-query/` passing the name. |
+| Debian files go under the root **`/debian`** (`root /debian` in `rootfs/etc/dpkg/dpkg.cfg`); apt keeps its state there too. | Option (a) of the layout question. Settled by uc-os-dev under the owner's delegation, 2026-11-26. | That one line; every path goes through the configured root. |
+| The native package architecture is **`riscv64`** (`PKG_NATIVE_ARCH`), the guest architecture of `lx` (Debian 13 riscv64). | Settled by uc-os-dev under the owner's delegation, 2026-11-26, to match the binary engine. | `native-architecture` in dpkg.cfg, or `-DPKG_NATIVE_ARCH=`. |
+| Installing packages needs root. | Settled by uc-os-dev under the owner's delegation, 2026-11-26. Not checked by the tools today: on `main` every process runs as uid 1000 and there is no root; it waits for the kernel layers that add users and permissions. | |
+| Dynamically linked Debian programs do not run on `main`: it cannot create symbolic links, so `/lib -> usr/lib` from `base-files` is missing. dpkg has no fallback for it; statically linked programs run through `lx`. | Settled by uc-os-dev under the owner's delegation, 2026-11-26: a documented limitation, not a workaround. | Goes away when the kernel has symbolic links. |
+| No repository is enabled by default; `rootfs/debian/etc/apt/sources.list` has commented examples. | Default sources are an owner's choice, and there is no network yet. | Uncomment a line. |
+| A changed conffile with a new package version keeps the user's copy and saves the package's as `.dpkg-dist` (dpkg would ask). | There is no interactive prompt in a script-driven run. | `--force-confnew`. |
+| A maintainer script that cannot run makes the step fail (as dpkg does); `--force-unrunnable-scripts` turns that into "logged and treated as done". | Fails safe; the forced mode is explicit. | dpkg.cfg line `force-unrunnable-scripts`. |
+| `apt install` prompts unless `-y` or the change is exactly what was asked; Recommends are installed (`APT::Install-Recommends`). | apt's defaults. | apt.conf or `--no-install-recommends`. |
 
 ## 3. Open: an owner needs to choose
 
@@ -159,6 +168,10 @@ Notes that go with these:
 | **make: name and alias** | `make` only (now); also `gmake`; another name | |
 | **make: Ctrl-C** | leave as is (make dies with the recipe; the target may be half-written); make calls `setsid()` so the kernel spares it and it can delete the target (relies on the kernel not refusing `setsid` for a group leader, which Linux would refuse); a kernel change so a process can catch Ctrl-C | deleting half-made targets on Ctrl-C in UC.OS |
 | **make: jobserver** | none (now); a pipe-based jobserver like GNU Make's | limiting the total of jobs across recursive makes |
+| **Signature checks for apt** | none (now, with a warning on every update); write OpenPGP verification ourselves (RSA 4096 for Ubuntu and Debian, Ed25519 for Debian's newest key, SHA-256/512, packet parsing, a keyring in the image); trust a mirror served over https only | Using public mirrors safely |
+| **Packages whose scripts cannot run** | fail and leave them half-configured (now); skip and record (`--force-unrunnable-scripts`) by default; run them with UC.OS's shell (`--force-script-chrootless`) | Most real packages until the binary engine runs Debian's shell and tools |
+| **Default package sources** | none (now); Debian stable; Ubuntu LTS; both; a club mirror | `apt update` working out of the box |
+| **Program names** | `dpkg`/`apt` names (now) or UC.OS-specific names | |
 
 ## 4. Background: the research that led here
 

@@ -35,6 +35,9 @@ CLIP_SRC    := $(wildcard libclip/*.c)
 # line) under which the same program is installed in /bin, as gunzip for gzip.
 ARC_SRC     := $(wildcard libarc/*.c)
 ARC_HDR     := $(wildcard libarc/*.h)
+# A program directory containing a file named USE_PKG links libpkg (the package
+# manager's logic) and libarc (archives and compression).
+PKG_SRC     := $(wildcard libpkg/*.c)
 
 all: $(B)/kernel.wasm $(B)/initrd.tar
 
@@ -80,23 +83,28 @@ $(B)/obj/libarc/%.o: libarc/%.c $(LIBC_HDR) $(ARC_HDR)
 $(B)/libarc.a: $(patsubst %.c,$(B)/obj/%.o,$(ARC_SRC))
 	@echo "  AR    libarc.a"
 	@$(AR) rcs $@ $^
+$(patsubst %.c,$(B)/obj/%.o,$(PKG_SRC)): libpkg/pkg.h $(ARC_HDR)
+$(B)/libpkg.a: $(patsubst %.c,$(B)/obj/%.o,$(PKG_SRC))
+	@echo "  AR    libpkg.a"
+	@$(AR) rcs $@ $^
 
 # Link with the crt0 that matches main's signature: try (argc, argv) first, then (argc, argv, envp).
 gfx_lib = $(if $(wildcard bin/$(1)/USE_CLIP),$(B)/libclip.a) $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a) $(B)/libuconf.a
-arc_lib = $(if $(wildcard bin/$(1)/USE_ARC),$(B)/libarc.a)
-arc_hdr = $(if $(wildcard bin/$(1)/USE_ARC),$(ARC_HDR))
+pkg_lib = $(if $(wildcard bin/$(1)/USE_PKG),$(B)/libpkg.a)
+arc_lib = $(if $(wildcard bin/$(1)/USE_ARC bin/$(1)/USE_PKG),$(B)/libarc.a)
+arc_hdr = $(if $(wildcard bin/$(1)/USE_ARC bin/$(1)/USE_PKG),$(ARC_HDR))
 define LINK
 	@mkdir -p $(B)/bin
 	@echo "  LINK  $(1)"
-	@$(CC) $(UCFLAGS) $(3) $(ULDFLAGS) -o $(B)/bin/$(1) $(B)/obj/crt0_2.o $(2) $(call arc_lib,$(1)) $(call gfx_lib,$(1)) $(B)/libc.a 2>/dev/null || \
-	 $(CC) $(UCFLAGS) $(3) $(ULDFLAGS) -o $(B)/bin/$(1) $(B)/obj/crt0_3.o $(2) $(call arc_lib,$(1)) $(call gfx_lib,$(1)) $(B)/libc.a
+	@$(CC) $(UCFLAGS) $(3) $(ULDFLAGS) -o $(B)/bin/$(1) $(B)/obj/crt0_2.o $(2) $(call pkg_lib,$(1)) $(call arc_lib,$(1)) $(call gfx_lib,$(1)) $(B)/libc.a 2>/dev/null || \
+	 $(CC) $(UCFLAGS) $(3) $(ULDFLAGS) -o $(B)/bin/$(1) $(B)/obj/crt0_3.o $(2) $(call pkg_lib,$(1)) $(call arc_lib,$(1)) $(call gfx_lib,$(1)) $(B)/libc.a
 endef
 define SINGLE_RULE
 $(B)/bin/$(1): bin/$(1).c $(B)/libc.a $(CRT) $(call gfx_lib,$(1))
 	$(call LINK,$(1),bin/$(1).c,)
 endef
 define DIR_RULE
-$(B)/bin/$(1): $(wildcard bin/$(1)/*.c bin/$(1)/*.h bin/$(1)/CFLAGS) $(B)/libc.a $(CRT) $(call gfx_lib,$(1)) $(call arc_lib,$(1)) $(call arc_hdr,$(1))
+$(B)/bin/$(1): $(wildcard bin/$(1)/*.c bin/$(1)/*.h bin/$(1)/CFLAGS) $(B)/libc.a $(CRT) $(call gfx_lib,$(1)) $(call pkg_lib,$(1)) $(call arc_lib,$(1)) $(call arc_hdr,$(1))
 	$(call LINK,$(1),$(wildcard bin/$(1)/*.c),$(shell cat bin/$(1)/CFLAGS 2>/dev/null))
 endef
 $(foreach p,$(PROG_SINGLE),$(eval $(call SINGLE_RULE,$(p))))

@@ -424,5 +424,19 @@ struct ifinfo {
 #define HNIOC_OPEN 0x4802 /* arg: struct hn_open * */
 #define HNIOC_DONE 0x4803 /* the request (or our half of the stream) is complete */
 struct hn_open { int op, port; char host[256]; };
+/* --- added for the package manager (durability, the file creation mask); the
+ * kernel may answer ENOSYS until it implements them --- */
+#ifndef SYS_fsync
+#define SYS_fsync 82
+#endif
+#ifndef SYS_fdatasync
+#define SYS_fdatasync 83
+#endif
+#ifndef SYS_umask
+#define SYS_umask 166
+#endif
+#ifndef ENOTSUP
+#define ENOTSUP EOPNOTSUPP
+#endif
 
 #endif

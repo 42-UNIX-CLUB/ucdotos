@@ -76,4 +76,6 @@ int linkat(int, const char *, int, const char *, int);
 ssize_t readlink(const char *, char *, size_t);
 ssize_t readlinkat(int, const char *, char *, size_t);
 int fchownat(int, const char *, uid_t, gid_t, int);
+/* durability (libc/src/pkg_compat.c; the kernel may answer ENOSYS); fsync is above */
+int fdatasync(int);
 #endif

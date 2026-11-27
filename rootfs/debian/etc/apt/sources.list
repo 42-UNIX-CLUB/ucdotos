@@ -1,0 +1,19 @@
+# Where apt finds packages. One source per line:
+#   deb [options] URI SUITE COMPONENT...
+# Nothing is enabled: which distribution and mirror UC.OS uses is an open
+# decision (docs/DECISIONS.md), and downloads over http need curl or wget.
+# The signatures on these repositories are not checked yet; apt warns about
+# that on every update. Only SHA-256 sums from the Release file down are.
+#
+# Debian 13 (trixie):
+#deb http://deb.debian.org/debian trixie main
+#deb http://deb.debian.org/debian trixie-updates main
+#deb http://security.debian.org/debian-security trixie-security main
+#
+# Ubuntu 26.04 (resolute). amd64 is on archive.ubuntu.com,
+# arm64 and riscv64 on ports.ubuntu.com/ubuntu-ports:
+#deb http://archive.ubuntu.com/ubuntu resolute main universe
+#deb http://ports.ubuntu.com/ubuntu-ports resolute main universe
+#
+# A local directory works too:
+#deb file:/srv/mirror trixie main
