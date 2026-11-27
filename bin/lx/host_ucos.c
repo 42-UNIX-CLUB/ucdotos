@@ -17,16 +17,18 @@ int64_t hb_raw(int nr, int64_t a, int64_t b, int64_t c, int64_t d, int64_t e, in
 }
 
 int64_t hb_fstatat(int dirfd, const char *path, struct lx_stat *st, int flags) {
-  (void)flags; /* UC.OS has no symbolic links: following or not is the same */
+  /* AT_SYMLINK_NOFOLLOW and AT_EMPTY_PATH have Linux's values in UC.OS too: pass them on
+   * (the path module finds symbolic links with NOFOLLOW and resolves them in the guest root) */
   struct stat s;
   memset(&s, 0, sizeof s);
-  long r = path ? __syscall3(SYS_newfstatat, dirfd, path, &s) : __syscall2(SYS_fstat, dirfd, &s);
+  long r = path ? __syscall4(SYS_newfstatat, dirfd, path, &s, flags) : __syscall2(SYS_fstat, dirfd, &s);
   if (r < 0) return r;
   st->dev = s.st_dev; st->ino = s.st_ino; st->rdev = s.st_rdev; st->nlink = s.st_nlink;
   st->mode = s.st_mode; st->uid = s.st_uid; st->gid = s.st_gid;
   st->size = s.st_size; st->blksize = s.st_blksize; st->blocks = s.st_blocks;
-  st->atime = s.st_atime; st->mtime = s.st_mtime; st->ctime = s.st_ctime;
-  st->atime_ns = st->mtime_ns = st->ctime_ns = 0;
+  st->atime = s.st_atim.tv_sec; st->atime_ns = s.st_atim.tv_nsec;
+  st->mtime = s.st_mtim.tv_sec; st->mtime_ns = s.st_mtim.tv_nsec;
+  st->ctime = s.st_ctim.tv_sec; st->ctime_ns = s.st_ctim.tv_nsec;
   return 0;
 }
 
@@ -48,9 +50,11 @@ int64_t hb_ppoll(void *fds, int n, int64_t ns) {
   return __syscall3(SYS_ppoll, fds, n, tp);
 }
 int64_t hb_utimensat(int dirfd, const char *path, const int64_t *ts, int flags) {
-  /* UC.OS can only set both times to now; explicit times are not kept. */
-  (void)ts;
-  return __syscall4(SYS_utimensat, dirfd, path, 0, flags);
+  /* ts: atime sec, nsec, mtime sec, nsec (UTIME_NOW / UTIME_OMIT have Linux's values), or NULL */
+  struct timespec t[2];
+  if (!ts) return __syscall4(SYS_utimensat, dirfd, path, 0, flags);
+  t[0].tv_sec = ts[0]; t[0].tv_nsec = (long)ts[1]; t[1].tv_sec = ts[2]; t[1].tv_nsec = (long)ts[3];
+  return __syscall4(SYS_utimensat, dirfd, path, t, flags);
 }
 int64_t hb_sysinfo(struct lx_sysinfo *si) {
   struct sysinfo s;

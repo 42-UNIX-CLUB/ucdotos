@@ -3,6 +3,7 @@
 // about windows, text or programs: it copies the kernel's framebuffer to a
 // canvas and forwards raw input events. Everything you see is drawn in C.
 import { boot, checkSupport } from './host.mjs';
+import { openStore } from './store.mjs';
 import * as K from './keys.mjs';
 
 const canvas = document.getElementById('screen');
@@ -46,6 +47,22 @@ async function main() {
   };
   const [kernel, initrd] = await Promise.all([get(`${base}/kernel.wasm`), image()]);
   marks.fetched = performance.now();
+
+  // ---- persistence (boot/store.mjs). One tab at a time keeps changes: the first tab holds a
+  // Web Lock for its whole life; a second tab boots from the image and keeps nothing.
+  // ?reset empties the store before booting; ?nostore boots without it.
+  let store = null;
+  if (!params.has('nostore') && typeof indexedDB !== 'undefined') {
+    const mine = !navigator.locks || await new Promise((res) => navigator.locks.request('ucos-store', { ifAvailable: true }, (l) => { res(!!l); return l ? new Promise(() => {}) : null; }));
+    if (!mine) say('  UC.OS is open in another tab: this tab starts from the image and keeps no changes\n');
+    else try {
+      if (params.has('reset')) { await new Promise((r) => { const q = indexedDB.deleteDatabase('ucos-store'); q.onsuccess = q.onerror = q.onblocked = r; }); say('  store emptied (?reset)\n'); }
+      store = await openStore({ kind: 'idb', log: say });
+      if (store) say(`  store: ${store.records} records\n`);
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then((ok) => console.log('storage persist() granted: ' + ok));
+    } catch (e) { say(`  storage is not available (${e && e.message}): changes will not be kept\n`); store = null; }
+  }
+  marks.store = performance.now();
 
   let dirty = false, frames = 0;
   const s = size();
@@ -93,6 +110,7 @@ async function main() {
     onIdle: () => { logEl.classList.remove('hidden'); say('\nSystem halted: every process has exited. Reload to boot again.\n'); },
     debug: params.has('debug'),
     remote: (url) => fetch(`${base}/${url}`), // remote files (kernel/remote.c) sit beside the image
+    store,
   });
   window.ucos = sys; // for the developer console
   marks.kernelUp = performance.now();
@@ -178,7 +196,8 @@ async function main() {
   });
   const releaseAll = () => { for (const code of held) { sys.input(K.EV_KEY, code, 0); } if (held.size) syn(); held.clear(); };
   addEventListener('blur', releaseAll);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { releaseAll(); if (store) store.flush(); } });
+  addEventListener('pagehide', () => { if (store) store.flush(); }); // best effort: the tab may be gone before it finishes
 
   // ---- pointer ----
   const pos = (e) => { sys.input(K.EV_ABS, K.ABS_X, Math.round(e.clientX * scale)); sys.input(K.EV_ABS, K.ABS_Y, Math.round(e.clientY * scale)); };

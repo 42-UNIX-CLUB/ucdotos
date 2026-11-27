@@ -14,6 +14,8 @@
 #include <time.h>
 #include <sys/wait.h>
 #include <sys/sysinfo.h>
+#include <sys/file.h>
+#include <sys/stat.h>
 
 static int fails, checks;
 #define CHECK(name, cond) do { checks++; if (cond) printf("  ok    %s\n", name); else { fails++; printf("  FAIL  %s (errno %d: %s)\n", name, errno, strerror(errno)); } fflush(stdout); } while (0)
@@ -58,8 +60,106 @@ static long claimed(void) { struct sysinfo si; sysinfo(&si); return (long)(si.to
 static int got_chld;
 static void on_chld(int s) { (void)s; got_chld++; }
 
+/* Helpers for bin/ktest.c (integration of fork with the file system). ktest itself must stay
+ * untransformed (it checks that pclone of a program without __fork_child is ENOEXEC), so the
+ * forking half of those checks runs here; ktest turns the exit status into checks.
+ *   forktest x-lock FILE         locks across fork; exit status = bit mask of failures (0 = all fine)
+ *   forktest x-exec PATH ARGS... fork, the child execs PATH with argv {PATH, ARGS...};
+ *                                exit status = the child's, or 100 + errno if exec failed
+ *   forktest x-tree DIR          a forked child makes a small tree (file, symlink, hard link, mode 0751, dir)
+ *   forktest x-treecheck DIR     exit 0 if that tree is there with every attribute */
+static int lk(int fd, int cmd, int type, long start, long len) {
+  struct flock fl = {(short)type, SEEK_SET, start, len, 0};
+  return fcntl(fd, cmd, &fl);
+}
+static int integ_mode(int argc, char **argv) {
+  if (!strcmp(argv[1], "x-lock") && argc > 2) {
+    const char *f = argv[2];
+    int fd = open(f, O_RDWR | O_CREAT, 0644), fd2 = open(f, O_RDWR), fd3 = open(f, O_RDWR);
+    if (fd < 0 || fd2 < 0 || fd3 < 0) return 255;
+    if (lk(fd, F_SETLK, F_WRLCK, 0, 10) || flock(fd2, LOCK_EX) || lk(fd3, F_OFD_SETLK, F_WRLCK, 100, 10)) return 254;
+    pid_t c = fork();
+    if (c < 0) return 253;
+    if (c == 0) {
+      int bits = 0;
+      struct flock q = {F_WRLCK, SEEK_SET, 0, 10, 0};
+      if (fcntl(fd, F_GETLK, &q) || q.l_type != F_WRLCK || q.l_pid != getppid()) bits |= 1;  /* the parent's record lock is not the child's */
+      if (!(lk(fd, F_SETLK, F_WRLCK, 0, 10) < 0 && (errno == EAGAIN || errno == EACCES))) bits |= 2;
+      if (flock(fd2, LOCK_EX | LOCK_NB)) bits |= 4;                     /* flock belongs to the shared open file */
+      int fn = open(f, O_RDWR);
+      if (!(flock(fn, LOCK_EX | LOCK_NB) < 0 && errno == EWOULDBLOCK)) bits |= 8;
+      if (lk(fd3, F_OFD_SETLK, F_WRLCK, 100, 10)) bits |= 16;            /* OFD lock follows the open file */
+      if (!(lk(fn, F_OFD_SETLK, F_WRLCK, 100, 10) < 0 && errno == EAGAIN)) bits |= 32;
+      close(fn);
+      close(fd); /* the child's close must not drop the parent's record lock */
+      _exit(bits);
+    }
+    int st = -1;
+    waitpid(c, &st, 0);
+    int bits = WIFEXITED(st) ? WEXITSTATUS(st) : 127;
+    pid_t c2 = fork();
+    if (c2 == 0) {
+      struct flock q = {F_WRLCK, SEEK_SET, 0, 10, 0};
+      _exit(fcntl(fd, F_GETLK, &q) || q.l_type != F_WRLCK || q.l_pid != getppid());
+    }
+    st = -1;
+    waitpid(c2, &st, 0);
+    if (!WIFEXITED(st) || WEXITSTATUS(st)) bits |= 64;
+    return bits;
+  }
+  if (!strcmp(argv[1], "x-exec") && argc > 2) {
+    pid_t c = fork();
+    if (c == 0) { execv(argv[2], argv + 2); _exit(100 + errno); }
+    int st = -1;
+    if (c < 0 || waitpid(c, &st, 0) != c) return 255;
+    return WIFEXITED(st) ? WEXITSTATUS(st) : 200 + WTERMSIG(st);
+  }
+  if (!strcmp(argv[1], "x-tree") && argc > 2) {
+    const char *d = argv[2];
+    pid_t c = fork();
+    if (c == 0) {
+      char p[256], q[256];
+      if (mkdir(d, 0755)) _exit(2);
+      snprintf(p, sizeof p, "%s/f", d);
+      int fd = open(p, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+      if (fd < 0 || write(fd, "made by a forked child\n", 23) != 23 || fsync(fd) || close(fd)) _exit(3);
+      if (chmod(p, 0751)) _exit(4);
+      snprintf(q, sizeof q, "%s/l", d);
+      if (symlink("f", q)) _exit(5);
+      snprintf(q, sizeof q, "%s/h", d);
+      if (link(p, q)) _exit(6);
+      snprintf(q, sizeof q, "%s/sub", d);
+      if (mkdir(q, 0700)) _exit(7);
+      sync();
+      _exit(0);
+    }
+    int st = -1;
+    waitpid(c, &st, 0);
+    return WIFEXITED(st) ? WEXITSTATUS(st) : 200;
+  }
+  if (!strcmp(argv[1], "x-treecheck") && argc > 2) {
+    const char *d = argv[2];
+    char p[256], b[64] = {0};
+    struct stat f, h, l, s;
+    snprintf(p, sizeof p, "%s/f", d);
+    if (stat(p, &f)) return 2;
+    snprintf(p, sizeof p, "%s/h", d);
+    if (stat(p, &h)) return 3;
+    snprintf(p, sizeof p, "%s/l", d);
+    if (lstat(p, &l) || !S_ISLNK(l.st_mode) || readlink(p, b, sizeof b - 1) != 1 || b[0] != 'f') return 4;
+    snprintf(p, sizeof p, "%s/sub", d);
+    if (stat(p, &s) || !S_ISDIR(s.st_mode) || (s.st_mode & 07777) != 0700) return 5;
+    if ((f.st_mode & 07777) != 0751 || f.st_nlink != 2 || h.st_ino != f.st_ino || f.st_size != 23) return 6;
+    snprintf(p, sizeof p, "%s/l", d);
+    int fd = open(p, O_RDONLY);
+    if (fd < 0 || read(fd, b, 23) != 23 || memcmp(b, "made by a forked child\n", 23)) return 7;
+    return 0;
+  }
+  return 99;
+}
 
 int main(int argc, char **argv) {
+  if (argc > 1 && !strncmp(argv[1], "x-", 2)) return integ_mode(argc, argv);
   if (argc > 2 && !strcmp(argv[1], "bench")) {
     int n = atoi(argv[2]);
     double best = 1e9, total = 0;

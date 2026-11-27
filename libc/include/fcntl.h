@@ -12,4 +12,9 @@
 int open(const char *, int, ...);
 int openat(int, const char *, int, ...);
 int fcntl(int, int, ...);
+/* ---- appended (libc/src/fs_posix.c) ---- */
+#include <sys/types.h>
+int creat(const char *, mode_t);
+int fallocate(int, int, off_t, off_t);
+int posix_fallocate(int, off_t, off_t);
 #endif

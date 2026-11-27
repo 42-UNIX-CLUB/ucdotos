@@ -25,6 +25,7 @@
  * first written into remote_scratch()), then the same remote_data calls, then remote_end.
  * The finished file replaces any regular file of that name, as cp would. */
 #include "kernel.h"
+void store_dirty(struct inode *i, u32 lo, u32 hi); /* store.c */
 
 HOST(fetch) void host_fetch(int id, const char *url, u32 url_len, u8 *dst, u32 size, int gz);
 
@@ -185,13 +186,16 @@ EXPORT(remote_end) int remote_end(int id, int ok) {
       inode_put(r->ino); /* the placeholder reference */
       inode_get(i);
       i->priv = NULL;
-      i->mtime = (s64)(host_epoch() / 1000);
+      i->mtime = i->ctime = KT_MAKE((s64)(host_epoch() / 1000), 0); /* file times are packed (kernel.h KT_MAKE) */
       r->ino = i;
     }
   }
   if (why) kprintf("[remote] %s: %s, not used\n", r->str, why);
   else kprintf("[remote] %s: %u bytes, ready\n", r->str, r->size);
+  struct inode *imp = (r->kind == K_IMPORT && !why) ? r->ino : NULL;
   finish(r, !why);
+  /* a file the user brought in is theirs like any other: it is stored (a remote file is not) */
+  if (imp && imp->sflags) { store_dirty(imp, 0, imp->size); vfs_changed(imp); }
   return why ? -1 : 0;
 }
 
@@ -217,7 +221,7 @@ EXPORT(import_begin) int import_begin(u32 len, u32 size) {
     *s = '/';
   }
   const char *base = strrchr(r->str, '/') + 1;
-  if (!*base || strlen(base) > 63 || !strcmp(base, ".") || !strcmp(base, "..")) return -EINVAL;
+  if (!*base || strlen(base) > VFS_NAME_MAX || !strcmp(base, ".") || !strcmp(base, "..")) return -EINVAL;
   if (!(r->buf = kmalloc(size ? size : 1))) return -ENOSPC;
   r->kind = K_IMPORT; r->state = R_FETCHING; r->size = size;
   r->ino = &import_dummy;
@@ -272,6 +276,7 @@ void remote_init(void) {
     if (!i) continue;
     i->owned = 0; i->data = NULL; i->size = size; i->cap = 0;
     i->priv = r;
+    i->sflags |= S_NEVER_BIT; /* a 28 MB game file must not end up in the browser's store (store.c) */
     r->kind = K_REMOTE; r->size = size;
     memcpy(r->str, w[3], l[3]); r->str[l[3]] = 0;
     r->gz = l[4] == 2 && w[4][0] == 'g' && w[4][1] == 'z';
