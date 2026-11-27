@@ -62,4 +62,8 @@ $CLANG $rest || exit 1
          print "\tend_if"
        }' "$out.raw.s"
 } > "$out.s" || exit 1
-$CLANG -c -o "$out" "$out.s"
+# feature flags (-mtail-call and the like) must reach the assembler too: it refuses the
+# instructions of a feature that is off (bin/lx is built with -mtail-call)
+mflags=
+for a in "$@"; do case $a in -m*) mflags="$mflags $a" ;; esac; done
+$CLANG $mflags -c -o "$out" "$out.s"
