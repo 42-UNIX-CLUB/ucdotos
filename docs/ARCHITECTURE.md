@@ -500,41 +500,67 @@ nonsense, and drops events for a client that stops reading. At most 24 clients.
 **A theme change is delivered as a resize event with the unchanged size.** Every client
 must call `ui_theme_load()` again on every `UI_EV_RESIZE` and redraw.
 
-**wm** (`bin/wm/`): master-and-stack tiling, gaps, rounded anti-aliased borders (2 px
-accent on the focused window, 1 px grey on the others), fullscreen, floating windows
-(`float` toggles, on Mod+y and Mod+Shift+space; Mod + left-button drag moves a floating
-window, and that click never reaches the program), workspaces, damage-based compositing at
-most once per 15 ms, zero work when idle. It keeps no full-screen buffers: damaged
-rectangles are painted a band of rows at a time into a static 256 KiB strip and each band
-is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made rows
-(plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2 MiB
-plus a copy of every window's pixels.
-Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
-`focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
-`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `trace on|off` (print, for each
-`PRESENT`, the time from its first byte to the framebuffer write; used by the latency
-probe), `animation MS`,
-`zoom in|out|reset` (sends the zoom event to the focused window; bound by default to
-Ctrl+= with or without Shift, Ctrl+- and Ctrl+0, which therefore no longer reach programs.
-Bindings are by key position, so on a non-US keyboard these are the keys in the US
-positions of = and -, and the numeric keypad cannot be bound).
+**wm** (`bin/wm/`): two tiling layouts per workspace (master and stack, or a split tree),
+gaps, rounded anti-aliased borders (2 px accent on the focused window, 1 px grey on the
+others), fullscreen, floating windows (`float` toggles, on Mod+y and Mod+Shift+space; Mod +
+left-button drag moves a floating window, and that click never reaches the program; a window
+that never takes the focus, such as the cheat sheet, is not moved), workspaces, damage-based
+compositing at most once per 15 ms, zero work when idle. It keeps no full-screen buffers:
+damaged rectangles are painted a band of rows at a time into a static 256 KiB strip and each
+band is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made
+rows (plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2
+MiB plus a copy of every window's pixels. Commands (bindable keys and `ui_wm_command`):
+`exec CMD`, `workspace N`, `move N`, `focus next|prev`, `swap next|prev|master`, `master
+grow|shrink`, `fullscreen`, `float`, `layout master|split|toggle`, `open left|right|up|down
+CMD`, `toggle APP` (hide or show every window whose app_id is APP, like i3's scratchpad;
+windows that program opens later start the same way, and shown ones get a CONFIGURE so they
+redraw and re-read their files), `kill`, `theme next|NAME`, `reload`, `exit`, `stats`,
+`bench`, `trace on|off` (print, for each `PRESENT`, the time from its first byte to the
+framebuffer write; used by the latency probe), `animation MS`, `zoom in|out|reset` (sends
+the zoom event to the focused window; bound by default to Ctrl+= with or without Shift,
+Ctrl+- and Ctrl+0, which therefore no longer reach programs. Bindings are by key position,
+so on a non-US keyboard these are the keys in the US positions of = and -, and the numeric
+keypad cannot be bound).
 
-A workspace switch slides: for `animation_ms` milliseconds (160 by default, 0 for none) the
-old and the new workspace pan across the screen, eased out. The slide keeps no pictures of
-either workspace. Every frame, `compose_anim()` in `compose.c` draws the old workspace's
-windows shifted one way and the new one's shifted the other, each clipped to its side of the
-seam, over the wallpaper panned by the same amount, so it needs no extra memory at any
-screen size and windows keep updating while they move. The wallpaper is not copied where a
-window is about to cover it. The bar stays in place, unless one of the two workspaces hides
-it (a fullscreen window): then it travels with the workspace that shows it. Switching back
-to the workspace the slide came from continues from where the picture is. Any other switch
-during a slide cuts the first one short (the picture jumps to its end) and starts a new
-one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms apart).
+A workspace switch slides: for `animation` milliseconds (`[general]` in `wm.uconf`; 160 by
+default, 0 for none) the old and the new workspace pan across the screen, eased out. The
+slide keeps no pictures of either workspace. Every frame, `compose_anim()` in `compose.c`
+draws the old workspace's windows shifted one way and the new one's shifted the other,
+each clipped to its side of the seam, over the wallpaper panned by the same amount, so it
+needs no extra memory at any screen size and windows keep updating while they move. The
+wallpaper is not copied where a window is about to cover it. The bar stays in place,
+unless one of the two workspaces hides it (a fullscreen window): then it travels with the
+workspace that shows it. Sticky windows (the cheat sheet) stay in place, on top. Switching
+back to the workspace the slide came from continues from where the picture is. Any other
+switch during a slide cuts the first one short (the picture jumps to its end) and starts a
+new one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms
+apart).
 
-Configuration: `~/.config/wm/config` (in the image: `rootfs/home/user/.config/wm/config`),
-i3 style: `set mod Alt`, `gaps`, `border`, `border_thin`, `radius`, `workspace_count`,
-`animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default
-autostart: `exec bar` and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
+Configuration: `~/.config/wm/wm.uconf` (in the image: `rootfs/home/user/.config/wm/wm.uconf`).
+`$mod` is the modifier of the built-in bindings (ALT). `[general]`: `gaps`, `workspaces`,
+`master_ratio`, `animation`, `border { width thin radius colors { focus normal float } }`
+(the colours win over the theme's). `[binds]`: `bind = MODS, key, action, args` (the action is a
+command above), `unbind = MODS, key`, `defaults = false` drops the built-in bindings.
+`[autostart]`: `exec`, `exec_always`. With no file: the built-in bindings and `exec bar`, `exec
+term`. The shipped file autostarts `bar` and `term -e sh /etc/welcome` (`fetch`, then a shell).
+
+**Dotfiles: the .uconf format** (`libuconf/`). Every dotfile in `~/.config` and every theme is
+a `.uconf` file: TOML `[section]` headers, `name { ... }` blocks in JSON-style braces that nest
+(inside braces `, key =` starts the next setting, so one line can hold several), `key = value`,
+hyprlang `$variables` and `bind = MODS, key, action, args` lines; `# ` starts a comment and
+`#rrggbb` is a value. A setting's full name joins section, blocks and key with dots
+(`general.border.width`). Keys may repeat (`bind`, `exec`). Mistakes are reported as
+`file:line: message` on stderr and skipped, and settings nothing read are reported as unknown.
+Every program links `libuconf.a`; `bin/uconftest.c` checks the parser (in `make test`).
+
+| File | Program | Read |
+|---|---|---|
+| `~/.config/wm/wm.uconf` | wm | at start and on `reload` |
+| `~/.config/term/term.uconf` | term: `[font]` size regular bold, `[window]` padding, `[scrollback]` lines, `[cursor]` style, `[zoom]` step min max | at start, and on `reload` or a theme change, which resend every window its size (scrollback: start only) |
+| `~/.config/fetch/fetch.uconf` (or `$FETCH_CONFIG`) | fetch: `[fetch]` logo font, `[info]` `line = NAME[, LABEL]` (which lines, order, labels), `palette` | every run |
+| `~/.config/bar/bar.uconf` | bar: `[bar]` height, `[workspaces]` `[title]` `[clock]` show, `[clock]` format (strftime, UTC), `[stats]` show = mem, procs, sys | at start, and on `reload` or a theme change (height: start only) |
+| `~/.config/launcher/launcher.uconf` | launcher: `[launcher]` width rows | every time it opens |
+| `/usr/share/themes/NAME.uconf` | every graphical program, through `ui_theme_load()` | on every theme change |
 
 **sh** (`bin/sh/`, about 4,500 lines) is a POSIX shell for a system without `fork`.
 External programs are started with `spawn`. Builtins, functions, compound commands and
@@ -554,11 +580,55 @@ foreground group and waits with `WUNTRACED`. Without it (today's `main`), `set -
 refused with a message and the rest behaves as before.
 
 **Themes** (`libui/theme.h`). The active name is the first word of
-`~/.config/ucos/theme`. A theme is `/usr/share/themes/NAME.theme`, lines of
-`key = value`: colours `bg fg accent border_focus border_normal border_float bar_bg
-bar_fg panel dim desktop`, `color0..color15`, `font`, `font_bold`, `font_size`, `gap`,
-`border`, `radius`. Two ship: `deck` (Gruvbox + Fira Code) and `brand` (dark green +
-JetBrains Mono). See BRAND.md.
+`~/.config/ucos/theme`, a one-word file the window manager writes when the theme changes
+(not a `.uconf` file). A theme is `/usr/share/themes/NAME.uconf`: `[colors]` (`bg fg accent dim
+desktop panel`, `bar { bg fg }`, `border { focus normal float }`), `[terminal]` (the eight ANSI
+names and `bright { ... }`), `[font]` (`regular bold size`), `[geometry]` (`gap border radius`).
+Also `[theme] description`, `[colors] surface` and `[font] name` (what fetch shows). Twelve ship:
+`deck` (Gruvbox + Fira Code, the default) and `brand` (dark green + JetBrains Mono), see
+BRAND.md, and ten example themes from the ricing scene: `catppuccin-mocha`, `catppuccin-latte`
+(light), `nord`, `tokyo-night`, `dracula`, `everforest`, `rose-pine`, `kanagawa`, `one-dark`,
+`solarized-dark`, each with its scheme's published colours. fetch, vi, htop and sysbench read
+the same file (`theme_reload` in their `term.h`; deck and brand stay built in for when no file
+can be read), so a theme reaches every program.
+
+**Layouts** (`bin/wm/tree.c`). Each workspace is in `master` (one big window on the left, the
+others stacked on the right) or `split`: a binary tree of splits, like i3 or Hyprland's dwindle,
+where a new window halves the focused one along its longer side, or on the side `open DIR`
+asks for. `layout = master | split` in `wm.uconf` sets the start, `layout toggle` ($mod s)
+switches the workspace in view. Every workspace keeps its tree whatever its layout, so
+switching back restores the arrangement; a fullscreen window keeps its place. In split,
+`master grow|shrink` resizes the focused window in its split and `swap` trades places. The
+nodes come from a static pool of `2 * MAX_CLIENTS`, so the layout never allocates, and
+`tree_sync()` (first thing in `relayout()`) brings the trees in line with the window list
+by comparing pointers, never following one to a window that may have closed.
+`open DIR CMD` starts CMD and remembers its pid for 5 s; the window that pid opens goes on
+side DIR of the window focused at the time (in master: before it for left and up, after it
+for right and down). Defaults: $mod CTRL h j k l or the arrows open a terminal left, below,
+above, right.
+
+**Window roles** (`libui/ui.h`): `UI_NORMAL`, `UI_FLOATING`, `UI_BAR`, `UI_FULLSCREEN`,
+`UI_FLOATING_BOTTOM` (centred at the bottom), `UI_FLOATING_TOPRIGHT` (top-right corner), plus two
+flags: `UI_STICKY` (shown on every workspace, and left in place during the workspace slide) and
+`UI_NOFOCUS` (never takes the keyboard focus, not even on a click). Bottom and top-right windows
+are placed again on every relayout, so they follow the bar and the screen size.
+
+**keys** (`bin/keys/`, autostarted, $mod /): the keybinding cheat sheet. Two sticky, no-focus
+windows with app_id `keys`: the sheet in the top-right corner lists every `bind` line of
+`~/.config/wm/wm.uconf` as written there (`$mod SHIFT, q` and `kill`; the parser keeps each
+value as written next to the expanded one, `uconf_entry.raw`), with later lines replacing earlier
+ones for the same keys and `unbind` removing them, as in the window manager; the hint at the
+bottom shows the key bound to `toggle keys`. `toggle keys` hides and shows both. They re-read
+the file and the theme whenever the window manager asks them to redraw (a reload, a theme change,
+being shown again) and reopen only when what they show needs another size (comparing with the
+size they last asked for, since the window manager shrinks a window that does not fit). A click
+hides both. Static tables (128 bindings); fonts are read again only when the theme's fonts change.
+
+**themes** (`bin/themes/`, $mod SHIFT t): the theme picker, a strip of cards along the bottom
+of the screen (window role `UI_FLOATING_BOTTOM`), each drawn in its theme's colours. Left and
+Right preview on the whole desktop once the keys pause for 140 ms, Enter keeps, Escape goes
+back. Its tables are static (64 themes) and it keeps its fonts while previewing, so it
+allocates nothing as you move.
 
 **bar** (`bin/bar/`), **launcher** (`bin/launcher/`): entries are
 `/usr/share/applications/*.app` files (`name=`, `exec=`, `comment=`), then every other
@@ -992,8 +1062,8 @@ libarc/            archives and compression (section 12, "libarc"); USE_PKG also
   (the image sets `/debian`), else `/`. apt's `Dir` defaults to the same
   root, so its state lives under it too. A host build refuses to run without a root.
 - **The architecture is one value**, `pkg_cfg.arch`: compile-time `PKG_NATIVE_ARCH`
-  (`riscv64`, the guest architecture of `lx`), overridable by `native-architecture` in dpkg.cfg and, for apt,
-  `APT::Architecture`. Foreign architectures are in `ADMINDIR/arch`.
+  (`riscv64`, the guest architecture of `lx`), overridable by `native-architecture` in
+  dpkg.cfg and, for apt, `APT::Architecture`. Foreign architectures are in `ADMINDIR/arch`.
 - **States.** The status file is rewritten whole and atomically (write `status.new`,
   fsync, rename; the previous one is kept as `status-old`) at every state change, so an
   interrupted run leaves `half-installed` (with `reinstreq`), `unpacked` or

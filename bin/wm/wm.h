@@ -15,10 +15,15 @@
 #define MAX_DAMAGE 48
 
 typedef struct { int x, y, w, h; } rect;
+struct node;                   /* tree.c: a place in the split layout */
 
 typedef struct client {
   int fd, pid, role, ws, hello;
-  int floating, fullscreen, placed;
+  int floating, fullscreen, placed, bottom; /* bottom: a floating window docked at the bottom */
+  int topright, sticky, nofocus, hidden;     /* role flags (ui.h); hidden by the toggle command */
+  struct node *leaf;             /* its place in the workspace's split tree (tree.c), or NULL */
+  int insert_dir;                /* where tree_sync puts it: 'l' 'r' 'u' 'd', 0 = the longer side */
+  struct client *insert_target;  /* ... next to this window (checked to be alive first) */
   char title[UIP_TITLE_MAX + 1], app_id[32];
   rect r;              /* outer rectangle on screen, border included */
   int bw;              /* border width used for this window */
@@ -58,6 +63,7 @@ typedef struct {
   int nauto;
   int always[16];       /* autostart line is exec_always */
   int focus_new;
+  unsigned col_focus, col_normal, col_float; /* border colours over the theme's; 0 = not set */
 } wm_config;
 
 /* globals (main.c) */
@@ -82,7 +88,7 @@ void send_event(client *c, int type, int key, int mods, int repeat, unsigned cp,
 void send_configure(client *c);
 void drop_client(client *c);
 int run_command(client *src, const char *cmd);
-void wm_spawn(const char *cmdline);
+int wm_spawn(const char *cmdline);
 void state_changed(void);
 
 /* layout.c */
@@ -96,6 +102,15 @@ int visible(client *c);
 void content_rect(client *c, rect *out);
 int layout_command(const char *verb, const char *arg);
 unsigned occupied_mask(void);
+
+/* tree.c: the split layout */
+#define LAYOUT_MASTER 0
+#define LAYOUT_SPLIT 1
+extern int layout_of[MAX_WS];
+void tree_sync(void);
+int tree_place(int ws, rect a);
+int tree_resize(client *c, float d);
+void tree_swap(client *x, client *y);
 
 /* compose.c */
 void damage(int x, int y, int w, int h);

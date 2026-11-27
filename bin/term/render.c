@@ -154,7 +154,7 @@ int render_draw(render *r, vt *t, gfx_surface *s, int focused, render_rect *dmg)
   int cx = -1, cy = -1, cmark = 0;
   if (vt_cursor_in_view(t)) {
     cx = t->x; cy = t->y;
-    int st = t->cursor_style;
+    int st = t->cursor_style ? t->cursor_style : r->cursor_default;
     cmark = 1 + (focused ? 8 : 0) + (st >= 0 && st <= 6 ? st : 0);
   }
   vt_cell blank = {' ', VT_DEFAULT, VT_DEFAULT, 0, 0};

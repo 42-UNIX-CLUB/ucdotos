@@ -13,7 +13,7 @@ KLDFLAGS := -Wl,--no-entry -Wl,--export-table -Wl,--growable-table -Wl,-z,stack-
 LIBC_SRC := $(wildcard libc/src/*.c) lib/string.c lib/fmt.c
 LIBC_OBJ := $(patsubst %.c,$(B)/obj/%.o,$(LIBC_SRC)) $(B)/obj/lib/mem.o
 LIBC_HDR := $(wildcard libc/include/*.h libc/include/sys/*.h) abi/abi.h
-UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui -Ilibclip -Ilibarc
+UCFLAGS := $(CFLAGS) -Ilibc/include -Ilibgfx -Ilibui -Ilibclip -Ilibuconf -Ilibarc
 ULDFLAGS := -Wl,--entry=_start -Wl,-z,stack-size=1048576 -Wl,--stack-first -Wl,--fatal-warnings
 CRT     := $(B)/obj/crt0_2.o $(B)/obj/crt0_3.o
 
@@ -25,6 +25,8 @@ PROGS       := $(PROG_SINGLE) $(PROG_DIRS)
 # A program directory containing a file named USE_GFX links libui (windows, themes)
 # and libgfx (font rasterizer + 2D drawing).
 UI_SRC      := $(wildcard libui/*.c)
+# Every program links libuconf (the .uconf dotfile parser); only programs that use it pull it in.
+UCONF_SRC   := $(wildcard libuconf/*.c)
 GFX_SRC     := $(wildcard libgfx/*.c)
 # A program directory containing a file named USE_CLIP links libclip (the clipboard client).
 CLIP_SRC    := $(wildcard libclip/*.c)
@@ -81,6 +83,10 @@ $(B)/libclip.a: $(patsubst %.c,$(B)/obj/%.o,$(CLIP_SRC))
 	@echo "  AR    libclip.a"
 	@$(AR) rcs $@ $^
 
+$(B)/libuconf.a: $(patsubst %.c,$(B)/obj/%.o,$(UCONF_SRC))
+	@echo "  AR    libuconf.a"
+	@$(AR) rcs $@ $^
+
 $(B)/obj/libarc/%.o: libarc/%.c $(LIBC_HDR) $(ARC_HDR)
 	@mkdir -p $(dir $@)
 	@$(CC) $(UCFLAGS) -c -o $@ $<
@@ -96,9 +102,8 @@ $(B)/libsig.a: $(patsubst %.c,$(B)/obj/%.o,$(SIG_SRC))
 	@echo "  AR    libsig.a"
 	@$(AR) rcs $@ $^
 
-
 # Link with the crt0 that matches main's signature: try (argc, argv) first, then (argc, argv, envp).
-gfx_lib = $(if $(wildcard bin/$(1)/USE_CLIP),$(B)/libclip.a) $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a)
+gfx_lib = $(if $(wildcard bin/$(1)/USE_CLIP),$(B)/libclip.a) $(if $(wildcard bin/$(1)/USE_GFX),$(B)/libui.a $(B)/libgfx.a) $(B)/libuconf.a
 pkg_lib = $(if $(wildcard bin/$(1)/USE_PKG),$(B)/libpkg.a $(B)/libsig.a)
 arc_lib = $(if $(wildcard bin/$(1)/USE_ARC bin/$(1)/USE_PKG),$(B)/libarc.a)
 arc_hdr = $(if $(wildcard bin/$(1)/USE_ARC bin/$(1)/USE_PKG),$(ARC_HDR))
