@@ -37,7 +37,8 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
 - one thread, direct wasm-to-wasm system calls, JSPI for blocking ("hybrid": a Worker
   path for CPU-heavy programs is planned and not built);
 - a separate memory per process, bridged by a wasm copy shim;
-- `spawn` instead of `fork`, with fork kept possible for later;
+- `spawn` as the way to start programs; `fork` through a build-time stack transform, for
+  the programs that are built with it (section 5);
 - Linux-shaped system calls;
 - the window manager is an ordinary program, the kernel only exposes devices.
 
@@ -56,6 +57,9 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    |---|---|
    | `log(ptr, len)` | console output (kprintf, and writes to /dev/console) |
    | `spawn(pid, ptr, len, cacheable)` | instantiate the wasm program stored at ptr..ptr+len in kernel memory as process pid |
+   | `exec(pid, ptr, len, cacheable)` | `execve`: replace the instance of process pid with the program at ptr..ptr+len; the old stack is dropped when it next waits (section 5) |
+   | `clone(ppid, cpid)` | `pclone`: make process cpid as a copy of ppid's instance (memory and exported mutable globals), inside the parent's system call; it later starts at `__fork_child` |
+   | `migrate(pid, ptr, n)` | `pmigrate`: the same pid goes on in a new instance holding only the n (start, length) ranges listed at ptr; it starts at `__migrate_resume` |
    | `wake(pid)` | resume a process parked in `block()` |
    | `reap(pid)` | the process slot was freed; drop its instance |
    | `now()` | monotonic milliseconds (`performance.now()`) |
@@ -271,14 +275,78 @@ The host tells the kernel how long a process ran each time it parks
   -pgid, and `WNOHANG`; other option bits are ignored and `rusage` is not filled.
   Status encoding as on Linux: `(code & 0xff) << 8` for an exit, the signal number for a
   kill or crash.
-- **No signals.** `kill(pid, sig)` terminates the target (status = sig). Signal 0 only
-  tests. A signal number outside 0..64 is `EINVAL`. `pid` must be positive: process
-  groups (`kill(0)`, `kill(-pgid)`) are not supported and give `ESRCH`. The libc's
-  `signal()` records handlers that are never called.
-- **Job control, minimal**: `setpgid`, `getpgid`, `setsid`, and the tty's foreground
-  group (section 8). When the last process of a group is freed, any terminal whose
-  foreground group it was forgets it (foreground group 0).
+- **Signals** (`kernel/signal.c`, `libc/src/signal.c`). Nothing can interrupt running
+  WebAssembly, so a signal reaches a program only when it enters the kernel. Default
+  actions (terminate, stop, continue, ignore) happen in the kernel at once, when the
+  signal is sent, unless it is blocked. A signal with a handler is made pending and the
+  target is "kicked": its system call counter is moved so that its next call takes the
+  out-of-line time-slice check, which sees the kick. The hot path of `syscall_pid` is
+  unchanged. That call (or a blocking call, from `block()`) returns `-ERESTARTSYS` with
+  "do not wait"; the libc's wrapper asks for the signal with the private call `sigtake`
+  (521), runs the handler on the program's own stack, restores the mask and makes the call
+  again. A call that was blocked when the signal came then fails with `EINTR`, unless every
+  handler that ran had `SA_RESTART` (and the call is not a sleep). A loop with no system
+  call never sees a signal.
+  Calls: `rt_sigaction`, `rt_sigprocmask`, `rt_sigpending`, `rt_sigsuspend`, `kill`
+  (pid > 0, 0 for the caller's group, -1 for everyone but init and the caller, < -1 for a
+  group), `tgkill`, `setitimer`/`getitimer` (`ITIMER_REAL` only, checked when the process
+  blocks and at the time-slice check, so a pure compute loop never sees it). A child's exit
+  sends `SIGCHLD` to its parent (with `SA_NOCLDWAIT` or an ignored `SIGCHLD` the child is
+  freed at once). Stopped processes (`SIGSTOP`, `SIGTSTP`) are reported by `wait4` with
+  `WUNTRACED`, continued ones with `WCONTINUED`. execve resets handlers to the default and
+  keeps ignored signals, the mask and pending signals.
+- **Job control**: `setpgid`, `getpgid`, `setsid`, the tty's foreground group (section 8),
+  stop and continue. When the last process of a group is freed, any terminal whose
+  foreground group it was forgets it (foreground group 0). The kernel does not generate
+  `SIGTTIN` and `SIGTTOU`.
 - There are no users or permissions. `getuid` returns 1000.
+
+### Fork, exec and migration (`kernel/fork.c`, `libc/src/fork.c`, `tools/wasmfork.c`)
+
+A WebAssembly call stack lives inside the engine and cannot be read or copied. Fork is
+built from three pieces:
+
+- **The clone primitive**, the private call `pclone` (520, flags 0). The kernel copies the
+  process entry: the same open file descriptions with their close-on-exec flags, cwd,
+  process group, session, name, argument blob, signal dispositions and mask; no pending
+  signals and no timer. Inside the same call the host (`boot/host.mjs`) makes a new
+  instance of the caller's module with a copy of the caller's memory (same size) and the
+  caller's values in every exported mutable global (the build exports `__stack_pointer`
+  for this), then later calls the child's export `__fork_child`. Nothing else runs in
+  between, so a parent cannot die halfway. The parent gets the child's pid.
+- **The stack transform**, `tools/wasmfork.c`, run by the build after linking on every
+  program whose directory holds a file named `USE_FORK` (today only `bin/forktest/`).
+  It finds the functions that can be on the stack when fork happens, wraps each body in a
+  `try_table` that saves its locals and the call site into a frame in linear memory when
+  the "fork" exception passes, and adds a second copy of each that rewinds: it reloads its
+  locals and jumps back to the saved call site. When fork is not called, only a store of
+  the call site number per call runs. It stops with a message on SIMD, atomics, tail
+  calls and a few other features that clang -O2 does not produce for this tree.
+- **The libc** (`libc/src/fork.c`): `fork()` throws, which unwinds the stack to
+  `__fork_catch` (where `crt0` runs `main` when fork is linked) while every frame is
+  saved, calls `pclone`, and both processes rewind from the saved frames: the parent with
+  the child's pid, the child with 0. `vfork()` is `fork()` (a copy, not shared memory).
+  In a program built without the transform both fail with `ENOSYS`. `fork_call(fn, arg)`
+  works in every program: the child starts fresh and runs `fn(arg)`, then exits.
+
+**execve** (221): same pid, a new program. Descriptors without close-on-exec stay; the
+host drops the old instance, so the call never returns to it (it returns `-ERESTARTSYS`
+and the old stack is thrown away when it asks to wait). The path must be a regular file
+starting with the wasm magic (`ENOEXEC`). The libc has the `exec*` family and
+`posix_spawn` (built on `spawn`; file actions open, close and dup2; attributes
+SETPGROUP, SETSIGMASK, SETSIGDEF).
+
+**Migration**, the private call `pmigrate` (522, ranges, n, flags 0): the process goes on in
+a new instance of its module whose memory has the same size but holds only the listed
+ranges of the old one, at the same addresses, so every pointer stays valid; the rest is
+zero and costs the browser nothing until written. Same pid and kernel state, no
+`SIGCHLD`. All or nothing: on failure the old instance goes on. On success the new instance
+starts at the export `__migrate_resume`. It exists to give back memory that wasm cannot
+shrink (`__migrate_ranges` and `__malloc_holes` in the libc list the live ranges).
+
+Measured under Node on 2026-11-26 (this machine, quiet): `clonetest bench` with a
+1.1 MiB memory, clone 120 us best and 192 us median, clone plus wait 139 / 240 us; a
+migration keeping 2 MiB of an 11 MiB memory paused the program for about 2 ms.
 
 ## 6. Memory
 
@@ -388,16 +456,18 @@ TIOCGPGRP TIOCSPGRP TIOCGPTN TCFLSH`.
 `ESRCH` otherwise. It does not check that the group is in the caller's session, as
 Linux does.
 
-Ctrl-C (and Ctrl-\\): every process in the tty's foreground group is killed, except a
-session leader, which instead gets a pending flag it reads with `intr()`. That is how a
-shell survives Ctrl-C and can stop its own loops. A pty starts with foreground group 0,
+Ctrl-C (and Ctrl-\\): `SIGINT` (`SIGQUIT`) to every process in the tty's foreground
+group. A session leader whose action for it is the default is not killed: it gets a
+pending flag it reads with `intr()`. That is how a shell survives Ctrl-C and can stop its
+own loops. Ctrl-Z sends `SIGTSTP` when a program set `VSUSP` (off by default; the shell sets
+it for the commands it runs), and never stops a session leader. A pty starts with foreground group 0,
 so whoever starts the shell must `setpgid` the child and `TIOCSPGRP` it (`term` does).
 
-Hangup: when the master closes, every process in the foreground job's session is
-killed, the shell included. When the last slave closes, the master reads end-of-file
+Hangup: when the master closes, every process in the foreground job's session gets
+`SIGHUP`, the shell included. When the last slave closes, the master reads end-of-file
 and polls `POLLHUP`; a terminal emulator closes its window then.
 
-There is no `SIGWINCH`: programs re-read the size when they redraw.
+`TIOCSWINSZ` with a new size sends `SIGWINCH` to the foreground group, as on Linux.
 
 ## 9. Sockets (`kernel/sock.c`)
 
@@ -570,14 +640,16 @@ aliases through a journal, positional parameters, options, traps, `$!`, and the 
 directory and descriptors, saved only when the subshell is about to change them).
 `exit`, `break`, `continue` and `return` in a subshell end only the subshell. `umask` is
 kept by the shell and passed to the kernel when the kernel has the call. `exec CMD` calls
-`execve`; on a kernel without it (`ENOSYS`, today's `main`) and inside a subshell, `CMD`
+`execve`; on a kernel without it (`ENOSYS`) and inside a subshell, `CMD`
 runs as a child and the shell exits with its status (`exec_cmd()` in `bin/sh/exec.c`).
 `trap` installs a handler that only marks the signal; the action runs between commands. Job
 control is detected once with `rt_sigprocmask` (`jobs_init()` in `bin/sh/exec.c`): with
-kernel support, an interactive shell turns on `set -m`, sets VSUSP to Ctrl-Z for the
+kernel support (the kernel has it since fork and signals were added), an interactive shell turns on `set -m`, sets VSUSP to Ctrl-Z for the
 commands it runs, gives every pipeline its own process group, hands the terminal to the
-foreground group and waits with `WUNTRACED`. Without it (today's `main`), `set -m` is
-refused with a message and the rest behaves as before.
+foreground group and waits with `WUNTRACED`. Without it (an older kernel), `set -m` is
+refused with a message and the rest behaves as before. The shell itself is not built
+with the stack transform: it still starts programs with `spawn` and runs subshells in its
+own process.
 
 **Themes** (`libui/theme.h`). The active name is the first word of
 `~/.config/ucos/theme`, a one-word file the window manager writes when the theme changes
@@ -693,8 +765,10 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
   `/bin/sh -c`), a full `math.h` written here (within 1 to 3 ulp of glibc), `qsort`,
   `strtod`, `getopt`, termios wrappers, `select` on top of `ppoll`.
 - `spawn()` and `spawnp()` in `unistd.h` are the process-creation API.
-- **Missing on purpose:** `setjmp`/`longjmp` (impossible in plain C on wasm), `fork`,
-  `exec*`, threads. **Missing:** `long double` arithmetic and `%Lf`, `getopt_long`,
+- `fork()` and `vfork()` work in programs built with the stack transform (section 5) and
+  fail with `ENOSYS` elsewhere; `fork_call()`, the `exec*` family, `posix_spawn`,
+  `sigaction`, `sigprocmask`, `alarm`, `pause` and `killpg` work everywhere.
+- **Missing on purpose:** `setjmp`/`longjmp` (impossible in plain C on wasm), threads. **Missing:** `long double` arithmetic and `%Lf`, `getopt_long`,
   `erf`/`gamma`, wide characters, locales other than "C", time zones (all times are UTC).
 - `make` (section 13) uses only what is here; it needed no new libc function.
 - `libc/crt/crt0.c` is built twice (`crt0_2.o`, `crt0_3.o`) because `main` may take two
@@ -879,7 +953,7 @@ How it maps onto UC.OS:
 | tar extended header (pax, GNU long name) | 1 MiB; names up to 4095 bytes | `libarc/tar.c` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
-`fork`, signals, threads, shared memory, persistence, networking beyond the machine
+threads, shared memory, persistence, networking beyond the machine
 itself (section 16), sound input (recording), `/proc`
 contents, users and permissions, time zones, a clipboard, dynamic linking for UC.OS
 programs. Unmodified Linux binaries run through an ordinary program,
@@ -1026,8 +1100,8 @@ must be numeric ports.
 half-close when input ends), `netstat`
 (`-e` shows congestion window, RTT, RTO and retransmits; `-i` the interfaces), `ifconfig`
 (also sets `loss` and `delay`), `tcpdump` (a packet socket; filters `tcp udp icmp port N
-host A`). `bin/nettest.c` is the test suite. UC.OS has no signals, so Ctrl-C ends `ping`
-and `tcpdump` without their closing summary; give them `-c` to get it.
+host A`). `bin/nettest.c` is the test suite. `ping` and `tcpdump` install no `SIGINT`
+handler, so Ctrl-C ends them without their closing summary; give them `-c` to get it.
 
 ## 17. The package manager (`libpkg/`, `libarc/`, `bin/dpkg*`, `bin/apt*`)
 

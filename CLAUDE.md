@@ -15,7 +15,7 @@ It is not a Linux port and not an emulator. The kernel is one WebAssembly module
 program is its own WebAssembly module with its own memory. A system call is a direct
 wasm-to-wasm call from the program into the kernel. The window manager, terminal
 emulator, font rasterizer, shell and tools are ordinary C programs written for this
-kernel. The only JavaScript is `boot/` (about 840 lines), which plays the role of
+kernel. The only JavaScript is `boot/` (about 1,190 lines), which plays the role of
 firmware: it loads the kernel, starts programs, copies the framebuffer to a canvas, and
 hands sound to the browser's audio thread, and carries the router's network requests
 (`boot/hostnet.mjs`).
@@ -68,13 +68,16 @@ browser page (boot/page.mjs)        canvas, keyboard, mouse; shows the kernel's 
   call. The kernel itself never suspends: every entry runs to completion.
 - One thread. Preemption happens only at system call boundaries (8 ms time slice). A
   program that loops without making any system call still freezes the tab.
-- No fork (only `spawn`), no signals delivered to programs (kill terminates), no
-  setjmp/longjmp, no threads, no shared memory, no persistence. Sound plays through
+- `spawn` starts programs. `fork()` works only in programs built with the stack transform
+  (an empty `USE_FORK` file in `bin/NAME/`; today only `forktest`); `fork_call()`, `execve`
+  and signals work everywhere. A signal handler runs when the program next enters the
+  kernel. No setjmp/longjmp, no threads, no shared memory, no persistence. Sound plays through
   `/dev/dsp`, mixed on the browser's audio thread (`docs/SOUND.md`). The network stack is
   our own TCP/IP in the kernel; beyond the machine it reaches only what the router
   (`routerd`) can carry: see `docs/NETWORKING.md`.
 - System call numbers and structures are Linux's generic ("asm-generic") ones, in
-  `abi/abi.h`, plus four private calls (spawn, getargs, procinfo, intr).
+  `abi/abi.h`, plus private calls in ranges: 500-503 (spawn, getargs, procinfo, intr),
+  504-519 networking, 520-539 processes and memory (pclone, sigtake, pmigrate).
 
 Full detail: `docs/ARCHITECTURE.md`.
 
@@ -98,7 +101,7 @@ The seven suites that must stay green (counts as of 2026-11-26):
 
 | Suite | Command (add `--build=...`) | Result |
 |---|---|---|
-| Kernel | `node tools/run.mjs --init=/bin/ktest` | 124 checks, 0 failed |
+| Kernel | `node tools/run.mjs --init=/bin/ktest` | 152 checks, 0 failed |
 | C library | `node tools/run.mjs --init=/bin/libctest` | 298 checks, 0 failed |
 | Shell and tools | `node tools/run.mjs --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | 238 passed |
 | Sound | `node tools/tests/audio.mjs` | 37 checks, 0 failed |
@@ -114,10 +117,10 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | Path | What | Lines (approx.) |
 |---|---|---|
 | `abi/abi.h` | syscall numbers, errno, structs shared by kernel and programs | 230 |
-| `kernel/` | the kernel: `syscall.c proc.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c audio.c`, and the network stack `net.h timer.c netif.c ip.c udp.c tcp.c inet.c hostnet.c` | 4,040 |
-| `boot/` | `host.mjs` (the machine), `audio.mjs` + `audio-worklet.js` (sound), `hostnet.mjs` (the router's way out), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 840 |
+| `kernel/` | the kernel: `syscall.c proc.c fork.c signal.c vfs.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c audio.c remote.c`, and the network stack `net.h timer.c netif.c ip.c udp.c tcp.c inet.c hostnet.c` | 4,950 |
+| `boot/` | `host.mjs` (the machine), `audio.mjs` + `audio-worklet.js` (sound), `hostnet.mjs` (the router's way out), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes) | 1,190 |
 | `lib/` | `string.c`, `fmt.c` (vsnprintf): shared by kernel and libc; `mem.s` (kernel) and `umem.s` (libc): memcpy, memmove, memset | 530 |
-| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 3,980 |
+| `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 4,910 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
 | `libuconf/` | the `.uconf` dotfile parser every program links | 440 |
@@ -126,7 +129,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `libpkg/` | the package manager (dpkg and apt work-alikes): .deb files, the dpkg database, repositories, a dependency solver; programs opt in with `USE_PKG` | 6,400 |
 | `libsig/` | OpenPGP signature checks (RSA, Ed25519, keyrings, cleartext) for apt; `keyrings/` holds Debian's archive keys for the image | 1,660 |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
-| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c` | 1,120 (plus the suites under `tests/`) |
+| `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c`, `wasmfork.c` (the fork stack transform, about 970 lines) | 1,120 (plus the suites under `tests/`) |
 | `docs/` | the detailed context files listed below | |
 
 ## Traps that have already cost time (details in `docs/DEVELOPMENT.md`)

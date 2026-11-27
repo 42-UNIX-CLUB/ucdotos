@@ -359,14 +359,7 @@ static long sys_sysinfo(u32 uinfo) {
   si.bufferram = kmem_used();
   return copy_to_user(uinfo, &si, sizeof si);
 }
-static long sys_kill(int pid, int sig) {
-  if (sig < 0 || sig > 64) return -EINVAL;
-  if (pid <= 0 || pid >= NPROC || procs[pid].state != P_RUN) return -ESRCH;
-  if (sig == 0) return 0;
-  proc_exit(&procs[pid], 256 + sig);
-  host_wake(pid); /* let its suspended stack unwind */
-  return pid == cur->pid ? -ERESTARTSYS : 0;
-}
+static long sys_kill(int pid, int sig) { return sys_kill2(pid, sig); } /* kernel/signal.c */
 static long sys_prw(int wr, int fd, u32 ubuf, u32 len, u32 pos) {
   struct file *f = fd_get(fd);
   if (!f) return -EBADF;
@@ -467,6 +460,13 @@ static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long
   case SYS_spawn: return sys_spawn(a, b, c, d);
   case SYS_getargs: return sys_getargs(a, b);
   case SYS_procinfo: return sys_procinfo(a, b);
+  /* fork, exec and signals: kernel/fork.c, kernel/signal.c */
+  case SYS_pclone: return sys_pclone(a);
+  case SYS_pmigrate: return sys_pmigrate(a, b, c);
+  case SYS_execve: return sys_execve(a, b, c);
+  case SYS_rt_sigaction: case SYS_rt_sigprocmask: case SYS_rt_sigpending: case SYS_rt_sigsuspend:
+  case SYS_tgkill: case SYS_sigtake: case SYS_setitimer: case SYS_getitimer:
+    return sys_signal_call(nr, a, b, c, d);
   }
   return -ENOSYS;
 }
@@ -477,14 +477,22 @@ static __attribute__((noinline)) long syscall_slow(long nr, long a, long b, long
  * carried out. Input, the screen and other processes get to run. The call itself has not
  * started yet, so the process simply retries it when it resumes. Both helpers are out of
  * line so that the clock read and its floating point stay off the hot path. */
-static __attribute__((noinline)) int slice_over(void) {
+static __attribute__((noinline)) int slice_over(long nr) {
+  if (cur->sig_kick && sig_kicked(nr)) return 1; /* a signal or a stop: kernel/signal.c */
   double now = host_now();
+  if (cur->alarm_at && now >= cur->alarm_at) {
+    alarm_check(now);
+    if (cur->state != P_RUN) { cur->kick_ret = -ERESTARTSYS; return 1; } /* SIGALRM killed it */
+    /* a handler is pending now: if this call would block, block() interrupts it (EINTR);
+     * otherwise it runs at the next call */
+  }
   if (cur->slice_start == 0) { cur->slice_start = now; return 0; }
   return now - cur->slice_start > SLICE_MS;
 }
 static __attribute__((noinline)) long preempt(void) {
+  if (cur->kick_ret) { long k = cur->kick_ret; cur->kick_ret = 0; return k; } /* set by sig_kicked */
   cur->nsys--; /* the call will be made again */
-  long r = block(0);
+  long r = block_raw(0);
   cur->sleeping = 0; /* preempted, not sleeping */
   return r;
 }
@@ -497,7 +505,7 @@ EXPORT(syscall_pid) long syscall_pid(int pid, long nr, long a, long b, long c, l
   struct proc *p = &procs[pid]; /* a local, so the cases below need not reload cur */
   cur = p;
   p->sleeping = 0;
-  if (__builtin_expect((++p->nsys & 255) == 0, 0) && slice_over()) return preempt();
+  if (__builtin_expect((++p->nsys & 255) == 0, 0) && slice_over(nr)) return preempt();
   switch (nr) {
   case SYS_getppid: return p->ppid;
   case SYS_getpid: return p->pid;

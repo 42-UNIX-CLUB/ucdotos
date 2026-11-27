@@ -50,6 +50,41 @@ const TRAMPOLINE = new Uint8Array([
   0x10, 0x00, 0x0b,                                                                   // call k.sys; end
 ]);
 
+// Memory copier for fork's clone, hand-assembled. It imports the parent's memory "s" (0) and
+// the child's "d" (1) and exports c(bytes): for each 4 KiB page, if the parent's page holds a
+// non-zero byte, memory.copy it. The child's fresh memory is already zero, and a page that is
+// never written is never faulted in by the OS: on a small program (whose 1 MiB stack region is
+// mostly zero) this makes the copy about three times cheaper; on a full memory it costs the same
+// as a plain copy (PERFORMANCE.md section 12).
+const ZCOPY_BODY = [
+  0x02, 0x02, 0x7f, 0x01, 0x7e,                                     // locals p, q: i32; (unused) i64
+  0x03, 0x40,                                                       // loop pages
+  0x02, 0x40,                                                       //  block skip
+  0x02, 0x40,                                                       //   block nonzero
+  0x20, 0x01, 0x21, 0x02,                                           //    q = p
+  0x03, 0x40,                                                       //    loop words
+  0x20, 0x02, 0x29, 0x03, 0x00, 0x20, 0x02, 0x29, 0x03, 0x08, 0x84, //     i64 at q | q+8
+  0x20, 0x02, 0x29, 0x03, 0x10, 0x84, 0x20, 0x02, 0x29, 0x03, 0x18, 0x84, // | q+16 | q+24
+  0x50, 0x45, 0x0d, 0x01,                                           //     non-zero: br nonzero
+  0x20, 0x02, 0x41, 0x20, 0x6a, 0x22, 0x02,                         //     q += 32
+  0x20, 0x01, 0x41, 0x80, 0x20, 0x6a, 0x49, 0x0d, 0x00,             //     q < p + 4096: again
+  0x0b, 0x0c, 0x01,                                                 //    all zero: br skip
+  0x0b,
+  0x20, 0x01, 0x20, 0x01, 0x41, 0x80, 0x20, 0xfc, 0x0a, 0x01, 0x00, //   memory.copy d[p] <- s[p], 4096
+  0x0b,
+  0x20, 0x01, 0x41, 0x80, 0x20, 0x6a, 0x22, 0x01,                   //  p += 4096
+  0x20, 0x00, 0x49, 0x0d, 0x00,                                     //  p < bytes: again
+  0x0b, 0x0b,
+];
+const ZCOPY = new Uint8Array([
+  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+  0x01, 0x05, 0x01, 0x60, 0x01, 0x7f, 0x00,                                           // type (i32) -> ()
+  0x02, 0x13, 0x02, 0x01, 0x73, 0x03, 0x6d, 0x65, 0x6d, 0x02, 0x00, 0x00,             // import s.mem
+  0x01, 0x64, 0x03, 0x6d, 0x65, 0x6d, 0x02, 0x00, 0x00,                               // import d.mem
+  0x03, 0x02, 0x01, 0x00, 0x07, 0x05, 0x01, 0x01, 0x63, 0x00, 0x00,                   // func c, exported
+  0x0a, ZCOPY_BODY.length + 2, 0x01, ZCOPY_BODY.length, ...ZCOPY_BODY,
+]);
+
 export function checkSupport() {
   const missing = [];
   if (typeof WebAssembly !== 'object') missing.push('WebAssembly');
@@ -88,6 +123,7 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
   const yieldTask = (f) => { if (port.ref) port.ref(); yieldQueue.push(f); yieldChannel.port2.postMessage(0); };
   const shimModule = await WebAssembly.compile(SHIM);
   const trampModule = await WebAssembly.compile(TRAMPOLINE);
+  const zcopyModule = await WebAssembly.compile(ZCOPY);
   const procs = new Map();        // pid -> { pid, dead, wake, timer, slot }
   const modules = new Map();      // cache of compiled programs
   const freeSlots = [];
@@ -158,26 +194,113 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
     spawn(pid, ptr, len, cacheable) {
       const P = { pid, dead: false, wake: null, timer: 0, slot: undefined };
       procs.set(pid, P);
-      const key = ptr + ':' + len;
-      let compiled = cacheable ? modules.get(key) : undefined;
-      if (!compiled) {
-        compiled = WebAssembly.compile(mem().slice(ptr, ptr + len));
-        if (cacheable) modules.set(key, compiled);
+      load(P, ptr, len, cacheable);
+    },
+    // execve: the same pid gets a new program. The old instance is inside this very system
+    // call; the kernel returns -ERESTARTSYS to it, and its block() finds it dead and throws
+    // EXIT, which ends its stack without running any more of its code. Its memory goes with it.
+    exec(pid, ptr, len, cacheable) {
+      const old = procs.get(pid);
+      const P = { pid, dead: false, wake: null, timer: 0, slot: undefined };
+      if (old) { P.slot = old.slot; old.slot = undefined; stop(old); }
+      procs.set(pid, P);
+      load(P, ptr, len, cacheable);
+    },
+    // fork's primitive: a new instance of the parent's module, with a copy of its memory and
+    // of its exported mutable globals, made right now (the parent is inside this call, so its
+    // memory does not change). The child then starts at its export __fork_child.
+    // Returns 0, or -errno: -ENOEXEC if the program has no __fork_child, -ENOMEM if it failed.
+    clone(ppid, cpid) {
+      const PP = procs.get(ppid);
+      if (!PP || !PP.inst || typeof PP.inst.exports.__fork_child !== 'function') return -8;
+      const P = { pid: cpid, dead: false, wake: null, timer: 0, slot: undefined };
+      try {
+        instantiate(P, PP.mod, new WebAssembly.Instance(trampModule, { k: { sys: k.syscall_pid }, p: { pid: cpid } }));
+        const src = PP.inst.exports.memory, dst = P.inst.exports.memory;
+        const grow = (src.buffer.byteLength - dst.buffer.byteLength) / 65536;
+        if (grow > 0) dst.grow(grow);
+        const bytes = src.buffer.byteLength;
+        if (bytes <= 0xfffff000) new WebAssembly.Instance(zcopyModule, { s: { mem: src }, d: { mem: dst } }).exports.c(bytes);
+        else new Uint8Array(dst.buffer).set(new Uint8Array(src.buffer)); // a full 4 GiB memory: c() takes a 32-bit size
+        for (const name of mutableGlobals(PP)) P.inst.exports[name].value = PP.inst.exports[name].value;
+        attach(P);
+      } catch (e) {
+        if (debug) log(`[host] clone of pid ${ppid} failed: ${e && e.message}\n`);
+        if (P.slot !== undefined) freeSlots.push(P.slot);
+        return -12;
       }
-      compiled.then((mod) => start(P, mod), (e) => { if (debug) log(`[host] pid ${pid}: ${e.message}\n`); if (!P.dead) k.proc_crashed(pid, 4); });
+      procs.set(cpid, P);
+      queueMicrotask(() => run(P, '__fork_child'));
+      return 0;
     },
   };
+  // migrate: the same pid continues in a new instance with a fresh memory of the same size,
+  // holding only the ranges the process listed (u32 start, length pairs at ptr in its memory).
+  // Outside them it holds what a new instance holds: the module's data segments, else zero.
+  // The old instance is inside this call; like exec, it is thrown away when it asks to wait.
+  // Returns 0, or -errno and nothing changed: -ENOEXEC without __migrate_resume, -EFAULT for a
+  // range outside memory, -ENOMEM if the new instance cannot be made.
+  host.migrate = (pid, ptr, n) => {
+    const PP = procs.get(pid);
+    if (!PP || !PP.inst || typeof PP.inst.exports.__migrate_resume !== 'function') return -8;
+    const src = PP.inst.exports.memory, bytes = src.buffer.byteLength;
+    const r = new Uint32Array(src.buffer, ptr, n * 2).slice();
+    for (let i = 0; i < n; i++) if (r[2 * i] + r[2 * i + 1] > bytes) return -14;
+    const P = { pid, dead: false, wake: null, timer: 0, slot: undefined };
+    try {
+      instantiate(P, PP.mod, new WebAssembly.Instance(trampModule, { k: { sys: k.syscall_pid }, p: { pid } }));
+      const dst = P.inst.exports.memory;
+      const grow = (bytes - dst.buffer.byteLength) / 65536;
+      if (grow > 0) dst.grow(grow);
+      const s8 = new Uint8Array(src.buffer), d8 = new Uint8Array(dst.buffer);
+      for (let i = 0; i < n; i++) if (r[2 * i + 1]) d8.set(s8.subarray(r[2 * i], r[2 * i] + r[2 * i + 1]), r[2 * i]);
+      for (const name of mutableGlobals(PP)) P.inst.exports[name].value = PP.inst.exports[name].value;
+      P.slot = PP.slot;
+      attach(P);
+    } catch (e) {
+      if (debug) log(`[host] migrate of pid ${pid} failed: ${e && e.message}\n`);
+      return -12;
+    }
+    PP.slot = undefined;
+    stop(PP);
+    procs.set(pid, P);
+    queueMicrotask(() => run(P, '__migrate_resume'));
+    return 0;
+  };
+  function load(P, ptr, len, cacheable) {
+    const key = ptr + ':' + len;
+    let compiled = cacheable ? modules.get(key) : undefined;
+    if (!compiled) {
+      compiled = WebAssembly.compile(mem().slice(ptr, ptr + len));
+      if (cacheable) modules.set(key, compiled);
+    }
+    compiled.then((mod) => start(P, mod), (e) => { if (debug) log(`[host] pid ${P.pid}: ${e.message}\n`); if (!P.dead) k.proc_crashed(P.pid, 4); });
+  }
+  // The names of the exported globals that can be written (the stack pointer, at least, when
+  // the program is linked with --export=__stack_pointer), found once per module.
+  const globalNames = new WeakMap();
+  function mutableGlobals(P) {
+    let names = globalNames.get(P.mod);
+    if (!names) {
+      names = [];
+      for (const [name, v] of Object.entries(P.inst.exports)) {
+        if (!(v instanceof WebAssembly.Global)) continue;
+        try { v.value = v.value; names.push(name); } catch { /* immutable */ }
+      }
+      globalNames.set(P.mod, names);
+    }
+    return names;
+  }
 
-  async function start(P, mod) {
-    if (P.dead) return;
+  function makeBlock(P) {
     const pid = P.pid;
     const alive = () => !P.dead && k.proc_state(pid) === P_RUN;
     // block(): park this program's stack until the kernel wakes it or a timeout passes.
-    const block = new WebAssembly.Suspending(async () => {
+    return new WebAssembly.Suspending(async () => {
       if (!alive()) throw EXIT;
       k.proc_account(pid, performance.now() - P.t0);
       const ms = k.block_timeout(pid);
-      await new Promise((resolve) => {
+      if (ms !== -2) await new Promise((resolve) => { // -2: do not wait (a signal handler is to run)
         P.wake = resolve;
         const fire = () => { if (P.wake === resolve) { P.wake = null; resolve(); } };
         if (ms === 0) yieldTask(fire);
@@ -190,29 +313,48 @@ export async function boot({ kernel, initrd, cmdline = '', screen = null, log = 
       P.t0 = performance.now();
       k.proc_resumed(pid, P.t0);
     });
-    let inst;
+  }
+  // The program instance (synchronous: clone needs it within the parent's system call).
+  function instantiate(P, mod, tramp) {
+    P.mod = mod;
+    P.inst = new WebAssembly.Instance(mod, { host: { syscall: tramp.exports.c, block: makeBlock(P) } });
+  }
+  // The copy shim, in the kernel's table (an exec reuses the slots of the program it replaces).
+  function attach(P) {
+    const shim = new WebAssembly.Instance(shimModule, { k: { mem: k.memory }, p: { mem: P.inst.exports.memory } });
+    const slot = P.slot !== undefined ? P.slot : freeSlots.length ? freeSlots.pop() : table.grow(3);
+    P.slot = slot;
+    table.set(slot, shim.exports.i);
+    table.set(slot + 1, shim.exports.o);
+    table.set(slot + 2, shim.exports.s);
+    k.proc_attach(P.pid, slot, slot + 1, slot + 2);
+  }
+  async function start(P, mod) {
+    if (P.dead) return;
+    const pid = P.pid;
     try {
       const tramp = await WebAssembly.instantiate(trampModule, { k: { sys: k.syscall_pid }, p: { pid } });
-      inst = await WebAssembly.instantiate(mod, { host: { syscall: tramp.exports.c, block } });
       if (P.dead) return;
-      const shim = await WebAssembly.instantiate(shimModule, { k: { mem: k.memory }, p: { mem: inst.exports.memory } });
-      if (P.dead) return;
-      const slot = freeSlots.length ? freeSlots.pop() : table.grow(3);
-      P.slot = slot;
-      table.set(slot, shim.exports.i);
-      table.set(slot + 1, shim.exports.o);
-      table.set(slot + 2, shim.exports.s);
-      k.proc_attach(pid, slot, slot + 1, slot + 2);
+      instantiate(P, mod, tramp);
+      attach(P);
     } catch (e) {
       if (debug) log(`[host] pid ${pid} failed to load: ${e.message}\n`);
       if (!P.dead) k.proc_crashed(pid, 4);
       return;
     }
+    await run(P, '_start');
+  }
+  // Run the program from an entry point (_start, or __fork_child in a cloned process).
+  async function run(P, entry) {
+    if (P.dead) return;
+    const pid = P.pid;
     k.set_current(pid);
     P.t0 = performance.now();
     k.proc_resumed(pid, P.t0);
     try {
-      await WebAssembly.promising(inst.exports._start)();
+      await WebAssembly.promising(P.inst.exports[entry])();
+      // An entry point must not return; one that does has nowhere to go.
+      if (!P.dead && k.proc_state(pid) === P_RUN) k.proc_crashed(pid, 11);
     } catch (e) {
       if (e !== EXIT) {           // a wasm trap: bad memory access, unreachable, stack overflow
         if (debug) log(`[host] pid ${pid} trapped: ${e && e.message}\n`);

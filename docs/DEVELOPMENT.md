@@ -63,6 +63,8 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
 | `bin/NAME/USE_PKG` | optional empty file: also link `libpkg.a`, `libsig.a` and then `libarc.a` (the package tools use it) |
 | `bin/NAME/USE_ARC` | optional empty file: also link `libarc.a` (compression, tar, ar, checksums; `libarc/arc.h`) |
 | `bin/NAME/ALIASES` | optional: more names, one per line, under which the same program is copied into `/bin` (there are no links in the file system yet). The program looks at `argv[0]`. `bin/gzip/ALIASES` gives `gunzip`, `zcat`, `xz`, `xzcat`, ... |
+| `bin/NAME/USE_CLIP` | optional empty file: also link `libclip.a` (the clipboard client) |
+| `bin/NAME/USE_FORK` | optional empty file: run the stack transform (`tools/wasmfork.c`) after linking, so `fork()` works in that program (ARCHITECTURE.md section 5). Only `bin/forktest/` has it. A unified diff does not carry an empty new file: add it by hand when you move a patch |
 
 `main` may be `main(void)`, `main(int, char **)` or `main(int, char **, char **)`.
 The link tries `crt0_2.o` first and falls back to `crt0_3.o`.
@@ -121,7 +123,7 @@ first seven and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|
-| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 124 checks, 0 failed` |
+| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 152 checks, 0 failed` |
 | C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 298 checks, 0 failed` (292 if `/bin/sh` is not in the image) |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
 | .uconf parser | `node tools/run.mjs --build=B --init=/bin/uconftest` (part of `make test`); natively: `cc -Ilibuconf bin/uconftest.c libuconf/uconf.c` | `uconftest: 63 checks, 0 failed` |
@@ -155,6 +157,8 @@ Component suites:
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
 | shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 858 of 859; the known failure is umask-effect (no file modes on `main`) |
 | shell job control | `bin/sh/test/jobs.mjs` | `shot.mjs` | 10 checks on a kernel with signals, 2 without |
+| fork, vfork, exec, wait in a transformed program | `bin/forktest/` | `node tools/run.mjs --build=B --init=/bin/forktest`; `forktest bench N` times N fork and wait pairs | 16 checks, 0 failed |
+| the clone and migrate primitives used directly | `bin/clonetest.c` | `--init=/bin/clonetest --args="MODE"`, MODE one of `basic`, `loop N`, `fill`, `pipe`, `migrate TOTAL_MiB LIVE_MiB`, `bench MiB N`. It prints results, not ok/FAIL lines: `basic` must show the child with `r2=1` and the parent with `r2=7` (the child's exit status); `loop 5` prints `sum 5`; `fill` clones until EAGAIN and reaps all; `pipe` reads the child's 20 bytes and status 5; `migrate` says `state intact` | all five modes as expected (2026-11-26) |
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |
 | Doom | `bin/doom/tests/*.mjs`, `mkimage.sh` | `shot.mjs`; needs the data files in the build (`make WADS=DIR`, or `tools/get-doom-data.sh` first). `mkimage.sh` no longer puts a data file in the image: it arrives as a remote file. `launcher.mjs`, `message.mjs`, `import.mjs` and `browser.mjs` cover the launcher entries, the messages, a dropped file and Chromium | play, demo, window tests pass |
 | Linux programs (`lx`) | `bin/lx/tests/` | native: `sh bin/lx/tests/run.sh` (add `LX_SCRATCH=DIR` after `LX_SCRATCH=DIR sh bin/lx/tests/fetch-debian.sh`, which downloads Debian riscv64 packages outside the repository, for the Debian milestones); in UC.OS: `sh bin/lx/tests/mkimage.sh BUILD FILE:PATH...` then for example `node tools/run.mjs --build=BUILD --init=/bin/lx --args="/usr/bin/busybox sh /lx/m2.sh /usr/bin/busybox /tmp"` (busybox script) or `--args="/usr/bin/dash /lx/m34.sh"` (dynamic programs), with the small Debian root from `bin/lx/tests/mkimage-debian.sh`. The scripts need exactly these arguments: without them the busybox script reports 29 failures that are not real. Full commands in `docs/LINUX-BINARIES.md` section 11 | 23 of 23 native; in the OS 37 of 37 (busybox) and 10 of 10 (dynamic programs), 2026-11-26 |
@@ -328,7 +332,7 @@ that work, and what broke:
 - **Each agent tests natively where it can** (the API is Linux-shaped, so terminal
   programs compile with the host `cc` behind a small `#ifdef __wasm__` layer) and in the
   OS with the runners.
-- **Briefs state the hard facts**: no fork, no signals, single-threaded and cooperative,
+- **Briefs state the hard facts**: fork only in programs built with `USE_FORK`, signals only at system call boundaries, single-threaded and cooperative,
   the console is not a terminal, exact signatures, no em-dashes, never delete directories,
   report only what you ran.
 - **When the kernel or the host changes, tell every running agent to rebuild**, because

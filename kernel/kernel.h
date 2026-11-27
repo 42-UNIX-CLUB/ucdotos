@@ -129,6 +129,17 @@ struct proc {
   u8 sleeping, intr;  /* blocked in a system call; Ctrl-C pending */
   waitq child_wq;
   char name[32];
+  /* fork, exec and signals (kernel/fork.c, kernel/signal.c) */
+  u64 sig_pending, sig_blocked, sig_saved_mask; /* bit n-1 = signal n; saved_mask: rt_sigsuspend */
+  struct k_sigaction sa[65];
+  s32 sig_pid[65], sig_code[65], sig_status[65]; /* who sent each pending signal, for siginfo */
+  u32 kick_skew;      /* added to nsys to reach the next slow-path check; taken back there */
+  long kick_ret;      /* what the kicked system call returns instead of running */
+  u8 sig_kick;        /* check signals at the next system call entry */
+  u8 stopped, stop_sig, wait_report; /* job control; wait_report: 1 stop, 2 continue not yet reported */
+  u8 blk_signal, blk_norestart; /* a blocked call was interrupted by a signal; it never restarts */
+  u8 in_delivery, want_eintr, eintr_next, in_sigsuspend;
+  double alarm_at, alarm_ival; /* ITIMER_REAL, host clock in ms; 0 = off */
 };
 extern struct proc procs[NPROC];
 extern struct proc *cur;
@@ -143,6 +154,28 @@ void proc_exit(struct proc *p, int code);
 long block(double timeout_ms); /* returns -ERESTARTSYS for the syscall to return */
 
 /* subsystems */
+/* fork, exec and signals (kernel/fork.c, kernel/signal.c) */
+HOST(clone) int host_clone(int parent, int child);       /* new instance with a copy of parent's memory; 0 or -errno */
+HOST(exec) void host_exec(int pid, const u8 *wasm, u32 len, int cacheable); /* replace pid's program */
+HOST(migrate) int host_migrate(int pid, u32 uranges, u32 n); /* move pid into a fresh memory; 0 or -errno */
+long sys_pmigrate(u32 uranges, u32 n, int flags);
+int pid_alloc(void);
+long block_raw(double timeout_ms); /* block() without the signal check (time slicing, stopped processes) */
+long block_nr(double timeout_ms); /* like block(), but a signal handler makes the call fail with EINTR even with SA_RESTART */
+void sig_send(struct proc *p, int sig, int code, int from_pid, int status);
+void sig_kick(struct proc *p);    /* make p check its signals at its next system call */
+int sig_kicked(long nr);          /* at a system call entry: 1 = return cur->kick_ret instead of running the call */
+long sig_interrupt(int norestart); /* from block(): -ERESTARTSYS without waiting, so the libc runs handlers; 0 = no signal */
+void sig_child_exited(struct proc *c);
+void sig_exec_reset(struct proc *p);
+void sig_fork_copy(struct proc *child, struct proc *parent);
+void alarm_check(double now);
+long sig_pipe(void); /* a write found no reader: SIGPIPE to the writer; returns -EPIPE (or -ERESTARTSYS if it died) */
+long sys_pclone(int flags);
+long sys_execve(u32 upath, u32 uargv, u32 uenvp);
+long sys_signal_call(long nr, long a, long b, long c, long d);
+long sys_kill2(int pid, int sig);
+int tty_sig_leader(struct proc *p, int sig); /* Ctrl-C to a session leader with the default action: set intr instead */
 int pipe_create(struct file **r, struct file **w);
 void console_init(void);
 long sys_socket(int domain, int type, int proto);
