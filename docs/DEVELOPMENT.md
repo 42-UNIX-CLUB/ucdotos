@@ -123,8 +123,8 @@ first seven and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|
-| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 152 checks, 0 failed` |
-| C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 298 checks, 0 failed` (292 if `/bin/sh` is not in the image) |
+| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 271 checks, 0 failed` |
+| C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 324 checks, 0 failed` |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 238 checks, 238 passed, 0 failed` |
 | .uconf parser | `node tools/run.mjs --build=B --init=/bin/uconftest` (part of `make test`); natively: `cc -Ilibuconf bin/uconftest.c libuconf/uconf.c` | `uconftest: 63 checks, 0 failed` |
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
@@ -155,8 +155,11 @@ Component suites:
 | shell line editor | `bin/sh/test/le_test.c` | native: `cc bin/sh/test/le_test.c bin/sh/lineedit.c` | 42 checks |
 | core tools | `tools/tests/coretools/` | native, against the host's tools: `node tools/tests/coretools/run.mjs [TOOL...]` (`--regen` rewrites expectations from the host, `--emit-os` writes the in-OS script); in the OS: `sh /usr/share/tests/coretools.sh [-v] [TOOL...]`; fuzzing: `node tools/tests/coretools/fuzz.mjs sed\|diff SECONDS` and `tools/tests/coretools/fuzzre.c`. On this machine the host's grep is ugrep and its find is bfs, not GNU | 19,072 native, 1,755 in the OS (2026-11-26; cases marked `@noos` run natively only) |
 | interactive shell in the desktop | `bin/sh/test/interactive.mjs`, `welcome.mjs` | `shot.mjs` | 33 + 2 checks |
-| shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 858 of 859; the known failure is umask-effect (no file modes on `main`) |
+| shell conformance | `tools/tests/sh-posix.cases` (edit these), `rootfs/usr/share/tests/sh-posix.sh` (generated) | `node tools/tests/sh-posix.mjs --build=B` runs the cases in UC.OS in chunks of 60 and exits 1 on a failure; `--gen` regenerates the expected values with a host shell (set `TMPDIR` to a `build-*` directory: `/tmp` is a RAM disk here), `--host` runs them on the host; in the OS by hand: `sh /usr/share/tests/sh-posix.sh [FROM [TO]]` | 859 of 859 with the file system layer (858 without it: umask-effect needs file modes) |
 | shell job control | `bin/sh/test/jobs.mjs` | `shot.mjs` | 10 checks on a kernel with signals, 2 without |
+| image loader | `tools/tests/vfs-tar.mjs` | `node tools/tests/vfs-tar.mjs --build=B` | 11 checks: links, modes, owners, times from the tar |
+| persistence | `tools/tests/persist.mjs`, `persist-crash.mjs`, `integ-store.mjs`, `browser-persist.mjs` | `node tools/tests/NAME.mjs --build=B` (Node, a store file per run); `browser-persist.mjs` with `browser.mjs` (needs `make dist`) | 11, 10 and 7 checks (2026-11-26); the Chromium one not run with the current tree |
+| file system speed and scaling | `bin/fsbench.c` | `--init=/bin/fsbench` | see PERSISTENCE.md section 7 |
 | fork, vfork, exec, wait in a transformed program | `bin/forktest/` | `node tools/run.mjs --build=B --init=/bin/forktest`; `forktest bench N` times N fork and wait pairs | 16 checks, 0 failed |
 | the clone and migrate primitives used directly | `bin/clonetest.c` | `--init=/bin/clonetest --args="MODE"`, MODE one of `basic`, `loop N`, `fill`, `pipe`, `migrate TOTAL_MiB LIVE_MiB`, `bench MiB N`. It prints results, not ok/FAIL lines: `basic` must show the child with `r2=1` and the parent with `r2=7` (the child's exit status); `loop 5` prints `sum 5`; `fill` clones until EAGAIN and reaps all; `pipe` reads the child's 20 bytes and status 5; `migrate` says `state intact` | all five modes as expected (2026-11-26) |
 | font rasterizer | `tools/ttftest.c` (+ `ttftest_ft.c` against FreeType) | native; build line in its header | all fonts, 6,000 mutated fonts clean |

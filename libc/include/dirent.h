@@ -8,4 +8,8 @@ typedef struct __dir DIR;
 DIR *opendir(const char *);
 struct dirent *readdir(DIR *);
 int closedir(DIR *);
+/* ---- appended (libc/src/fs_posix.c) ---- */
+int dirfd(DIR *);
+DIR *fdopendir(int);
+void rewinddir(DIR *);
 #endif

@@ -6,15 +6,17 @@
 #include <errno.h>
 #include <time.h>
 #include <dirent.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 
 static int all, almost, lng, human, one, classify, rev, by_time, by_size, dir_only, tty, width = 80;
-struct ent { char *name; struct stat st; };
+struct ent { char *name; struct stat st; char *target; }; /* target: where a symbolic link points (-l) */
 
 static int ucols(const char *s) { int c = 0; for (; *s; s++) if (((unsigned char)*s & 0xc0) != 0x80) c++; return c; }
 static int is_exec(const struct stat *st) { return S_ISREG(st->st_mode) && (st->st_mode & 0111); }
 static const char *colour(const struct stat *st) {
+  if (S_ISLNK(st->st_mode)) return "\033[1;36m";
   if (S_ISDIR(st->st_mode)) return "\033[1;34m";
   if (S_ISCHR(st->st_mode)) return "\033[1;33m";
   if (S_ISFIFO(st->st_mode)) return "\033[33m";
@@ -24,6 +26,7 @@ static const char *colour(const struct stat *st) {
 }
 static char indicator(const struct stat *st) {
   if (!classify) return 0;
+  if (S_ISLNK(st->st_mode)) return '@';
   if (S_ISDIR(st->st_mode)) return '/';
   if (S_ISFIFO(st->st_mode)) return '|';
   if ((st->st_mode & S_IFMT) == S_IFSOCK) return '=';
@@ -38,6 +41,7 @@ static void put_name(const struct ent *e) {
   if (c) fputs("\033[0m", stdout);
   char ind = indicator(&e->st);
   if (ind) putchar(ind);
+  if (lng && e->target) printf(" -> %s", e->target);
 }
 
 static int cmp(const void *a, const void *b) {
@@ -84,9 +88,11 @@ static void long_list(struct ent *v, int n) {
     struct stat *st = &v[i].st;
     unsigned m = st->st_mode;
     char mode[11];
-    mode[0] = S_ISDIR(m) ? 'd' : S_ISCHR(m) ? 'c' : S_ISFIFO(m) ? 'p' : (m & S_IFMT) == S_IFSOCK ? 's' : '-';
-    if (!(m & 0777)) m |= S_ISDIR(m) ? 0755 : 0644; /* no permission bits stored: show the usual ones */
+    mode[0] = S_ISDIR(m) ? 'd' : S_ISLNK(m) ? 'l' : S_ISCHR(m) ? 'c' : S_ISBLK(m) ? 'b' : S_ISFIFO(m) ? 'p' : (m & S_IFMT) == S_IFSOCK ? 's' : '-';
     for (int k = 0; k < 9; k++) mode[1 + k] = (m >> (8 - k)) & 1 ? "rwxrwxrwx"[k] : '-';
+    if (m & S_ISUID) mode[3] = (m & 0100) ? 's' : 'S';
+    if (m & S_ISGID) mode[6] = (m & 010) ? 's' : 'S';
+    if (m & S_ISVTX) mode[9] = (m & 01) ? 't' : 'T';
     mode[10] = 0;
     char user[16], group[16];
     if (st->st_uid == 0) strcpy(user, "root"); else if (st->st_uid == 1000) strcpy(user, "user"); else sprintf(user, "%u", st->st_uid);
@@ -153,7 +159,13 @@ static int list_dir(const char *path) {
     v[n].name = strdup(e->d_name);
     char *full = malloc(strlen(path) + strlen(e->d_name) + 2);
     sprintf(full, "%s/%s", path, e->d_name);
-    if (stat(full, &v[n].st) != 0) memset(&v[n].st, 0, sizeof v[n].st);
+    if (lstat(full, &v[n].st) != 0) memset(&v[n].st, 0, sizeof v[n].st);
+    v[n].target = NULL;
+    if (lng && S_ISLNK(v[n].st.st_mode)) {
+      char t[4096];
+      long tl = readlink(full, t, sizeof t - 1);
+      if (tl >= 0) { t[tl] = 0; v[n].target = strdup(t); }
+    }
     free(full);
     n++;
   }
@@ -164,7 +176,7 @@ static int list_dir(const char *path) {
     printf("total %lld\n", blocks);
   }
   show(v, n);
-  for (int i = 0; i < n; i++) free(v[i].name);
+  for (int i = 0; i < n; i++) { free(v[i].name); free(v[i].target); }
   free(v);
   return 0;
 }
@@ -200,9 +212,16 @@ int main(int argc, char **argv) {
   int nf = 0, nd = 0;
   for (int k = i; k < argc; k++) {
     struct stat st;
-    if (stat(argv[k], &st) != 0) { fprintf(stderr, "ls: cannot access '%s': %s\n", argv[k], strerror(errno)); rc = 2; continue; }
+    /* with -l or -d a link named on the command line is shown, not followed (as GNU ls) */
+    if (((lng || dir_only) ? lstat(argv[k], &st) : stat(argv[k], &st)) != 0) { fprintf(stderr, "ls: cannot access '%s': %s\n", argv[k], strerror(errno)); rc = 2; continue; }
     if (S_ISDIR(st.st_mode) && !dir_only) dirs[nd++] = argv[k];
-    else { files[nf].name = argv[k]; files[nf].st = st; nf++; }
+    else {
+      files[nf].name = argv[k]; files[nf].st = st; files[nf].target = NULL;
+      char t[4096];
+      long tl = S_ISLNK(st.st_mode) ? readlink(argv[k], t, sizeof t - 1) : -1;
+      if (tl >= 0) { t[tl] = 0; files[nf].target = strdup(t); }
+      nf++;
+    }
   }
   show(files, nf);
   for (int k = 0; k < nd; k++) {

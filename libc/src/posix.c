@@ -56,9 +56,9 @@ int setpgid(pid_t pid, pid_t pg) { return __sysret(__syscall2(SYS_setpgid, pid, 
 pid_t getpgid(pid_t pid) { return __sysret(__syscall1(SYS_getpgid, pid)); }
 pid_t getpgrp(void) { return getpgid(0); }
 pid_t setsid(void) { return __sysret(__syscall0(SYS_setsid)); }
-uid_t geteuid(void) { return getuid(); }
-gid_t getgid(void) { return getuid(); }
-gid_t getegid(void) { return getuid(); }
+uid_t geteuid(void) { return __syscall0(SYS_geteuid); }
+gid_t getgid(void) { return __syscall0(SYS_getgid); }
+gid_t getegid(void) { return __syscall0(SYS_getegid); }
 
 /* signals: libc/src/signal.c */
 

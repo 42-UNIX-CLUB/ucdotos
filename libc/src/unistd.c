@@ -48,9 +48,9 @@ int rmdir(const char *p) { return __sysret(__syscall3(SYS_unlinkat, AT_FDCWD, p,
 int remove(const char *p) { return unlink(p) == 0 ? 0 : rmdir(p); }
 int mkdir(const char *p, mode_t m) { return __sysret(__syscall3(SYS_mkdirat, AT_FDCWD, p, m)); }
 int stat(const char *p, struct stat *st) { return __sysret(__syscall3(SYS_newfstatat, AT_FDCWD, p, st)); }
-int lstat(const char *p, struct stat *st) { return stat(p, st); }
+int lstat(const char *p, struct stat *st) { return __sysret(__syscall4(SYS_newfstatat, AT_FDCWD, p, st, AT_SYMLINK_NOFOLLOW)); }
 int fstat(int fd, struct stat *st) { return __sysret(__syscall2(SYS_fstat, fd, st)); }
-int access(const char *p, int mode) { struct stat st; (void)mode; return stat(p, &st); }
+int access(const char *p, int mode) { return __sysret(__syscall3(SYS_faccessat, AT_FDCWD, p, mode)); }
 int ftruncate(int fd, off_t n) { return __sysret(__syscall2(SYS_ftruncate, fd, n)); }
 int isatty(int fd) { struct stat st; return fstat(fd, &st) == 0 && S_ISCHR(st.st_mode); }
 pid_t getpid(void) { return __syscall0(SYS_getpid); }

@@ -166,7 +166,9 @@ struct g_stat {
   int64_t st_size;
   int32_t st_blksize, __pad2;
   int64_t st_blocks;
-  int64_t st_atime, st_atime_nsec, st_mtime, st_mtime_nsec, st_ctime, st_ctime_nsec;
+  /* Linux names these st_atime, st_atime_nsec...; renamed here because UC.OS's <sys/stat.h>
+   * defines st_atime as a macro (st_atim.tv_sec), as glibc does */
+  int64_t g_atime, g_atime_nsec, g_mtime, g_mtime_nsec, g_ctime, g_ctime_nsec;
   uint32_t __unused4, __unused5;
 };
 _Static_assert(sizeof(struct g_stat) == 128, "g_stat");

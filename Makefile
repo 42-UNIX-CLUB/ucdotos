@@ -194,7 +194,7 @@ $(B)/initrd.tar.gz: $(B)/initrd.tar
 # A directory ready to be served by any static web server.
 dist: all $(B)/initrd.tar.gz
 	@mkdir -p $(B)/dist
-	@cp boot/index.html boot/page.mjs boot/host.mjs boot/audio.mjs boot/audio-worklet.js boot/hostnet.mjs boot/keys.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
+	@cp boot/index.html boot/page.mjs boot/host.mjs boot/audio.mjs boot/audio-worklet.js boot/hostnet.mjs boot/keys.mjs boot/store.mjs $(B)/kernel.wasm $(B)/initrd.tar $(B)/initrd.tar.gz $(B)/dist/
 	@cp -r $(B)/files $(B)/dist/
 	@echo "  DIST  $(B)/dist"
 .PHONY: dist

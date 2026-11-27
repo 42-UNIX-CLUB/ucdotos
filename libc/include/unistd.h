@@ -61,23 +61,50 @@ int getpagesize(void);
 int getopt(int, char *const[], const char *);
 extern char *optarg;
 extern int optind, opterr, optopt;
-/* owners, sync, terminal names (libc/src/tools_compat.c; the kernel may answer ENOSYS) */
+/* terminal names (libc/src/tools_compat.c) */
+char *ttyname(int);
+/* ---- file system: links, owners, syncing, credentials (libc/src/fs_posix.c) ---- */
+#include <sys/types.h>
+int symlink(const char *, const char *);
+int symlinkat(const char *, int, const char *);
+ssize_t readlink(const char *, char *, size_t);
+ssize_t readlinkat(int, const char *, char *, size_t);
+int link(const char *, const char *);
+int linkat(int, const char *, int, const char *, int);
+int unlinkat(int, const char *, int);
+int fchdir(int);
+int chroot(const char *);
+int truncate(const char *, off_t);
+int fsync(int);
+int fdatasync(int);
+int syncfs(int);
+void sync(void);
+int faccessat(int, const char *, int, int);
+int eaccess(const char *, int);
+int euidaccess(const char *, int);
 int chown(const char *, uid_t, gid_t);
 int lchown(const char *, uid_t, gid_t);
 int fchown(int, uid_t, gid_t);
-int fsync(int);
-void sync(void);
-char *ttyname(int);
-/* links and owners (libc/src/arc_compat.c; the kernel may answer ENOSYS) */
-int symlink(const char *, const char *);
-int symlinkat(const char *, int, const char *);
-int link(const char *, const char *);
-int linkat(int, const char *, int, const char *, int);
-ssize_t readlink(const char *, char *, size_t);
-ssize_t readlinkat(int, const char *, char *, size_t);
 int fchownat(int, const char *, uid_t, gid_t, int);
-/* durability (libc/src/pkg_compat.c; the kernel may answer ENOSYS); fsync is above */
-int fdatasync(int);
+ssize_t pread(int, void *, size_t, off_t);
+ssize_t pwrite(int, const void *, size_t, off_t);
+int setuid(uid_t);
+int setgid(gid_t);
+int seteuid(uid_t);
+int setegid(gid_t);
+int setreuid(uid_t, uid_t);
+int setregid(gid_t, gid_t);
+int setresuid(uid_t, uid_t, uid_t);
+int setresgid(gid_t, gid_t, gid_t);
+int getresuid(uid_t *, uid_t *, uid_t *);
+int getresgid(gid_t *, gid_t *, gid_t *);
+int getgroups(int, gid_t *);
+int setgroups(size_t, const gid_t *);
+int lockf(int, int, off_t);
+#define F_ULOCK 0
+#define F_LOCK 1
+#define F_TLOCK 2
+#define F_TEST 3
 /* fork and exec (libc/src/fork.c, exec.c). fork() and vfork() work only in programs built
  * with the stack transform (USE_FORK; see docs/ARCHITECTURE.md section 5); elsewhere they
  * fail with ENOSYS. fork_call(fn, arg) works everywhere: the child runs fn(arg) and exits. */
