@@ -130,4 +130,14 @@ int tar_write_header(arc_writer *w, const tar_entry *e);           /* 0 or -1; p
 long tar_write(arc_writer *w, const void *buf, unsigned long n);   /* the entry's data; never more than e->size in total */
 int tar_write_end(arc_writer *w);                                   /* pads the last entry, writes the two zero blocks */
 
+/* SHA-384 uses the SHA-512 state and arc_sha512_update. SHA-1 is here only
+ * because OpenPGP version 4 key fingerprints are SHA-1 values; it must not be
+ * used to check signatures or data. */
+void arc_sha384_init(arc_sha512 *c);
+void arc_sha384_final(arc_sha512 *c, unsigned char out[48]);
+typedef struct { unsigned long long len; unsigned int h[5]; unsigned char buf[64]; unsigned n; } arc_sha1;
+void arc_sha1_init(arc_sha1 *c);
+void arc_sha1_update(arc_sha1 *c, const void *p, unsigned long n);
+void arc_sha1_final(arc_sha1 *c, unsigned char out[20]);
+
 #endif

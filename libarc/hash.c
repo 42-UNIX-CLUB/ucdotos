@@ -214,3 +214,68 @@ void arc_md5_final(arc_md5 *c, unsigned char out[16]) {
   md5_block(c->h, c->buf);
   for (int i = 0; i < 4; i++) wr32le(out + 4 * i, c->h[i]);
 }
+
+/* ---- SHA-384 (FIPS 180-4, 6.5): SHA-512 with its own initial values, cut to 48 bytes ---- */
+void arc_sha384_init(arc_sha512 *c) {
+  static const uint64_t iv[8] = {0xcbbb9d5dc1059ed8ull, 0x629a292a367cd507ull, 0x9159015a3070dd17ull, 0x152fecd8f70e5939ull,
+                                 0x67332667ffc00b31ull, 0x8eb44a8768581511ull, 0xdb0c2e0d64f98fa7ull, 0x47b5481dbefa4fa4ull};
+  memcpy(c->h, iv, sizeof iv);
+  c->len = 0;
+  c->n = 0;
+}
+void arc_sha384_final(arc_sha512 *c, unsigned char out[48]) {
+  unsigned char full[64];
+  arc_sha512_final(c, full);
+  memcpy(out, full, 48);
+}
+
+/* ---- SHA-1 (FIPS 180-4, 6.1). OpenPGP version 4 key fingerprints are SHA-1
+ * values, so the signature code needs it to name keys. It is broken for
+ * signatures and nothing here uses it to check one. ---- */
+static void sha1_block(uint32_t h[5], const uint8_t *p) {
+  uint32_t w[80];
+  for (int i = 0; i < 16; i++) w[i] = rd32be(p + 4 * i);
+  for (int i = 16; i < 80; i++) w[i] = ROL32(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+  uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4];
+  for (int i = 0; i < 80; i++) {
+    uint32_t f, k;
+    if (i < 20) { f = (b & c) | (~b & d); k = 0x5a827999; }
+    else if (i < 40) { f = b ^ c ^ d; k = 0x6ed9eba1; }
+    else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8f1bbcdc; }
+    else { f = b ^ c ^ d; k = 0xca62c1d6; }
+    uint32_t t = ROL32(a, 5) + f + e + k + w[i];
+    e = d; d = c; c = ROL32(b, 30); b = a; a = t;
+  }
+  h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e;
+}
+void arc_sha1_init(arc_sha1 *c) {
+  c->h[0] = 0x67452301; c->h[1] = 0xefcdab89; c->h[2] = 0x98badcfe; c->h[3] = 0x10325476; c->h[4] = 0xc3d2e1f0;
+  c->len = 0;
+  c->n = 0;
+}
+void arc_sha1_update(arc_sha1 *c, const void *buf, unsigned long n) {
+  if (n == 0) return;
+  const uint8_t *p = buf;
+  c->len += n;
+  if (c->n) {
+    unsigned k = 64 - c->n;
+    if (k > n) k = n;
+    memcpy(c->buf + c->n, p, k);
+    c->n += k; p += k; n -= k;
+    if (c->n < 64) return;
+    sha1_block(c->h, c->buf);
+    c->n = 0;
+  }
+  while (n >= 64) { sha1_block(c->h, p); p += 64; n -= 64; }
+  memcpy(c->buf, p, n);
+  c->n = n;
+}
+void arc_sha1_final(arc_sha1 *c, unsigned char out[20]) {
+  uint64_t bits = c->len * 8;
+  c->buf[c->n++] = 0x80;
+  if (c->n > 56) { memset(c->buf + c->n, 0, 64 - c->n); sha1_block(c->h, c->buf); c->n = 0; }
+  memset(c->buf + c->n, 0, 56 - c->n);
+  for (int i = 0; i < 8; i++) c->buf[56 + i] = bits >> (56 - 8 * i);
+  sha1_block(c->h, c->buf);
+  for (int i = 0; i < 5; i++) wr32be(out + 4 * i, c->h[i]);
+}

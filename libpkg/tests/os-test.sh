@@ -11,7 +11,7 @@ set -eu
 top=$(cd "$(dirname "$0")/../.." && pwd)
 B=${1:-build-pkgos}
 cd "$top"
-PROGS="sh cat grep ls mkdir rm cp mv head wc echo true false touch env dpkg dpkg-deb apt"   # apt-get, apt-cache and dpkg-query come with apt and dpkg (ALIASES)
+PROGS="sh cat grep ls mkdir rm cp mv head wc echo true false touch env dpkg dpkg-deb apt apt-keyring"   # apt-get, apt-cache and dpkg-query come with apt and dpkg (ALIASES)
 nice -n 15 make B="$B" PROGS="$PROGS" >/dev/null
 sh "$top/libpkg/tests/build-native.sh" "$top/$B/native" >/dev/null   # for dpkg-deb -f when writing the index
 ST=$top/$B/root/pkgtest
@@ -53,6 +53,22 @@ rm -f "$pk.xz" "$pk.gz"; xz -k "$pk"; gzip -9nk "$pk"
     printf ' %s %s main/binary-riscv64/%s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$(wc -c < "$f" | tr -d ' ')" "$(basename "$f")"
   done; } > "$ST/r/dists/test/Release"
 rm -f "$pk"   # only the compressed indexes are offered, so apt must decompress inside UC.OS
+# Sign the repository with a key made here by the host's gpg; the image gets
+# the public key in /pkgtest/keys. Two more repositories: ru, unsigned, and rb,
+# with an InRelease changed after signing (copies; files are overwritten,
+# nothing is deleted; short names keep apt's list names under 63 bytes).
+command -v gpg >/dev/null 2>&1 || { echo "os-test.sh needs the host's gpg to sign the test repository"; exit 1; }
+GH=$top/$B/gnupg; mkdir -p "$GH"; chmod 700 "$GH"
+G() { GNUPGHOME=$GH gpg --batch --quiet --no-tty --pinentry-mode loopback --passphrase '' "$@"; }
+G --list-keys os-test@example.invalid >/dev/null 2>&1 || G --quick-gen-key 'OS Test Archive <os-test@example.invalid>' ed25519 sign never
+mkdir -p "$ST/keys"
+G --export os-test@example.invalid > "$ST/keys/test.gpg"
+rm -f "$ST/r/dists/test/InRelease"
+G -u os-test@example.invalid --clearsign -o "$ST/r/dists/test/InRelease" "$ST/r/dists/test/Release"
+for r in ru rb; do mkdir -p "$ST/$r"; cp -R "$ST/r/." "$ST/$r/"; done
+rm -f "$ST/ru/dists/test/InRelease"
+sed 's/^Codename: test$/Codename: tesT/' "$ST/r/dists/test/InRelease" > "$ST/rb/dists/test/InRelease"
+command -v gpgconf >/dev/null 2>&1 && gpgconf --homedir "$GH" --kill gpg-agent 2>/dev/null   # stop the agent gpg started
 cp "$top/libpkg/tests/os/pkg-os.sh" "$ST/pkg-os.sh"
 tar --format=ustar --owner=0 --group=0 -C "$top/$B/root" -cf "$top/$B/initrd.tar" .
 node tools/run.mjs --build="$B" --init=/bin/sh --input='sh /pkgtest/pkg-os.sh\nexit\n' 2>&1 | tee "$top/$B/pkg-os.log" | tail -40

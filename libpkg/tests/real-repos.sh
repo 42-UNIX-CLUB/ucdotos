@@ -37,15 +37,20 @@ done
 W=$out/real-$(date +%Y%m%d-%H%M%S)-$$
 mkdir -p "$W/conf"
 export UCOS_PKG_CONFDIR=$W/conf
+KEYS=${KEYRINGS_DIR:-$top/build-keyrings}
 PKGS=${PKGS:-hello busybox-static bash coreutils python3-minimal gcc git nginx-light}
 printf '%-8s %-8s %-16s %5s %10s %11s %5s %10s %11s %8s\n' distro arch package pkgs download installed "+base" download installed solve_ms
 for distro in debian ubuntu; do
   for a in amd64 arm64 riscv64; do
     R=$W/$distro-$a
     mkdir -p "$R/etc/apt"
-    if [ $distro = debian ]; then echo "deb [arch=$a] file:$M/debian trixie main" > "$R/etc/apt/sources.list"
-    elif [ $a = amd64 ]; then echo "deb [arch=$a] file:$M/ubuntu resolute main universe" > "$R/etc/apt/sources.list"
-    else echo "deb [arch=$a] file:$M/ubuntu-ports resolute main universe" > "$R/etc/apt/sources.list"; fi
+    # the real InRelease files are checked with the real archive keys when
+    # libpkg/tests/fetch-keyrings.sh has fetched them; otherwise [trusted=yes]
+    kd=$(find "$KEYS" -path "*$distro*/usr/share/keyrings/$distro-archive-keyring.*" 2>/dev/null | head -1)
+    if [ -n "$kd" ]; then mkdir -p "$R/etc/apt/trusted.gpg.d"; cp "$kd" "$R/etc/apt/trusted.gpg.d/$distro.gpg"; opt=; else opt=" trusted=yes"; fi
+    if [ $distro = debian ]; then echo "deb [arch=$a$opt] file:$M/debian trixie main" > "$R/etc/apt/sources.list"
+    elif [ $a = amd64 ]; then echo "deb [arch=$a$opt] file:$M/ubuntu resolute main universe" > "$R/etc/apt/sources.list"
+    else echo "deb [arch=$a$opt] file:$M/ubuntu-ports resolute main universe" > "$R/etc/apt/sources.list"; fi
     A="-o Dir=$R -o APT::Architecture=$a ${APT_EXTRA:-}"
     "$BIN/apt-get" $A -q update > "$R/update.log" 2>&1 || { echo "update failed for $distro $a (see $R/update.log)"; continue; }
     # the base system: every package of priority required (what debootstrap's minbase starts from)
