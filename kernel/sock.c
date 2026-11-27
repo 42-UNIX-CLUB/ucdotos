@@ -19,31 +19,37 @@ struct sock {
 };
 struct sockaddr_un { u16 family; char path[108]; };
 
-static long sock_read(struct file *f, u32 ubuf, u32 len) {
+/* MSG_PEEK leaves the bytes queued; MSG_DONTWAIT is O_NONBLOCK for this call only */
+static long sock_recv(struct file *f, u32 ubuf, u32 len, int flags) {
   struct sock *s = f->priv;
   if (s->state != S_CONN) return -EINVAL;
   if (!s->rx_len) {
     if (s->hup || !len) return 0;
-    if (f->flags & O_NONBLOCK) return -EAGAIN;
+    if ((f->flags & O_NONBLOCK) || (flags & MSG_DONTWAIT)) return -EAGAIN;
     wq_add(&s->rq);
     return block(-1);
   }
   if (len > s->rx_len) len = s->rx_len;
   u32 first = SOCK_BUF - s->rx_head < len ? SOCK_BUF - s->rx_head : len;
   if (copy_to_user(ubuf, s->rx + s->rx_head, first) || copy_to_user(ubuf + first, s->rx, len - first)) return -EFAULT;
+  if (flags & MSG_PEEK) return len;
   s->rx_head = (s->rx_head + len) % SOCK_BUF;
   s->rx_len -= len;
+  if (!s->rx_len) s->rx_head = 0; /* an empty queue starts again at the front: it does not creep through the buffer */
   wq_wake(&s->wq);
   return len;
 }
-static long sock_write(struct file *f, u32 ubuf, u32 len) {
+/* A write to a connection whose peer is gone raises SIGPIPE in the writer, as on Linux,
+ * unless the caller passed MSG_NOSIGNAL; EPIPE either way (the default action of SIGPIPE
+ * ends the writer first). */
+static long sock_send(struct file *f, u32 ubuf, u32 len, int flags) {
   struct sock *s = f->priv;
   if (s->state != S_CONN) return -EINVAL;
   struct sock *p = s->peer;
-  if (!p) return -EPIPE;
+  if (!p) return (flags & MSG_NOSIGNAL) ? -EPIPE : sig_pipe();
   u32 room = SOCK_BUF - p->rx_len;
   if (!room) {
-    if (f->flags & O_NONBLOCK) return -EAGAIN;
+    if ((f->flags & O_NONBLOCK) || (flags & MSG_DONTWAIT)) return -EAGAIN;
     wq_add(&p->wq);
     return block(-1);
   }
@@ -55,6 +61,8 @@ static long sock_write(struct file *f, u32 ubuf, u32 len) {
   wq_wake(&p->rq);
   return len;
 }
+static long sock_read(struct file *f, u32 ubuf, u32 len) { return sock_recv(f, ubuf, len, 0); }
+static long sock_write(struct file *f, u32 ubuf, u32 len) { return sock_send(f, ubuf, len, 0); }
 static int sock_poll(struct file *f, int add) {
   struct sock *s = f->priv;
   int m = 0;
@@ -189,3 +197,61 @@ long sys_accept(int fd, u32 uaddr, u32 ulen) {
   }
   return nfd;
 }
+
+/* send, sendto, sendmsg, recv, recvfrom, recvmsg: connected AF_UNIX streams only, so an
+ * address is refused on send (EISCONN) and never filled in on receive. */
+#define SEND_FLAGS (MSG_DONTWAIT | MSG_NOSIGNAL)
+#define RECV_FLAGS (MSG_DONTWAIT | MSG_PEEK | MSG_WAITALL)
+static struct sock *conn_sock(int fd, struct file **fp, long *err) {
+  struct file *f = fd_get(fd);
+  if (!f) { *err = -EBADF; return NULL; }
+  if (f->ops != &sock_fops) { *err = -ENOTSOCK; return NULL; }
+  struct sock *s = f->priv;
+  if (s->state != S_CONN) { *err = -ENOTCONN; return NULL; }
+  *fp = f;
+  return s;
+}
+long unix_sendto(int fd, u32 ubuf, u32 len, int flags, u32 uaddr) {
+  struct file *f; long e;
+  if (!conn_sock(fd, &f, &e)) return e;
+  if (flags & ~SEND_FLAGS) return -EOPNOTSUPP;
+  if (uaddr) return -EISCONN;
+  return sock_send(f, ubuf, len, flags);
+}
+long unix_recvfrom(int fd, u32 ubuf, u32 len, int flags, u32 uaddr, u32 ulen) {
+  (void)uaddr; (void)ulen;
+  struct file *f; long e;
+  if (!conn_sock(fd, &f, &e)) return e;
+  if (flags & ~RECV_FLAGS) return -EOPNOTSUPP;
+  return sock_recv(f, ubuf, len, flags & ~MSG_WAITALL); /* WAITALL: a short read is allowed here; the libc's callers loop */
+}
+#define MSG_IOV_MAX 64
+static long msg_io(int send, int fd, u32 umsg, int flags) {
+  struct file *f; long e;
+  if (!conn_sock(fd, &f, &e)) return e;
+  if (flags & ~(send ? SEND_FLAGS : RECV_FLAGS)) return -EOPNOTSUPP;
+  struct k_msghdr m;
+  if (copy_from_user(&m, umsg, sizeof m)) return -EFAULT;
+  if (send && m.name) return -EISCONN;
+  if (m.iovlen > MSG_IOV_MAX) return -EMSGSIZE;
+  struct iovec v[MSG_IOV_MAX];
+  if (m.iovlen && copy_from_user(v, m.iov, m.iovlen * sizeof v[0])) return -EFAULT;
+  long done = 0;
+  for (u32 k = 0; k < m.iovlen; k++) {
+    if (!v[k].iov_len) continue;
+    /* only the first piece may wait or raise SIGPIPE; after that, a short count is the answer */
+    int fl = done ? (flags | MSG_DONTWAIT | MSG_NOSIGNAL) & ~MSG_PEEK : flags & ~MSG_WAITALL;
+    if (!send && (flags & MSG_PEEK) && done) break; /* a peek of several pieces sees the first only */
+    long r = send ? sock_send(f, (u32)v[k].iov_base, v[k].iov_len, fl) : sock_recv(f, (u32)v[k].iov_base, v[k].iov_len, fl);
+    if (r < 0) { if (!done) return r; break; }
+    done += r;
+    if ((u32)r < v[k].iov_len || (!send && !r)) break;
+  }
+  if (!send) {
+    u32 zero = 0;
+    if (copy_to_user(umsg + 4, &zero, 4) || copy_to_user(umsg + 20, &zero, 4) || copy_to_user(umsg + 24, &zero, 4)) return -EFAULT; /* namelen, controllen, flags */
+  }
+  return done;
+}
+long sys_sendmsg(int fd, u32 umsg, int flags) { return msg_io(1, fd, umsg, flags); }
+long sys_recvmsg(int fd, u32 umsg, int flags) { return msg_io(0, fd, umsg, flags); }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* clipd: the clipboard. Keeps the last MAX_ENTRIES copied items (newest first) and
- * answers requests on /run/clip.sock (format in libclip/clip.h). It is an ordinary
+ * answers requests on $XDG_RUNTIME_DIR/clip.sock, or /run/clip.sock without it (format in libclip/clip.h). It is an ordinary
  * program: the window manager and the kernel know nothing about it. libclip starts it
  * the first time a program uses the clipboard; a second copy that finds one already
  * running exits at once.
@@ -192,16 +192,17 @@ static void writable(client *c) {
 }
 
 int main(void) {
-  struct { unsigned short fam; char path[108]; } addr = {1, CLIP_SOCKET};
+  struct { unsigned short fam; char path[108]; } addr = {1, ""};
+  clip_socket(addr.path);
   /* already running? then there is nothing to do */
   int probe = __syscall3(SYS_socket, 1, 1 | O_CLOEXEC, 0);
   if (probe >= 0 && __syscall3(SYS_connect, probe, &addr, sizeof addr) == 0) { close(probe); return 0; }
   if (probe >= 0) close(probe);
   mkdir("/run", 0755);
-  unlink(CLIP_SOCKET); /* a name left by a clipd that is gone */
+  unlink(addr.path); /* a name left by a clipd that is gone */
   int lfd = __syscall3(SYS_socket, 1, 1 | O_NONBLOCK | O_CLOEXEC, 0);
   if (lfd < 0 || __syscall3(SYS_bind, lfd, &addr, sizeof addr) < 0 || __syscall2(SYS_listen, lfd, 16) < 0) {
-    fprintf(stderr, "clipd: cannot listen on %s\n", CLIP_SOCKET);
+    fprintf(stderr, "clipd: cannot listen on %s\n", addr.path);
     return 1;
   }
   for (int i = 0; i < MAX_CLIENTS; i++) cl[i].fd = -1;

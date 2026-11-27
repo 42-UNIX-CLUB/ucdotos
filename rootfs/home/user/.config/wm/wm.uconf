@@ -12,7 +12,8 @@
 #   bind = MODS, key, action, arguments    a key binding, as in hyprlang
 #
 # Colours and fonts live in the theme (/usr/share/themes/*.uconf, chosen by
-# ~/.config/ucos/theme). Mod+t cycles themes.
+# ~/.config/ucos/theme). Mod+t cycles themes. Your own themes go in
+# ~/.config/themes/NAME.uconf; one with the name of a system theme replaces it.
 
 # --- the modifier key ---------------------------------------------------------
 # Most shortcuts below start with $mod, and the built-in ones use it too.

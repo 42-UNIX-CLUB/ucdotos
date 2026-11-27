@@ -135,5 +135,6 @@ man pages, dotfiles, docs, commit messages.
   (`01_what_is_unix/` through `07_join_us/`), readable with `cat` at 80 columns.
 - `man unix-club`: the club in one manual page.
 - `/etc/motd`: the greeting. `~/.shrc`, `/etc/profile`, the `.uconf` files in `~/.config`
-  (`wm`, `term`, `fetch`, `bar`, `launcher`) and `/usr/share/themes/*.uconf`: the dotfiles,
+  (`wm`, `term`, `fetch`, `bar`, `launcher`) and `/usr/share/themes/*.uconf` (a user's own
+  themes go in `~/.config/themes`): the dotfiles,
   commented line by line.

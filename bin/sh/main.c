@@ -393,7 +393,11 @@ static void source_if_exists(const char *path) {
 }
 
 int main(int argc, char **argv) {
-  signal(SIGPIPE, SIG_IGN); /* builtins write in this process: a closed pipe must not kill the shell */
+  { /* builtins write in this process: a closed pipe must not kill the shell (child_sigs in builtin.c) */
+    struct sigaction old;
+    if (!sigaction(SIGPIPE, NULL, &old) && old.sa_handler == SIG_IGN) sigpipe_ign_at_start = 1;
+    signal(SIGPIPE, SIG_IGN);
+  }
   extern char **environ;
   for (char **e = environ; e && *e; e++) {
     char *eq = strchr(*e, '=');

@@ -161,13 +161,24 @@ static long sys_sigtake(u32 uout) {
   return sig;
 }
 
+/* May the caller signal q? Linux's rule: root may signal anyone; otherwise the caller's real
+ * or effective uid must be the target's real or saved uid; SIGCONT within one session is
+ * always allowed. Only with permission enforcement on (vfs_enforce 2). */
+static int may_signal(struct proc *q, int sig) {
+  if (vfs_enforce < 2) return 1;
+  struct fscred *me = &fscred[cur->pid], *t = &fscred[q->pid];
+  if (me->euid == 0) return 1;
+  if (me->euid == t->uid || me->euid == t->suid || me->uid == t->uid || me->uid == t->suid) return 1;
+  return sig == SIGCONT && q->sid == cur->sid;
+}
 /* kill(2): pid > 0 one process, 0 the caller's group, -1 everyone but init and the caller,
  * < -1 the group -pid. */
 long sys_kill2(int pid, int sig) {
   if (sig < 0 || sig > 64) return -EINVAL;
-  int me = cur->pid, found = 0;
+  int me = cur->pid, found = 0, allowed = 0;
   if (pid > 0) {
     if (pid >= NPROC || procs[pid].state != P_RUN) return -ESRCH;
+    if (!may_signal(&procs[pid], sig)) return -EPERM;
     if (sig) sig_send(&procs[pid], sig, 0, me, 0);
     return cur->state == P_RUN ? 0 : -ERESTARTSYS; /* it killed itself */
   }
@@ -177,10 +188,13 @@ long sys_kill2(int pid, int sig) {
     if (q->state != P_RUN) continue;
     if (pid == -1 ? (i == 1 || i == me) : q->pgid != grp) continue;
     found = 1;
+    if (!may_signal(q, sig)) continue;
+    allowed = 1;
     if (sig && i != me) sig_send(q, sig, 0, me, 0);
   }
   if (sig && pid != -1 && cur->state == P_RUN && cur->pgid == grp) sig_send(cur, sig, 0, me, 0); /* the caller last */
   if (!found) return -ESRCH;
+  if (!allowed && !(pid != -1 && cur->pgid == grp)) return -EPERM;
   return cur->state == P_RUN ? 0 : -ERESTARTSYS;
 }
 

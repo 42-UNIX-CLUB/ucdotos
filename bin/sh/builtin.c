@@ -145,9 +145,25 @@ static void apply_disposition(int sig) {
   if (sig <= 0 || sig == SIGKILL || sig == SIGSTOP) return;
   struct sigaction sa;
   memset(&sa, 0, sizeof sa);
-  sa.sa_handler = !traps[sig] ? SIG_DFL : !*traps[sig] ? SIG_IGN : on_signal;
+  /* without a trap, SIGPIPE stays ignored in the shell itself (see child_sigs) */
+  sa.sa_handler = !traps[sig] ? (sig == SIGPIPE ? SIG_IGN : SIG_DFL) : !*traps[sig] ? SIG_IGN : on_signal;
   sa.sa_flags = SA_RESTART;
   sigaction(sig, &sa, NULL);
+}
+/* The shell ignores SIGPIPE for its own sake: builtins write in its process, and a closed
+ * pipe must not kill it (a builtin then sees EPIPE). POSIX wants what the shell ignores for
+ * itself not to reach the programs it starts, so around every spawn and exec SIGPIPE goes
+ * back to the default, unless the shell was started with it ignored (then it stays ignored
+ * everywhere, as POSIX says) or the user set a trap: "trap '' PIPE" is inherited as ignored,
+ * a trap with a command becomes the default in the child anyway (the kernel resets handlers
+ * at spawn and exec). enter = 1 before starting a program, 0 after. */
+int sigpipe_ign_at_start;
+void child_sigs(int enter) {
+  if (sigpipe_ign_at_start || traps[SIGPIPE]) return;
+  struct sigaction sa;
+  memset(&sa, 0, sizeof sa);
+  sa.sa_handler = enter ? SIG_DFL : SIG_IGN;
+  sigaction(SIGPIPE, &sa, NULL);
 }
 /* a subshell starts with the parent's traps visible (so that "$(trap)" prints
  * them) but not active; the first change inside it clears them */
@@ -234,6 +250,7 @@ static int b_trap(int argc, char **argv) {
   for (; i < argc; i++) {
     int sig = signum(argv[i]);
     if (sig < 0) { outf(2, "trap: %s: bad trap\n", argv[i]); rc = 1; continue; }
+    if (sig == SIGPIPE && sigpipe_ign_at_start) continue; /* ignored on entry: cannot be trapped or reset (POSIX) */
     traps[sig] = !strcmp(action, "-") ? NULL : strdup(action);
     apply_disposition(sig);
   }

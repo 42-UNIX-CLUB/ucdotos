@@ -50,6 +50,10 @@ typedef struct {
 /* Read and parse a file. Returns 0, or -1 if it cannot be read (c is then empty but
  * usable). Parse mistakes are printed to stderr as "name:line: message". */
 int uconf_load(uconf *c, const char *path);
+/* Read and parse the theme NAME: the user's own $HOME/.config/themes/NAME.uconf if it can
+ * be read, else the system's /usr/share/themes/NAME.uconf. Returns 0, or -1 (no such
+ * theme, or a name with a slash in it; c is then empty but usable). */
+int uconf_load_theme(uconf *c, const char *name);
 /* Parse text already in memory; name is used in messages. */
 void uconf_parse(uconf *c, const char *text, const char *name);
 void uconf_free(uconf *c);

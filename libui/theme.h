@@ -2,7 +2,8 @@
 /* Themes: one text file decides how the whole desktop looks.
  *
  * The active theme name is the first word of ~/.config/ucos/theme (default "deck").
- * A theme is /usr/share/themes/NAME.uconf, in the .uconf format (libuconf/uconf.h):
+ * A theme is NAME.uconf, in the user's own ~/.config/themes first, then in
+ * /usr/share/themes (the system's), in the .uconf format (libuconf/uconf.h):
  *   [colors]    bg fg accent dim, bar { bg fg }, border { focus normal }      colours, #rrggbb
  *               desktop panel, border { float }                               (optional)
  *   [terminal]  black red green yellow blue magenta cyan white, bright { the same eight }
@@ -29,6 +30,9 @@ typedef struct {
 /* Load the active theme (name == NULL) or a named one. Missing keys keep built-in defaults,
  * so this never fails; returns 0 if the file was found, -1 if defaults were used. */
 int ui_theme_load(ui_theme *t, const char *name);
+/* The names of the themes there are (the user's own and the system's, each once), sorted.
+ * Returns how many were written to names. */
+int ui_theme_names(char names[][32], int cap);
 /* Read a whole file into malloc'ed memory (for fonts). Returns NULL on error. */
 unsigned char *ui_read_file(const char *path, unsigned *len);
 

@@ -123,7 +123,7 @@ void net_init(void) {
   gw0.xmit = loop_xmit;
   netifs[nnetif++] = &lo;
   netifs[nnetif++] = &gw0;
-  vfs_mkdev("/dev/hostnet", DEV_HOSTNET);
+  vfs_mkdev_mode("/dev/hostnet", DEV_HOSTNET, 0600, 0, 0); /* only the router (a root service) talks to the host for the network */
 }
 
 /* ---- system calls ---- */

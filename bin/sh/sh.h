@@ -160,4 +160,7 @@ char *tty_readline(const char *prompt);
 void tty_restore(void);
 char *expand_prompt(const char *ps);
 
+/* SIGPIPE: ignored by the shell itself, default for the programs it starts (builtin.c) */
+extern int sigpipe_ign_at_start;
+void child_sigs(int enter);
 #endif

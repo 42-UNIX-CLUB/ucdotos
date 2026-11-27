@@ -162,7 +162,7 @@ static void run_bench(struct bench *b) {
   b->avg = total / calls / scale;
 }
 
-/* --- colours: from the active theme's /usr/share/themes/NAME.uconf (fg, accent, dim and the
+/* --- colours: from the active theme's file (~/.config/themes or /usr/share/themes; fg, accent, dim and the
  * bright green, red, yellow and cyan); deck and brand are also built in, for when no theme
  * file can be read --- */
 struct theme { const char *fg, *accent, *good, *warn, *dim, *head, *key; };
@@ -178,10 +178,8 @@ static void load_theme(void) { /* first word of ~/.config/ucos/theme, else $THEM
   if (f) { if (fscanf(f, "%31s", name) != 1) name[0] = 0; fclose(f); }
   if (!name[0]) { const char *t = getenv("THEME"); snprintf(name, sizeof name, "%s", t ? t : "deck"); }
   th = !strcmp(name, "brand") ? &brand : &deck;
-  char tpath[96];
-  snprintf(tpath, sizeof tpath, "/usr/share/themes/%s.uconf", name);
   uconf c;
-  if (uconf_load(&c, tpath) == 0) {
+  if (uconf_load_theme(&c, name) == 0) {
     static char buf[7][16];
     static struct theme file;
     static const char *keys[7] = {"colors.fg", "colors.accent", "terminal.bright.green", "terminal.bright.red",

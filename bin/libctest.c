@@ -658,6 +658,33 @@ static void test_fs_posix(void) {
   CHECK("rmdir after cleanup", rmdir("/tmp/lfs") == 0);
 }
 
+#include <pwd.h>
+#include <grp.h>
+static void test_users(void) {
+  printf("users and groups\n");
+  struct passwd *p = getpwnam("root");
+  CHECK("getpwnam(root): uid 0, home /root", p && p->pw_uid == 0 && p->pw_gid == 0 && !strcmp(p->pw_dir, "/root") && !strcmp(p->pw_shell, "/bin/sh"));
+  p = getpwuid(1000);
+  CHECK("getpwuid(1000): user, /home/user", p && !strcmp(p->pw_name, "user") && !strcmp(p->pw_dir, "/home/user"));
+  CHECK("getpwnam of nobody known: NULL", getpwnam("no-such-user") == NULL && getpwuid(4242) == NULL);
+  struct group *g = getgrnam("video");
+  int member = 0;
+  if (g) for (char **m = g->gr_mem; *m; m++) member |= !strcmp(*m, "user");
+  CHECK("getgrnam(video): gid 44, user is a member", g && g->gr_gid == 44 && member);
+  g = getgrgid(0);
+  CHECK("getgrgid(0): root, no members", g && !strcmp(g->gr_name, "root") && g->gr_mem[0] == NULL);
+  gid_t gl[16]; int n = 16;
+  CHECK("getgrouplist(user, 1000): 1000 first, then audio, video, users, input", getgrouplist("user", 1000, gl, &n) == 5 && n == 5 && gl[0] == 1000 && gl[1] == 29 && gl[2] == 44 && gl[3] == 100 && gl[4] == 101);
+  n = 2;
+  CHECK("getgrouplist with too little room: -1 and the count needed", getgrouplist("user", 1000, gl, &n) == -1 && n == 5);
+  struct passwd pw, *out; char small[8], big[512];
+  CHECK("getpwnam_r with a small buffer: ERANGE", getpwnam_r("root", &pw, small, sizeof small, &out) == ERANGE && out == NULL);
+  CHECK("getpwnam_r with room", getpwnam_r("user", &pw, big, sizeof big, &out) == 0 && out == &pw && pw.pw_uid == 1000);
+  struct group gr, *go; char gb[512];
+  CHECK("getgrnam_r", getgrnam_r("input", &gr, gb, sizeof gb, &go) == 0 && go && gr.gr_gid == 101 && gr.gr_mem[0] && !strcmp(gr.gr_mem[0], "user"));
+  setpwent(); int count = 0; while (getpwent()) count++; endpwent();
+  CHECK("getpwent walks the file (3 users)", count == 3);
+}
 int main(int argc, char **argv) {
   printf("libctest\n");
   test_math();
@@ -672,6 +699,7 @@ int main(int argc, char **argv) {
   test_libgen();
   test_posix();
   test_fs_posix();
+  test_users();
   test_spawn(argc > 0 && argv[0][0] == '/' ? argv[0] : "/bin/libctest");
   printf("libctest: %d checks, %d failed\n", checks, fails);
   return fails ? 1 : 0;

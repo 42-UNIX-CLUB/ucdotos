@@ -9,10 +9,24 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <pwd.h>
+#include <grp.h>
 
 static int all, almost, lng, human, one, classify, rev, by_time, by_size, dir_only, tty, width = 80;
 struct ent { char *name; struct stat st; char *target; }; /* target: where a symbolic link points (-l) */
 
+/* owner and group names from /etc/passwd and /etc/group, the last few remembered */
+static void id_name(int grp, unsigned id, char *out) {
+  static struct { int grp; unsigned id; char name[33]; } memo[8];
+  static int nmemo, next;
+  for (int k = 0; k < nmemo; k++) if (memo[k].grp == grp && memo[k].id == id) { strcpy(out, memo[k].name); return; }
+  const char *n = NULL;
+  if (grp) { struct group *g = getgrgid(id); if (g) n = g->gr_name; }
+  else { struct passwd *p = getpwuid(id); if (p) n = p->pw_name; }
+  if (n) snprintf(out, 33, "%s", n); else snprintf(out, 33, "%u", id);
+  int k = nmemo < 8 ? nmemo++ : next++ % 8;
+  memo[k].grp = grp; memo[k].id = id; strcpy(memo[k].name, out);
+}
 static int ucols(const char *s) { int c = 0; for (; *s; s++) if (((unsigned char)*s & 0xc0) != 0x80) c++; return c; }
 static int is_exec(const struct stat *st) { return S_ISREG(st->st_mode) && (st->st_mode & 0111); }
 static const char *colour(const struct stat *st) {
@@ -94,9 +108,8 @@ static void long_list(struct ent *v, int n) {
     if (m & S_ISGID) mode[6] = (m & 010) ? 's' : 'S';
     if (m & S_ISVTX) mode[9] = (m & 01) ? 't' : 'T';
     mode[10] = 0;
-    char user[16], group[16];
-    if (st->st_uid == 0) strcpy(user, "root"); else if (st->st_uid == 1000) strcpy(user, "user"); else sprintf(user, "%u", st->st_uid);
-    if (st->st_gid == 0) strcpy(group, "root"); else if (st->st_gid == 1000) strcpy(group, "user"); else sprintf(group, "%u", st->st_gid);
+    char user[33], group[33];
+    id_name(0, st->st_uid, user); id_name(1, st->st_gid, group);
     size_str(st->st_size, tmp);
     int y, mo, d, h, mi;
     civil(st->st_mtime, &y, &mo, &d, &h, &mi);

@@ -286,7 +286,8 @@ static void all_off(void) { for (int i = 0; i < OPL_CHANNELS; i++) if (voice[i].
 struct audiod_hello { char magic[4]; unsigned rate; unsigned short channels, bits, volume, pad; unsigned total; };
 static int connect_audiod(void) {
   int fd = (int)__syscall3(SYS_socket, 1 /* AF_UNIX */, 1 /* SOCK_STREAM */, 0);
-  struct { unsigned short family; char path[108]; } a = {1, "/run/audiod.sock"};
+  struct { unsigned short family; char path[108]; } a = {1, ""};
+  { const char *x = getenv("XDG_RUNTIME_DIR"); snprintf(a.path, sizeof a.path, "%s/audiod.sock", x && *x ? x : "/run"); } /* audiod's socket, in the session (bin/audiod.c) */
   long e = __syscall3(SYS_connect, fd, &a, sizeof a);
   if (e < 0) { fprintf(stderr, "oplplay: cannot reach the sound server (audiod): %s\n", strerror((int)-e)); return -1; }
   struct audiod_hello h = {{'U', 'C', 'A', 'U'}, OPL_RATE, 2, 16, 100, 0, 0};

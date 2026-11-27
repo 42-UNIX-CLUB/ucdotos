@@ -11,7 +11,7 @@ section 12.
 ```
 Doom effects ── /dev/dsp, its own stream, non-blocking, ~64 ms buffer ──────┐
                                                                             ├─ browser audio thread:
-play, oplplay ── /run/audiod.sock ── audiod ── /dev/dsp, ~340 ms ───────────┘  boot/audio-worklet.js sums
+play, oplplay ── $XDG_RUNTIME_DIR/audiod.sock ── audiod ── /dev/dsp, ~340 ms ┘  boot/audio-worklet.js sums
   (Doom's music: oplplay,  (any format; converted, resampled,                   every stream -> speakers
    started and steered      volume, mixed)
    by Doom through a pipe)
@@ -32,8 +32,8 @@ play, oplplay ── /run/audiod.sock ── audiod ── /dev/dsp, ~340 ms ─
   free room (`SNDCTL_DSP_GETOSPACE`), mix exactly that and write it. A frame can never
   wait for sound. Doom does this (`bin/doom/i_ucossound.c`): 8 effect channels, the WAD's
   8-bit 11 kHz samples resampled straight to the device rate in the mixing pass.
-- **Everything else** goes through `audiod` (`bin/audiod.c`), started by `init` at boot.
-  Programs connect to `/run/audiod.sock`, send a 20-byte header (format, rate, volume,
+- **Everything else** goes through `audiod` (`bin/audiod.c`), started by `init` at boot, as the desktop user (a per-user service, as PipeWire and PulseAudio are on Linux). `/dev/dsp` is root:audio 0660 and the desktop user is in the audio group.
+  Programs connect to `$XDG_RUNTIME_DIR/audiod.sock` (`/run/audiod.sock` without it), send a 20-byte header (format, rate, volume,
   length) and their samples; audiod converts, mixes and writes 20 ms chunks into a large
   buffer, so music does not skip when the system is busy. Idle, it holds no stream and
   sleeps in `poll()`.
