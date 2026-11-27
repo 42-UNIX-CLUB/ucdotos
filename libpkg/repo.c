@@ -6,10 +6,15 @@
  * apt update fetches dists/SUITE/InRelease (or Release), checks it, then for
  * each component and architecture the Packages index it lists, preferring
  * .xz, then .gz, then the plain file. Every index is checked against the size
- * and SHA-256 sum in Release. The OpenPGP signature on InRelease is NOT checked:
- * this code cannot verify signatures yet and says so on every update. Files go
+ * and SHA-256 sum in Release. The Release file itself is trusted only after
+ * its OpenPGP signature checks (apt-secure(8)): InRelease, or Release with
+ * Release.gpg, verified by libsig against the source's keyring (keyring.c).
+ * Only the bytes the signature covers are parsed. A source without a valid
+ * signature is refused, unless it is marked [trusted=yes] or apt runs with
+ * --allow-insecure-repositories; both cases print a loud warning. Files go
  * to Dir::State::lists with apt's names (the URI with "/" turned into "_"). */
 #include "pkg.h"
+#include "../libsig/sig.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -193,29 +198,13 @@ char *apt_uri_to_filename(const char *uri) {
 }
 
 /* ---------- Release ---------- */
-static char *strip_clearsign(const char *data, size_t n, int *was_signed) {
-  *was_signed = 0;
-  if (strncmp(data, "-----BEGIN PGP SIGNED MESSAGE-----", 34)) return xstrndup(data, n);
-  *was_signed = 1;
-  const char *p = strstr(data, "\n\n");
-  if (!p) return xstrdup("");
-  p += 2;
-  const char *end = strstr(p, "\n-----BEGIN PGP SIGNATURE-----");
-  if (!end) end = data + n;
-  sbuf b = {0};
-  while (p < end) {
-    const char *nl = memchr(p, '\n', end - p);
-    size_t l = nl ? (size_t)(nl - p) : (size_t)(end - p);
-    if (l >= 2 && p[0] == '-' && p[1] == ' ') sb_add(&b, p + 2, l - 2); else sb_add(&b, p, l);
-    sb_putc(&b, '\n');
-    p += l + 1;
-  }
-  return b.s ? b.s : xstrdup("");
-}
 int release_parse(const char *data, size_t n, rel_file *out, char **err) {
   memset(out, 0, sizeof *out);
   *err = 0;
-  char *body = strip_clearsign(data, n, &out->signed_clearsign);
+  /* Only plain text reaches this point: the verified text of an InRelease
+   * (see apt_update), or a Release file. A clearsigned file here is a bug. */
+  if (n >= 5 && !strncmp(data, "-----", 5)) { *err = xstrdup("the Release text still has OpenPGP armor in it"); return -1; }
+  char *body = xstrndup(data, n);
   ctl_reader *r = ctl_open_mem(body, strlen(body));
   int k = ctl_next(r, &out->f);
   if (k != 1) { *err = xasprintf("bad Release file: %s", k < 0 ? ctl_errmsg(r) : "empty"); ctl_close(r); free(body); return -1; }
@@ -331,12 +320,34 @@ static int decompress_to(const char *src, const char *dest, const rel_entry *wan
   return rc;
 }
 
+/* The source's URI as apt prints it in messages: without the final slash. */
+static char *uri_shown(const apt_source *s) {
+  size_t n = strlen(s->uri);
+  return xstrndup(s->uri, n > 1 && s->uri[n - 1] == '/' ? n - 1 : n);
+}
 static void sig_warning(const apt_source *s) {
   fflush(stdout);
-  fprintf(stderr, "W: The signature of %s %s was NOT checked. This system cannot verify OpenPGP signatures yet,\n"
-                  "   so anyone who can change what you download can change these packages. Only the SHA-256\n"
-                  "   sums from the Release file down were checked.%s\n",
-          s->uri, s->suite, s->trusted ? " (The source is marked trusted=yes.)" : "");
+  char *u = uri_shown(s);
+  fprintf(stderr, "W: The signature of %s %s was NOT checked (%s), so anyone who can\n"
+                  "   change what you download can change these packages. Only the SHA-256 sums from the\n"
+                  "   Release file down were checked.\n",
+          u, s->suite, s->trusted ? "the source is marked trusted=yes" : "--allow-insecure-repositories");
+  free(u);
+}
+/* apt's "GPG error" line: what each signature that did not count was. */
+static void gpg_error_line(const char *shown, const char *suite, const char *file, const sig_report *r, const char *malformed) {
+  fflush(stdout);
+  if (malformed) { fprintf(stderr, "W: GPG error: %s %s %s: %s\n", shown, suite, file, malformed); return; }
+  sbuf nokey = {0}, invalid = {0};
+  for (int i = 0; i < r->n; i++) {
+    const sig_result *x = &r->r[i];
+    if (x->status == SIG_GOOD) continue;
+    if (x->status == SIG_NOKEY) { sb_printf(&nokey, " NO_PUBKEY %s", x->keyid[0] ? x->keyid : "(no issuer)"); continue; }
+    sb_printf(&invalid, " %s %s%s%s (%s)", sig_status_name(x->status), x->keyid[0] ? x->keyid : "-", *x->uid ? " " : "", x->uid, x->why);
+  }
+  if (invalid.s) fprintf(stderr, "W: GPG error: %s %s %s: The following signatures were invalid:%s\n", shown, suite, file, invalid.s);
+  if (nokey.s) fprintf(stderr, "W: GPG error: %s %s %s: The following signatures couldn't be verified because the public key is not available:%s\n", shown, suite, file, nokey.s);
+  sb_free(&nokey); sb_free(&invalid);
 }
 
 /* Fetch one index listed in Release: try each compression, check size and sum. */
@@ -427,9 +438,19 @@ int apt_update(void) {
     char *inrel_url = xasprintf("%sInRelease", distbase), *rel_url = xasprintf("%sRelease", distbase);
     char *inrel_name = apt_uri_to_filename(inrel_url), *rel_name = apt_uri_to_filename(rel_url);
     char *inrel_part = xasprintf("%s/%s", partial, inrel_name), *rel_part = xasprintf("%s/%s", partial, rel_name);
-    char *got = 0, *final = 0;
+    char *got = 0, *final = 0, *gpg_part = 0, *text = 0;
+    char *shown = uri_shown(s);
+    const char *fname = "InRelease";
+    sig_report rep = {0};
     if (pkg_fetch(inrel_url, inrel_part, 0) == 0) { got = inrel_part; final = xasprintf("%s/%s", listdir, inrel_name); pkg_msg("Hit: %s\n", inrel_url); }
-    else if (pkg_fetch(rel_url, rel_part, 0) == 0) { got = rel_part; final = xasprintf("%s/%s", listdir, rel_name); pkg_msg("Hit: %s\n", rel_url); }
+    else if (pkg_fetch(rel_url, rel_part, 0) == 0) {
+      got = rel_part; final = xasprintf("%s/%s", listdir, rel_name); fname = "Release";
+      pkg_msg("Hit: %s\n", rel_url);
+      char *gu = xasprintf("%s.gpg", rel_url);
+      gpg_part = xasprintf("%s.gpg", rel_part);
+      if (pkg_fetch(gu, gpg_part, 0) != 0) { free(gpg_part); gpg_part = 0; }
+      free(gu);
+    }
     if (!got) {
       pkg_error("cannot fetch %sInRelease or %sRelease", distbase, distbase);
       errors++;
@@ -438,11 +459,95 @@ int apt_update(void) {
     {
       char *data; size_t n;
       file_read(got, &data, &n);
+      /* apt-secure(8): check the signature before anything in the file is used */
+      int verified = 0;
+      char *malformed = 0;
+      if (!s->trusted) {
+        sbuf kerr = {0};
+        sig_keyring *kr = apt_source_keyring(s->signed_by, &kerr, 0);
+        if (!kr) {
+          pkg_error("%s %s: the keyring for this source cannot be read: %s", shown, s->suite, kerr.s ? kerr.s : "");
+          sb_free(&kerr); free(data); errors++; unlink(got); if (gpg_part) unlink(gpg_part);
+          goto next;
+        }
+        sb_free(&kerr);
+        char e[200];
+        long long now = apt_signature_time();
+        if (got == inrel_part) {
+          if (sig_check_cleartext(kr, data, n, now, &rep, e, sizeof e) < 0) malformed = xasprintf("not a valid signed file: %s", e);
+          else if (sig_report_trusted(&rep)) { verified = 1; text = rep.text; rep.text = 0; }
+        } else if (gpg_part) {
+          char *sig; size_t sn;
+          if (file_read(gpg_part, &sig, &sn) < 0) malformed = xstrdup("cannot read Release.gpg");
+          else {
+            if (sig_check_detached(kr, data, n, sig, sn, now, &rep, e, sizeof e) < 0) malformed = xasprintf("Release.gpg is not a valid signature: %s", e);
+            else if (sig_report_trusted(&rep)) { verified = 1; text = xstrndup(data, n); }
+            free(sig);
+          }
+        }
+        sig_keyring_free(kr);
+      }
+      if (!verified) {
+        int signed_before = 0;
+        char *old1 = xasprintf("%s/%s", listdir, inrel_name), *old2 = xasprintf("%s/%s.gpg", listdir, rel_name);
+        signed_before = path_exists(old1) || path_exists(old2);
+        free(old1); free(old2);
+        int insecure = aptconf_bool("Acquire::AllowInsecureRepositories", 0);
+        if (!s->trusted) {
+          if (rep.n || malformed) gpg_error_line(shown, s->suite, fname, &rep, malformed);
+          if (insecure && signed_before && !aptconf_bool("Acquire::AllowDowngradeToInsecureRepositories", 0)) {
+            fflush(stdout);
+            fprintf(stderr, "E: The repository '%s %s %s' is no longer signed.\n"
+                            "N: Updating from such a repository can't be done securely, and is therefore disabled by default.\n"
+                            "N: See apt-secure(8) manpage for repository creation and user configuration details.\n", shown, s->suite, fname);
+            insecure = 0;
+          } else if (insecure) {
+            fflush(stdout);
+            fprintf(stderr, "W: The repository '%s %s %s' is not signed.\n"
+                            "N: Data from such a repository can't be authenticated and is therefore potentially dangerous to use.\n"
+                            "N: See apt-secure(8) manpage for repository creation and user configuration details.\n", shown, s->suite, fname);
+          } else {
+            fflush(stdout);
+            fprintf(stderr, "E: The repository '%s %s %s' is not signed.\n"
+                            "N: Updating from such a repository can't be done securely, and is therefore disabled by default.\n"
+                            "N: See apt-secure(8) manpage for repository creation and user configuration details.\n", shown, s->suite, fname);
+          }
+          if (!insecure) {
+            free(malformed); free(data); sig_report_free(&rep); errors++; unlink(got); if (gpg_part) unlink(gpg_part);
+            goto next;
+          }
+        }
+        /* not authenticated but accepted: read the text without trusting it */
+        if (got == inrel_part) {
+          sig_clear c;
+          char e[200];
+          if (sig_clear_split(data, n, &c, e, sizeof e) < 0) {
+            pkg_error("%s %s InRelease: %s", shown, s->suite, e);
+            free(malformed); free(data); sig_report_free(&rep); errors++; unlink(got);
+            goto next;
+          }
+          text = c.text; c.text = 0;
+          sig_clear_free(&c);
+        } else text = xstrndup(data, n);
+        if (!dup) sig_warning(s);
+      }
+      free(malformed);
+      sig_report_free(&rep);
+      free(data);
       rel_file rel;
       char *err;
-      if (release_parse(data, n, &rel, &err) < 0) { pkg_error("%s: %s", got == inrel_part ? inrel_url : rel_url, err); free(err); free(data); errors++; unlink(got); goto next; }
-      free(data);
-      if (!dup) sig_warning(s);
+      if (release_parse(text, strlen(text), &rel, &err) < 0) { pkg_error("%s: %s", got == inrel_part ? inrel_url : rel_url, err); free(err); errors++; unlink(got); if (gpg_part) unlink(gpg_part); goto next; }
+      if (!verified) {
+        /* Keep only the text, as lists/..._Release: no InRelease or Release.gpg
+         * means "not authenticated" to index_load, and a later run without
+         * --allow-insecure-repositories cannot mistake it for a signed one. */
+        unlink(got);
+        if (gpg_part) { unlink(gpg_part); free(gpg_part); gpg_part = 0; }
+        free(final);
+        final = xasprintf("%s/%s", listdir, rel_name);
+        got = rel_part;
+        if (file_write_atomic(got, text, strlen(text), 0644) < 0) { pkg_error("cannot write %s", got); release_free(&rel); errors++; goto next; }
+      }
       const char *vu = ctl_get(&rel.f, "Valid-Until");
       if (vu && check_valid) {
         long long t = parse_date(vu);
@@ -474,13 +579,18 @@ int apt_update(void) {
       sl_free(&arches);
       release_free(&rel);
       if (rename(got, final) < 0) { pkg_error("cannot store %s: %s", final, pkg_file_error(errno, final)); errors++; }
-      /* only one of InRelease and Release is kept, as apt does */
+      /* only one of InRelease and Release is kept, as apt does; Release.gpg goes with Release */
       char *other = xasprintf("%s/%s", listdir, got == inrel_part ? rel_name : inrel_name);
       unlink(other);
       free(other);
+      char *gpg_final = xasprintf("%s/%s.gpg", listdir, rel_name);
+      if (gpg_part && got == rel_part) { if (rename(gpg_part, gpg_final) < 0) { pkg_error("cannot store %s: %s", gpg_final, pkg_file_error(errno, gpg_final)); errors++; } }
+      else unlink(gpg_final);
+      free(gpg_final);
     }
   next:
     free(distbase); free(inrel_url); free(rel_url); free(inrel_name); free(rel_name); free(inrel_part); free(rel_part); free(final);
+    free(gpg_part); free(text); free(shown);
   }
   pkg_msg("Fetched %d indexes.\n", nidx);
   free(listdir); free(partial);

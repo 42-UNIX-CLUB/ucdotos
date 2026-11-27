@@ -48,11 +48,33 @@ check "--force-unrunnable-scripts finishes it" 0 "$(dpkg --root=$R --force-unrun
 echo "--- apt"
 $D -P osb >/dev/null 2>&1
 A="apt -o Dir=$R -o DPkg::Options::=--force-script-chrootless"
-mkdir -p $R/etc/apt
+# signatures first, in a root of their own. The extra repositories have
+# two-letter names (ru: unsigned, rb: InRelease changed) because apt's list
+# file names must stay within the kernel's 63 bytes per name.
+N=/pkgtest/rootsig
+AN="apt -o Dir=$N -o DPkg::Options::=--force-script-chrootless"
+mkdir -p $N/etc/apt/trusted.gpg.d
+cp /pkgtest/keys/test.gpg $N/etc/apt/trusted.gpg.d/test.gpg
+echo "deb file:/pkgtest/rb test main" > $N/etc/apt/sources.list
+check "apt update of a changed InRelease fails" 100 "$($AN update >/pkgtest/upd.out 2>/pkgtest/upd.err; echo $?)"
+check "  BADSIG" yes "$(yes_if grep -q 'signatures were invalid: BADSIG' /pkgtest/upd.err)"
+check "  not signed" yes "$(yes_if grep -q "^E: The repository 'file:/pkgtest/rb test InRelease' is not signed." /pkgtest/upd.err)"
+check "  nothing stored" no "$(yes_if cat $N/var/lib/apt/lists/_pkgtest_rb_dists_test_main_binary-riscv64_Packages)"
+echo "deb file:/pkgtest/ru test main" > $N/etc/apt/sources.list
+check "apt update of an unsigned repository fails" 100 "$($AN update >/dev/null 2>&1; echo $?)"
+check "  --allow-insecure-repositories accepts it" 0 "$($AN --allow-insecure-repositories update >/dev/null 2>/pkgtest/upd.err; echo $?)"
+check "  with the warning" yes "$(yes_if grep -q 'NOT checked' /pkgtest/upd.err)"
+check "  install -y refuses its packages" 100 "$($AN install -y osc >/dev/null 2>&1; echo $?)"
+check "apt-keyring verify" 0 "$(apt-keyring -o Dir=$N verify /pkgtest/r/dists/test/InRelease >/dev/null 2>&1; echo $?)"
+check "apt-keyring verify of the changed copy" 1 "$(apt-keyring -o Dir=$N verify /pkgtest/rb/dists/test/InRelease >/dev/null 2>&1; echo $?)"
+check "apt-keyring list" yes "$(yes_if sh -c "apt-keyring -o Dir=$N list | grep -q 'OS Test Archive'")"
+mkdir -p $R/etc/apt/trusted.gpg.d
+cp /pkgtest/keys/test.gpg $R/etc/apt/trusted.gpg.d/test.gpg
 echo "deb file:/pkgtest/r test main" > $R/etc/apt/sources.list
-check "apt update" 0 "$($A update >/dev/null 2>&1; echo $?)"
+check "apt update (signed repository)" 0 "$($A update >/dev/null 2>/pkgtest/upd.err; echo $?)"
+check "  no warning or error about the repository" 0 "$(grep -c '^[WEN]:\|NOT checked' /pkgtest/upd.err)"
 check "  index stored" yes "$(yes_if cat $R/var/lib/apt/lists/_pkgtest_r_dists_test_main_binary-riscv64_Packages)"
-check "  signature warning" yes "$(yes_if sh -c "$A update 2>&1 | grep -q 'NOT checked'")"
+check "  InRelease stored" yes "$(yes_if cat $R/var/lib/apt/lists/_pkgtest_r_dists_test_InRelease)"
 check "apt-cache policy" yes "$(yes_if sh -c "apt-cache -o Dir=$R policy osa | grep -q 'Candidate: 1'")"
 check "apt install -y osa" 0 "$($A install -y osa >/dev/null 2>&1; echo $?)"
 check "  osa installed" installed "$(dpkg-query --root=$R -W -f '${db:Status-Status}' osa)"

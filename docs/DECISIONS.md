@@ -145,6 +145,13 @@ Notes that go with these:
 | A changed conffile with a new package version keeps the user's copy and saves the package's as `.dpkg-dist` (dpkg would ask). | There is no interactive prompt in a script-driven run. | `--force-confnew`. |
 | A maintainer script that cannot run makes the step fail (as dpkg does); `--force-unrunnable-scripts` turns that into "logged and treated as done". | Fails safe; the forced mode is explicit. | dpkg.cfg line `force-unrunnable-scripts`. |
 | `apt install` prompts unless `-y` or the change is exactly what was asked; Recommends are installed (`APT::Install-Recommends`). | apt's defaults. | apt.conf or `--no-install-recommends`. |
+| **Debian's three trixie archive keys ship in the image** (`keyrings/`, copied to `/debian/etc/apt/trusted.gpg.d/`): the archive signing key, the security archive key and the stable release key, from `debian-archive-keyring` 2025.1, each fingerprint compared with ftp-master.debian.org/keys.html. The bookworm and bullseye keys are not shipped. | Settled by uc-os-dev under the owner's delegation, 2026-11-26. `apt update` from trixie archives then verifies out of the box; Debian rotates keys per release (trixie's expire in 2035 and 2033), so the project must update them. | Remove or replace files in `keyrings/`, or `make KEYRINGS=DIR`. |
+| A source with no usable keyring is **refused** (apt's behaviour). `[trusted=yes]` stays, with a loud warning on every update. | Settled by uc-os-dev under the owner's delegation, 2026-11-26. | `repo.c`; options `--allow-insecure-repositories`, `[trusted=yes]`. |
+| The signature library is **`libsig/`** (`sig.h`, `sig_*`), separate from libpkg, and the key tool is **`apt-keyring`** (`list`, `verify`). | Names kept by uc-os-dev under the owner's delegation, 2026-11-26. `apt-key` is deprecated in Debian and means something else. | A rename is mechanical. |
+| `Signed-By` file names are taken under apt's `Dir` (the package root, `/debian` in the image), like every other path of the package tools; real apt uses them as given. | Same rule as the rest of the tools. | `libpkg/keyring.c`. |
+| Any valid revocation by the primary key disables the key, whatever its reason code (stricter than RFC 9580's soft revocations). | Fails safe. | `libsig/pgp.c`. |
+| Self-signatures and signatures made with SHA-1 or MD5 are refused. The Ubuntu 2012 archive key (SHA-1 self-signature only) is unusable; current Ubuntu suites are signed by the 2018 key, which works. | Fails safe. | Accept SHA-1 self-signatures made before a cut-off date. |
+| Only version 4 keys and signatures are checked; version 6 is parsed far enough to say "not supported". | No current Debian or Ubuntu key or signature uses v6 (checked on 10 InRelease files and both keyrings, 2026-11-26). | Add v6 to `libsig/`. |
 
 ## 3. Open: an owner needs to choose
 
@@ -168,7 +175,6 @@ Notes that go with these:
 | **make: name and alias** | `make` only (now); also `gmake`; another name | |
 | **make: Ctrl-C** | leave as is (make dies with the recipe; the target may be half-written); make calls `setsid()` so the kernel spares it and it can delete the target (relies on the kernel not refusing `setsid` for a group leader, which Linux would refuse); a kernel change so a process can catch Ctrl-C | deleting half-made targets on Ctrl-C in UC.OS |
 | **make: jobserver** | none (now); a pipe-based jobserver like GNU Make's | limiting the total of jobs across recursive makes |
-| **Signature checks for apt** | none (now, with a warning on every update); write OpenPGP verification ourselves (RSA 4096 for Ubuntu and Debian, Ed25519 for Debian's newest key, SHA-256/512, packet parsing, a keyring in the image); trust a mirror served over https only | Using public mirrors safely |
 | **Packages whose scripts cannot run** | fail and leave them half-configured (now); skip and record (`--force-unrunnable-scripts`) by default; run them with UC.OS's shell (`--force-script-chrootless`) | Most real packages until the binary engine runs Debian's shell and tools |
 | **Default package sources** | none (now); Debian stable; Ubuntu LTS; both; a club mirror | `apt update` working out of the box |
 | **Program names** | `dpkg`/`apt` names (now) or UC.OS-specific names | |
