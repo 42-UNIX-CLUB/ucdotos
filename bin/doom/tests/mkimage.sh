@@ -7,7 +7,7 @@
 # build-doom/files/ (tools/remote-files.sh; the WADs come from $WADS, default bin/doom/wads).
 #   bin/doom/tests/mkimage.sh doom1.wad|freedoom1.wad|none [doom arguments...]
 # freedoom1.wad adds "-iwad freedoom1.wad" to the arguments; none builds with no game data.
-# With WM=1 in the environment, the window manager is built too and its config
+# With WM=1 in the environment, the window manager is built too and its dotfile wm.uconf
 # (in build-doom/root only) starts doom: boot that image with --init=/bin/wm.
 set -e
 cd "$(dirname "$0")/../../.."
@@ -25,7 +25,7 @@ ARGS="$*"
 [ "$WAD" = freedoom1.wad ] && ARGS="-iwad freedoom1.wad $ARGS"
 [ -n "$ARGS" ] && echo "$ARGS" > $D/doom.args
 C=$B/root/home/user/.config/wm
-[ -f $C/config ] && rm $C/config
-if [ "$WM" = 1 ]; then mkdir -p $C; printf 'gaps 0\nexec doom\n' > $C/config; fi
+[ -f $C/config ] && rm $C/config     # the old i3-style file, from images made before wm.uconf
+if [ "$WM" = 1 ]; then mkdir -p $C; printf '[general]\ngaps = 0\n[autostart]\nexec = doom\n' > $C/wm.uconf; fi
 tar --format=ustar --owner=0 --group=0 -C $B/root -cf $B/initrd.tar .
 echo "image: $WAD (remote), args: $ARGS"

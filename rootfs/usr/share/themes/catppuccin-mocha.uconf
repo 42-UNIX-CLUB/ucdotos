@@ -1,0 +1,57 @@
+# catppuccin-mocha: Catppuccin Mocha. Soothing pastels on a dark blue-grey base; mauve accent.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = catppuccin mocha
+
+[colors]
+bg      = #1e1e2e
+fg      = #cdd6f4
+accent  = #cba6f7
+dim     = #7f849c
+desktop = #11111b
+panel   = #313244
+surface = #45475a
+bar {
+    bg = #181825
+    fg = #cdd6f4
+}
+border {
+    focus  = #cba6f7
+    normal = #45475a
+    float  = #fab387
+}
+
+[terminal]
+black   = #45475a
+red     = #f38ba8
+green   = #a6e3a1
+yellow  = #f9e2af
+blue    = #89b4fa
+magenta = #f5c2e7
+cyan    = #94e2d5
+white   = #bac2de
+bright {
+    black   = #585b70
+    red     = #f38ba8
+    green   = #a6e3a1
+    yellow  = #f9e2af
+    blue    = #89b4fa
+    magenta = #f5c2e7
+    cyan    = #94e2d5
+    white   = #a6adc8
+}
+
+[font]
+name    = JetBrains Mono
+regular = JetBrainsMonoNerdFontMono-Regular.ttf
+bold    = JetBrainsMonoNerdFontMono-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 12
+border = 2
+radius = 10

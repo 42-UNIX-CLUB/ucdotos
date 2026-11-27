@@ -6,7 +6,8 @@
 #include "wm.h"
 
 static int is_tiled(client *c) { return c->hello && c->role == UI_NORMAL && !c->floating && !c->fullscreen; }
-static int on_ws(client *c, int ws) { return c->hello && c->role != UI_BAR && c->ws == ws; }
+/* windows that count on a workspace: they can take the focus and mark it occupied */
+static int on_ws(client *c, int ws) { return c->hello && c->role != UI_BAR && !c->nofocus && !c->hidden && c->ws == ws; }
 static client *fullscreen_on(int ws) {
   for (int i = nclients - 1; i >= 0; i--) if (on_ws(order[i], ws) && order[i]->fullscreen) return order[i];
   return NULL;
@@ -14,9 +15,9 @@ static client *fullscreen_on(int ws) {
 
 /* drawn on the screen right now */
 int visible(client *c) {
-  if (!c->hello) return 0;
+  if (!c->hello || c->hidden) return 0;
   if (c->role == UI_BAR) return !fullscreen_on(cur_ws);
-  if (c->ws != cur_ws) return 0;
+  if (c->ws != cur_ws && !c->sticky) return 0;
   client *f = fullscreen_on(cur_ws);
   return !f || f == c || c->floating;
 }
@@ -54,7 +55,9 @@ void relayout(void) {
     }
   rect a = tile_area();
   int g = G_gap;
+  tree_sync(); /* every workspace keeps its split tree up to date, whatever its layout */
   for (int ws = 0; ws < MAX_WS; ws++) {
+    if (tree_place(ws, a)) continue; /* the split layout */
     int n = 0, k = 0;
     for (int i = 0; i < nclients; i++) if (is_tiled(order[i]) && order[i]->ws == ws) n++;
     int mw = n > 1 ? (int)((a.w - g) * master_of[ws]) : a.w;
@@ -82,7 +85,11 @@ void relayout(void) {
       if (w > a.w) w = a.w;
       if (h > a.h) h = a.h;
       c->r.w = w; c->r.h = h;
-      if (!c->placed) { c->r.x = a.x + (a.w - w) / 2; c->r.y = a.y + (a.h - h) / 3; c->placed = 1; }
+      if (!c->placed || c->topright || c->bottom) { /* anchored ones follow the area (the bar, the screen size) */
+        c->r.x = c->topright ? a.x + a.w - w : a.x + (a.w - w) / 2;
+        c->r.y = c->bottom ? a.y + a.h - h : c->topright ? a.y : a.y + (a.h - h) / 3;
+        c->placed = 1;
+      }
       if (c->r.x + w > scr_w) c->r.x = scr_w - w;
       if (c->r.y + h > scr_h) c->r.y = scr_h - h;
       if (c->r.x < 0) c->r.x = 0;
@@ -143,7 +150,7 @@ static client *pick_focus(int ws, client *gone) {
 }
 
 void client_added(client *c) {
-  if (c->role != UI_BAR) {
+  if (c->role != UI_BAR && !c->nofocus && !c->hidden) {
     relayout();
     set_focus(c);
   } else relayout();
@@ -217,11 +224,24 @@ int layout_command(const char *verb, const char *arg) {
     while (order[a] != f) a++;
     while (order[b] != c) b++;
     order[a] = c; order[b] = f;
+    tree_swap(f, c);
+    relayout();
+    return 0;
+  }
+  if (!strcmp(verb, "layout")) { /* master | split | toggle, for this workspace */
+    int l = !strcmp(arg, "master") ? LAYOUT_MASTER : !strcmp(arg, "split") ? LAYOUT_SPLIT :
+            !strcmp(arg, "toggle") ? !layout_of[cur_ws] : -1;
+    if (l < 0) return -1;
+    layout_of[cur_ws] = l;
     relayout();
     return 0;
   }
   if (!strcmp(verb, "master")) {
     float d = !strcmp(arg, "grow") ? 0.05f : !strcmp(arg, "shrink") ? -0.05f : 0;
+    if (layout_of[cur_ws] == LAYOUT_SPLIT) { /* in a split tree: grow or shrink the focused window */
+      if (tree_resize(f, d) == 0) relayout();
+      return 0;
+    }
     float m = master_of[cur_ws] + d;
     master_of[cur_ws] = m < 0.1f ? 0.1f : m > 0.9f ? 0.9f : m;
     relayout();

@@ -105,7 +105,13 @@ static void ob_fg(unsigned rgb) { ob_printf("\033[38;2;%u;%u;%um", rgb >> 16, (r
 static void ob_bg(unsigned rgb) { ob_printf("\033[48;2;%u;%u;%um", rgb >> 16, (rgb >> 8) & 255, rgb & 255); }
 static void ob_goto(int row, int col) { ob_printf("\033[%d;%dH", row + 1, col + 1); }
 
-/* --- themes: THEME=deck (gruvbox, default) or THEME=brand --- */
+/* --- themes: the active theme's /usr/share/themes/NAME.uconf, read with libuconf ---
+ * The colours come from the theme file, so every theme works here too:
+ *   bg colors.bg, bg1 colors.bar.bg, bg2 colors.surface (else colors.border.normal),
+ *   fg colors.fg, grey colors.dim, orange colors.accent, and red yellow green aqua blue
+ *   purple from the theme's bright terminal colours. desc is [theme] description.
+ * deck and brand are also built in, for when no theme file can be read. */
+#include "uconf.h"
 struct theme {
   const char *name, *desc;
   unsigned bg, bg1, bg2, fg, grey, orange, red, yellow, green, aqua, blue, purple;
@@ -115,7 +121,36 @@ static const struct theme theme_deck = {"deck", "gruvbox", 0x282828, 0x3c3836, 0
 /* brand has no blue or purple: sage stands in for aqua/blue, orange for the accent slots */
 static const struct theme theme_brand = {"brand", "42 brand", 0x0e362e, 0x174a3f, 0x23604f, 0xede6c5, 0x86a596,
                                          0xfe7700, 0xfc413a, 0xffc72e, 0xa9b200, 0xadc787, 0xadc787, 0xfe7700};
+static struct theme theme_cur;
+static char theme_cur_name[32], theme_cur_desc[48];
 static const struct theme *th = &theme_deck;
+/* Fill theme_cur from /usr/share/themes/NAME.uconf; 0 if the file was read. */
+static int theme_from_file(const char *name) {
+  char path[96];
+  snprintf(path, sizeof path, "/usr/share/themes/%s.uconf", name);
+  uconf c;
+  if (uconf_load(&c, path) < 0) { uconf_free(&c); return -1; }
+  const struct theme *d = !strcmp(name, "brand") ? &theme_brand : &theme_deck; /* for keys a theme leaves out */
+  struct theme t;
+  snprintf(theme_cur_name, sizeof theme_cur_name, "%s", name);
+  snprintf(theme_cur_desc, sizeof theme_cur_desc, "%s", uconf_str(&c, "theme.description", name));
+  t.name = theme_cur_name; t.desc = theme_cur_desc;
+  t.bg = uconf_color(&c, "colors.bg", d->bg);
+  t.bg1 = uconf_color(&c, "colors.bar.bg", d->bg1);
+  t.bg2 = uconf_color(&c, "colors.surface", uconf_color(&c, "colors.border.normal", d->bg2));
+  t.fg = uconf_color(&c, "colors.fg", d->fg);
+  t.grey = uconf_color(&c, "colors.dim", d->grey);
+  t.orange = uconf_color(&c, "colors.accent", d->orange);
+  t.red = uconf_color(&c, "terminal.bright.red", d->red);
+  t.yellow = uconf_color(&c, "terminal.bright.yellow", d->yellow);
+  t.green = uconf_color(&c, "terminal.bright.green", d->green);
+  t.aqua = uconf_color(&c, "terminal.bright.cyan", d->aqua);
+  t.blue = uconf_color(&c, "terminal.bright.blue", d->blue);
+  t.purple = uconf_color(&c, "terminal.bright.magenta", d->purple);
+  uconf_free(&c);
+  theme_cur = t;
+  return 0;
+}
 /* The active theme: the first word of ~/.config/ucos/theme (the desktop's switch, Alt+t)
  * wins over $THEME, which is fixed when the terminal starts. Returns 1 if it changed. */
 static int theme_reload(void) {
@@ -134,9 +169,12 @@ static int theme_reload(void) {
     name[k] = 0;
   }
   if (!name[0]) { const char *t = getenv("THEME"); snprintf(name, sizeof name, "%s", t ? t : "deck"); }
-  const struct theme *old = th;
-  th = !strcmp(name, "brand") ? &theme_brand : &theme_deck;
-  return th != old;
+  struct theme before = *th;
+  char was[32];
+  snprintf(was, sizeof was, "%s", th->name); /* th->name may be the buffer theme_from_file rewrites */
+  if (theme_from_file(name) == 0) th = &theme_cur;
+  else th = !strcmp(name, "brand") ? &theme_brand : &theme_deck;
+  return strcmp(was, th->name) || memcmp(&before.bg, &th->bg, sizeof(unsigned) * 12) != 0;
 }
 static void theme_init(void) { theme_reload(); }
 

@@ -2,12 +2,12 @@
 /* Themes: one text file decides how the whole desktop looks.
  *
  * The active theme name is the first word of ~/.config/ucos/theme (default "deck").
- * A theme is /usr/share/themes/NAME.theme, lines of `key = value`, `#` comments:
- *   bg, fg, accent, border_focus, border_normal, bar_bg, bar_fg, dim      colours as RRGGBB hex
- *   color0 .. color15                                                     the 16 terminal colours
- *   font, font_bold                                                       paths to .ttf files
- *   font_size, gap, border, radius                                        integers (pixels)
- *   desktop, border_float, panel                                          colours (optional)
+ * A theme is /usr/share/themes/NAME.uconf, in the .uconf format (libuconf/uconf.h):
+ *   [colors]    bg fg accent dim, bar { bg fg }, border { focus normal }      colours, #rrggbb
+ *               desktop panel, border { float }                               (optional)
+ *   [terminal]  black red green yellow blue magenta cyan white, bright { the same eight }
+ *   [font]      regular bold (a file in /usr/share/fonts, or a path), size
+ *   [geometry]  gap border radius                                             pixels
  * Every graphical program loads it with ui_theme_load(), so changing the file
  * and reloading re-rices everything. */
 #ifndef UI_THEME_H

@@ -1,0 +1,57 @@
+# one-dark: One Dark. The Atom editor's dark theme: cool greys with clear, saturated syntax colours.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = one dark
+
+[colors]
+bg      = #282c34
+fg      = #abb2bf
+accent  = #61afef
+dim     = #5c6370
+desktop = #21252b
+panel   = #2c313a
+surface = #3e4451
+bar {
+    bg = #21252b
+    fg = #abb2bf
+}
+border {
+    focus  = #61afef
+    normal = #3e4451
+    float  = #e5c07b
+}
+
+[terminal]
+black   = #3f4451
+red     = #e06c75
+green   = #98c379
+yellow  = #e5c07b
+blue    = #61afef
+magenta = #c678dd
+cyan    = #56b6c2
+white   = #abb2bf
+bright {
+    black   = #5c6370
+    red     = #e06c75
+    green   = #98c379
+    yellow  = #e5c07b
+    blue    = #61afef
+    magenta = #c678dd
+    cyan    = #56b6c2
+    white   = #d7dae0
+}
+
+[font]
+name    = Fira Code
+regular = FiraCode-Regular.ttf
+bold    = FiraCode-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 10
+border = 2
+radius = 4

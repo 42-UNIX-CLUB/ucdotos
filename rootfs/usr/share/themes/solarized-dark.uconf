@@ -1,0 +1,57 @@
+# solarized-dark: Solarized Dark. Ethan Schoonover's precision palette: deep teal base, sixteen carefully balanced colours.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = solarized dark
+
+[colors]
+bg      = #002b36
+fg      = #839496
+accent  = #268bd2
+dim     = #586e75
+desktop = #00212b
+panel   = #073642
+surface = #073642
+bar {
+    bg = #073642
+    fg = #93a1a1
+}
+border {
+    focus  = #268bd2
+    normal = #586e75
+    float  = #b58900
+}
+
+[terminal]
+black   = #073642
+red     = #dc322f
+green   = #859900
+yellow  = #b58900
+blue    = #268bd2
+magenta = #d33682
+cyan    = #2aa198
+white   = #eee8d5
+bright {
+    black   = #002b36
+    red     = #cb4b16
+    green   = #586e75
+    yellow  = #657b83
+    blue    = #839496
+    magenta = #6c71c4
+    cyan    = #93a1a1
+    white   = #fdf6e3
+}
+
+[font]
+name    = Fira Code
+regular = FiraCode-Regular.ttf
+bold    = FiraCode-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 10
+border = 2
+radius = 0
