@@ -191,7 +191,7 @@ $(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/
 
 test: all
 
-# Run the kernel, C library, shell, sound, network and router suites against this build. Fails if any check fails.
+# Run the kernel, C library, shell, sound, network, router and platform suites against this build. Fails if any check fails.
 test: all
 	@sh tools/test.sh $(B)
 

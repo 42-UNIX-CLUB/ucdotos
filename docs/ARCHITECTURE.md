@@ -71,7 +71,7 @@ Design choices behind this (all made by the owners, see DECISIONS.md):
    | `audio_rate audio_open audio_write audio_close audio_volume audio_reset` | the host half of `/dev/dsp` (`boot/audio.mjs`): samples go to the mixer on the browser's audio thread, or to a real-time stand-in under Node. See section 15 |
    | `pointer_lock(on)` | the window manager captured (1) or released (0) the mouse (`EVIOCGRAB`); the page locks or unlocks the browser's pointer (section 10) |
    | `timer(ms)` | call the kernel export `timer_fire` in ms milliseconds (0: on the next turn of the event loop; below 0: cancel). One timeout at a time; each call replaces the last |
-   | `hn_caps hn_open hn_send hn_done hn_more hn_close` | the host half of `/dev/hostnet` (`boot/hostnet.mjs`): DNS, HTTP through `fetch()`, and under Node real TCP. See NETWORKING.md |
+   | `hn_caps hn_open hn_send hn_done hn_more hn_close` | the host half of `/dev/hostnet` (`boot/hostnet.mjs`): DNS, HTTP through `fetch()`, and under Node real TCP; on the web platform's origin also its proxy (signed in) and its Wisp relay (members: TCP to ports 80 and 443). `hn_caps` sets bit 3 (TCP) for Node sockets or the relay, bit 5 `HNCAP_RELAY`, bit 6 `HNCAP_PROXY`. See NETWORKING.md section 2 |
    | `store_kick store_fetch store_wipe` | the host half of persistence (`boot/store.mjs`): the kernel has changes to drain, needs the contents of a stored file, or was told to wipe the store. Without a store they do nothing (section 7) |
    | `clip_out(p, n, flags)` | a piece of text from `/dev/hostclip` for the computer's clipboard (flags: 1 first piece, 2 last, 4 cancel); the host joins the pieces and calls the `onClipboard(text)` option of `boot()` (section 11) |
 
@@ -331,8 +331,12 @@ The host tells the kernel how long a process ran each time it parks
   not set, as for a test run as pid 1): `audiod.sock`, `clip.sock`, `wm.sock`.
 - **Entitled sessions.** UC.OS has no passwords. Whether this session may become root is
   decided at boot: the boot parameter `ucos.admin=1` (the page passes it only when the
-  server that serves the page says so, with `<meta name="ucos-admin" content="1">`; the
-  address bar cannot set it). The kernel honours the set-user-ID and set-group-ID bits of
+  server that serves the page says so, with `<meta name="ucos-admin" content="1">`, or
+  when the web platform's `/api/me`, asked at boot, says someone signed in who is an
+  administrator; the address bar cannot set it). The page shows the platform state in the
+  boot text ("platform: not signed in (/auth/login signs in)" or "platform: signed in as
+  LOGIN, member, administrator") and keeps the answer in `window.ucosPlatform`. Signing in
+  is a visit to `/auth/login` outside UC.OS; there is no sign-in inside it. The kernel honours the set-user-ID and set-group-ID bits of
   a program only in an entitled session. `su` and `sudo` are installed set-user-ID root:
   entitled, they switch without asking; not entitled, they run as the caller and refuse.
   Root may always switch to anyone.

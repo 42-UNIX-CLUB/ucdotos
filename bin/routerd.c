@@ -397,8 +397,10 @@ int main(int argc, char **argv) {
   __syscall3(SYS_ifctl, gw, IFCTL_DEFAULT, 1);
   __syscall3(SYS_ifctl, gw, IFCTL_UP, 1);
   printf("routerd: gw0 10.0.2.15/24 is the default route; DNS on 127.0.0.53\n");
-  printf("routerd: this host can carry: DNS%s%s\n", caps & (1u << HN_TCP) ? ", TCP to any port" : "",
-         !(caps & (1u << HN_TCP)) && (caps & (1u << HN_HTTP)) ? ", HTTP on port 80 (sent as https through fetch, CORS rules apply)" : "");
+  printf("routerd: this host can carry: DNS%s%s%s\n",
+         !(caps & (1u << HN_TCP)) ? "" : caps & HNCAP_RELAY ? ", TCP to ports 80 and 443 (through the platform's relay)" : ", TCP to any port",
+         !(caps & (1u << HN_TCP)) && (caps & (1u << HN_HTTP)) ? ", HTTP on port 80 (sent as https through fetch, CORS rules apply)" : "",
+         !(caps & (1u << HN_TCP)) && (caps & HNCAP_PROXY) ? ", and through the platform's proxy for the hosts on its list" : "");
   fflush(stdout);
 
   for (;;) {

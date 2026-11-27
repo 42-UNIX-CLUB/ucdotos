@@ -20,5 +20,6 @@ run "shell    " node tools/run.mjs --build="$B" --init=/bin/sh --input='sh /usr/
 run "sound    " node tools/tests/audio.mjs --build="$B"
 run "network  " node tools/run.mjs --build="$B" --init=/bin/nettest
 run "router   " node tools/tests/router-http.mjs --build="$B"
+run "platform " node tools/tests/platform-local.mjs --build="$B"
 if [ $fail -eq 0 ]; then echo "all suites passed"; else echo "some suites failed"; fi
 exit $fail

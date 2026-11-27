@@ -432,6 +432,8 @@ struct ifinfo {
 #define HN_HTTP 2     /* write a whole HTTP/1.x request, then HNIOC_DONE; read gives the response */
 #define HN_TCP 3      /* host:port; then a byte stream both ways; HNIOC_DONE ends our side */
 #define HNCAP_TEST (1 << 4) /* HNIOC_CAPS: the host is in test mode (tools/tests/router-http.mjs) */
+#define HNCAP_RELAY (1 << 5) /* HN_TCP goes through the platform's relay: ports 80 and 443 only */
+#define HNCAP_PROXY (1 << 6) /* HN_HTTP may go through the platform's proxy (the hosts on its list) */
 #define HNIOC_CAPS 0x4801 /* arg: u32 *, bit (1 << HN_x) set if the host can do HN_x */
 #define HNIOC_OPEN 0x4802 /* arg: struct hn_open * */
 #define HNIOC_DONE 0x4803 /* the request (or our half of the stream) is complete */

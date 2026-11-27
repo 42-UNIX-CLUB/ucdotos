@@ -6,8 +6,10 @@
 //
 //   node tools/browser.mjs [--build=build] [--size=1280x720] [--out=<build>/shots] [--query='scale=1']
 //                          [--script=path/to/script.mjs] [--wait=4000] [--chromium=chromium]
+//                          [--at=http://127.0.0.1:PORT]
 //
-// It serves <build>/dist itself (run `make B=<build> dist` first). Without --script it waits
+// It serves <build>/dist itself (run `make B=<build> dist` first), or with --at opens a
+// server that is already running (the platform serving a dist folder). Without --script it waits
 // --wait milliseconds and writes <out>/browser.png. A script's default export is
 // `async (t) => { ... }` with the same helpers as tools/shot.mjs where they make sense:
 //   t.sleep(ms)  t.shot(name)  t.key(code, down)  t.tap(code, {shift,ctrl,alt,meta})  t.type('text\n')
@@ -36,7 +38,8 @@ const build = opt('build', 'build');
 const dist = path.join(root, build, 'dist');
 const outDir = opt('out', path.join(root, build, 'shots'));
 let [W, H] = opt('size', '1280x720').split('x').map(Number);
-if (!fs.existsSync(path.join(dist, 'kernel.wasm'))) { console.error(`no ${dist}/kernel.wasm: run make B=${build} dist`); process.exit(2); }
+const at = opt('at', null);
+if (!at && !fs.existsSync(path.join(dist, 'kernel.wasm'))) { console.error(`no ${dist}/kernel.wasm: run make B=${build} dist`); process.exit(2); }
 fs.mkdirSync(outDir, { recursive: true });
 
 // ---- a static file server for the dist folder ----
@@ -48,8 +51,8 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
   fs.createReadStream(file).pipe(res);
 });
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const url = `http://127.0.0.1:${server.address().port}/?${opt('query', 'scale=1')}`;
+if (!at) await new Promise((r) => server.listen(0, '127.0.0.1', r));
+const url = `${at ? at.replace(/\/+$/, '') : 'http://127.0.0.1:' + server.address().port}/?${opt('query', 'scale=1')}`;
 
 // ---- Chromium and the DevTools protocol ----
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'ucos-chromium-'));
@@ -201,5 +204,5 @@ try {
 } catch (e) { console.error('[browser] ' + (e && e.stack || e)); code = 1; }
 if (args.includes('--log')) process.stdout.write(logText);
 chrome.kill();
-server.close();
+if (!at) server.close();
 process.exit(code);
