@@ -163,6 +163,8 @@ Component suites:
 | shell job control | `bin/sh/test/jobs.mjs` | `shot.mjs` | 10 checks on a kernel with signals, 2 without |
 | users in the desktop | `tools/tests/desktop-users.mjs` | `shot.mjs`, once as is and once with `--admin` | 1 screenshot each; look at it: `su` refuses without `--admin` and gives root with it |
 | a full store | `tools/tests/store-full.mjs` | `node tools/tests/store-full.mjs --build=B` | 6 checks |
+| a terminal flooded with output | `tools/tests/desktop-flood.mjs` | `shot.mjs` (default init); a watchdog ends the run with a FAIL line if the event loop stands still for 10 s | `desktop-flood: 5 passed, 0 failed` |
+| the same in Chromium | `tools/tests/browser-flood.mjs` | `browser.mjs` (needs `make dist`) | `browser-flood: 7 passed, 0 failed`; frames keep coming during `yes` and `yes \| cat` |
 | tabs and storage in Chromium | `tools/tests/browser-tabs.mjs`, `browser-storage.mjs` | `browser.mjs` (needs `make dist`) | 14 and 5 checks |
 | image loader | `tools/tests/vfs-tar.mjs` | `node tools/tests/vfs-tar.mjs --build=B` | 11 checks: links, modes, owners, times from the tar |
 | persistence | `tools/tests/persist.mjs`, `persist-crash.mjs`, `integ-store.mjs`, `browser-persist.mjs` | `node tools/tests/NAME.mjs --build=B` (Node, a store file per run); `browser-persist.mjs` with `browser.mjs` (needs `make dist`) | 11, 10 and 7 checks (2026-11-26); the Chromium one not run with the current tree |
@@ -300,6 +302,11 @@ an `fdmap`, close your copies, `waitpid`. `bin/ktest.c` and `bin/sh/exec.c` show
 5. **One thread, cooperative.** Idle programs must block in `poll`, `read` or
    `nanosleep`. A loop that makes system calls is preempted every 8 ms; a loop that makes
    none freezes everything. In long pure computations, make a cheap call now and then.
+   Under Node the kernel's preemption uses a message task, and Node serves up to 1,000
+   queued messages before it runs its timers again (a 100 ms timer fired after 2,107 ms
+   behind 1,000 messages of 2 ms, Node 26.13.1). So a process that never blocks can delay
+   the test tools' timers by up to 1,000 slices. The host's turn after a wake-up
+   (`TURN_MS`, ARCHITECTURE.md section 4) uses `setImmediate` under Node for this reason.
 6. **Benchmarks.** V8 has no on-stack replacement for wasm: a loop that is entered once
    stays in baseline code forever. Put the timed loop in a `noinline` function, call it
    many times, report the best batch and the first (cold) batch. Browser clocks tick
