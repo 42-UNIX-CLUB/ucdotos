@@ -225,6 +225,30 @@ Chromium 158 refuses both synchronous `new WebAssembly.Module` and synchronous
 module is larger than 8 MB (`RangeError`, probed with generated modules of 8,000 and
 8,200 KiB). The largest program, `doom`, is 445 KB.
 
+**The kernel layers and process start (2026-11-27).** No timed comparison of the three
+kernel layers (fork and signals, the file system with persistence, users and permissions)
+against the main before them exists: the machine never had a quiet window. What exists is a
+count of user-space instructions per process start under Node, through `init`, with `xargs`
+as the parent (`seq N | xargs -n 1 PROG`; the count at N = 10,000 minus the count at
+N = 2,000, divided by 8,000). Eight passes, median against the main before the layers
+(`1a934da`):
+
+| Side | `/bin/true` | `sh -c :` |
+|---|---|---|
+| control (the same main again) | 1.0014 | 1.0027 |
+| fork and signals | 1.0115 | 1.0159 |
+| plus the file system | 1.0136 | 1.0117 |
+| plus users and permissions, as root | 1.0142 | 1.0179 |
+| plus users and permissions, as the desktop user | 1.0172 | 1.0156 |
+
+The last two rows were counted on an earlier head of the users layer; four more passes on
+the head that was merged gave 1.0172 and 1.0136 for `/bin/true` (root, user) and 1.0111 and
+1.0157 for `sh -c :`, the same within what the count resolves. A side's own passes spread
+0.1 to 2.8% (5.9% once, from a single low pass on the file system row with `sh`), so the
+count resolves about 1%, not finer. It counts instructions, not time:
+it says each layer adds about 1 to 2% to the instructions of a process start, and nothing
+about memory stalls or the browser.
+
 ## 5. Presenting the screen
 
 The kernel keeps the bounding box of every write to `/dev/fb0` since the last frame and
