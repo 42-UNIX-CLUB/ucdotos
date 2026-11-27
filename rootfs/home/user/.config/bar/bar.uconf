@@ -1,0 +1,24 @@
+# ~/.config/bar/bar.uconf: the bar along the top of the screen.
+#
+# The bar reads this when it starts and again on Mod+Shift+r (reload) or a
+# theme change (Mod+t): save, press Mod+Shift+r, and see. The height counts
+# at start only. The format is .uconf: see ~/.config/wm/wm.uconf.
+
+[bar]
+height = 0           # pixels; 0 follows the theme's font size
+
+[workspaces]         # the numbered cells on the left (click or scroll them)
+show = true
+
+[title]              # the focused window's title, next to the cells
+show = true
+
+[clock]              # in the middle
+show = true
+# The built-in look is "Thu 26 Nov 10:35:54". Or write your own with the
+# strftime letters (%a day, %d date, %b month, %Y year, %H:%M:%S time...).
+# Times are UTC: the system has no time zones.
+# format = %Y-%m-%d %H:%M
+
+[stats]              # live numbers on the right
+show = mem, procs, sys   # any of mem, procs, sys, in any order; empty for none

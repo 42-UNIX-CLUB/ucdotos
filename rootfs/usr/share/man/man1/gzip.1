@@ -1,0 +1,48 @@
+GZIP(1)                   UC.OS Manual                   GZIP(1)
+
+NAME
+       gzip, gunzip, zcat, xz, unxz, xzcat, zstd, unzstd, zstdcat -
+       compress and decompress files
+
+SYNOPSIS
+       gzip [-cdfklnqtv19] [-S suffix] [file...]
+       gunzip [-cfkqtv] [file...]
+       zcat [-f] [file...]
+       xz -d [-cfkqtv] [file...]     unxz, xzcat
+       zstd -d [-cfkqtv] [-o file] [file...]     unzstd, zstdcat
+
+DESCRIPTION
+       gzip compresses each file into file.gz and removes the
+       original. gunzip does the reverse. zcat writes the
+       decompressed data to standard output. With no file, they read
+       standard input.
+
+              $ gzip -k report.txt
+              $ zcat report.txt.gz | head
+
+       xz and zstd here only decompress, test and list: give them -d,
+       or use unxz, xzcat, unzstd and zstdcat. zstd keeps the input
+       file unless --rm is given.
+
+       Every check the formats carry is verified: the CRC32 and length
+       of gzip, the block and index checks of xz, the checksum of zstd.
+
+OPTIONS
+       -c     Write to standard output and keep the input files.
+       -d     Decompress.
+       -f     Overwrite existing files. With -c, data that is not
+              compressed is passed through unchanged.
+       -k     Keep the input files.
+       -l     List compressed and uncompressed sizes.
+       -n     Do not store the file name and time when compressing.
+       -q     Quiet.
+       -t     Test the compressed files.
+       -v     Verbose.
+       -1 to -9
+              Faster to smaller. The default is 6.
+       -M SIZE, --memory=SIZE
+              The largest window or dictionary to accept (xz, zstd).
+              The default is 128M.
+
+SEE ALSO
+       tar(1)

@@ -1,0 +1,57 @@
+# rose-pine: Rose Pine. All natural pine, faux fur and a bit of soho vibes: muted purples and rose.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = rose pine
+
+[colors]
+bg      = #191724
+fg      = #e0def4
+accent  = #ebbcba
+dim     = #6e6a86
+desktop = #1f1d2e
+panel   = #26233a
+surface = #26233a
+bar {
+    bg = #1f1d2e
+    fg = #e0def4
+}
+border {
+    focus  = #ebbcba
+    normal = #403d52
+    float  = #f6c177
+}
+
+[terminal]
+black   = #26233a
+red     = #eb6f92
+green   = #31748f
+yellow  = #f6c177
+blue    = #9ccfd8
+magenta = #c4a7e7
+cyan    = #ebbcba
+white   = #e0def4
+bright {
+    black   = #6e6a86
+    red     = #eb6f92
+    green   = #31748f
+    yellow  = #f6c177
+    blue    = #9ccfd8
+    magenta = #c4a7e7
+    cyan    = #ebbcba
+    white   = #e0def4
+}
+
+[font]
+name    = Fira Code
+regular = FiraCode-Regular.ttf
+bold    = FiraCode-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 12
+border = 2
+radius = 14

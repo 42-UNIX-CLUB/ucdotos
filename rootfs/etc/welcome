@@ -1,4 +1,4 @@
 # Run by the first terminal on the desktop: show the system, then hand over to a shell.
-# Change the line in ~/.config/wm/config that starts it if you want something else.
+# Change the exec line in ~/.config/wm/wm.uconf that starts it if you want something else.
 fetch
 sh

@@ -1,0 +1,8 @@
+# ~/.config/launcher/launcher.uconf: the program launcher ($mod d).
+#
+# Read every time the launcher opens. The format is .uconf: see
+# ~/.config/wm/wm.uconf for a summary.
+
+[launcher]
+width = 600     # pixels
+rows  = 8       # how many programs show at once

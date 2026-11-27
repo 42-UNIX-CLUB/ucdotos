@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* Theme loader: ~/.config/ucos/theme names the theme, /usr/share/themes/NAME.theme describes it. */
+/* Theme loader: ~/.config/ucos/theme names the theme, /usr/share/themes/NAME.uconf describes it. */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -7,6 +7,9 @@
 #include <sys/stat.h>
 #include "theme.h"
 #include "gfx.h"
+#include "uconf.h"
+#include <stddef.h>
+#include <stdio.h>
 
 unsigned char *ui_read_file(const char *path, unsigned *len) {
   int fd = open(path, O_RDONLY);
@@ -43,23 +46,6 @@ static void defaults(ui_theme *t) {
   t->font_size = 15; t->gap = 12; t->border = 2; t->radius = 8;
 }
 
-static int hexval(int c) {
-  if (c >= '0' && c <= '9') return c - '0';
-  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-  return -1;
-}
-static int parse_color(const char *v, unsigned *out) {
-  if (*v == '#') v++;
-  unsigned rgb = 0;
-  for (int i = 0; i < 6; i++) {
-    int h = hexval(v[i]);
-    if (h < 0) return -1;
-    rgb = rgb << 4 | h;
-  }
-  *out = GFX_HEX(rgb);
-  return 0;
-}
 static void parse_font(const char *v, char *out) {
   if (*v == '/') strlcpy(out, v, 128);
   else { strcpy(out, "/usr/share/fonts/"); strncat(out, v, 127 - strlen(out)); }
@@ -84,6 +70,16 @@ static void active_name(char *name, int cap) {
   if (!n) strlcpy(name, "deck", cap);
 }
 
+/* A theme is /usr/share/themes/NAME.uconf (the format: libuconf/uconf.h):
+ *   [colors]    bg fg accent dim desktop panel, bar { bg fg }, border { focus normal float }
+ *   [terminal]  black red green yellow blue magenta cyan white, bright { the same eight }
+ *   [font]      regular bold (a path, or a file in /usr/share/fonts) size
+ *   [geometry]  gap border radius */
+static const char *const ansi[8] = {"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"};
+static void color(uconf *c, const char *key, unsigned *dst) {
+  unsigned def = ((*dst & 0xff) << 16) | (*dst & 0xff00) | ((*dst >> 16) & 0xff); /* back to 0xRRGGBB */
+  *dst = GFX_HEX(uconf_color(c, key, def));
+}
 int ui_theme_load(ui_theme *t, const char *name) {
   char nm[32], path[96];
   defaults(t);
@@ -91,57 +87,32 @@ int ui_theme_load(ui_theme *t, const char *name) {
   else active_name(nm, sizeof nm);
   strlcpy(t->name, nm, sizeof t->name);
   strcpy(path, "/usr/share/themes/");
-  strncat(path, nm, sizeof path - strlen(path) - 8);
-  strcat(path, ".theme");
-  char *s = (char *)ui_read_file(path, NULL);
-  if (!s) return -1;
-  int have_desktop = 0, have_panel = 0, have_float = 0;
-  for (char *line = s, *next; line && *line; line = next) {
-    next = strchr(line, '\n');
-    if (next) *next++ = 0;
-    char *hash = strchr(line, '#');
-    /* a '#' starts a comment unless it begins a colour value (key = #rrggbb) */
-    char *eq = strchr(line, '=');
-    if (hash && (!eq || hash < eq)) *hash = 0;
-    if (!eq || (hash && hash < eq)) continue;
-    *eq = 0;
-    char *k = line, *v = eq + 1;
-    while (*k == ' ' || *k == '\t') k++;
-    for (char *e = k + strlen(k); e > k && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r'); ) *--e = 0;
-    while (*v == ' ' || *v == '\t') v++;
-    for (char *c = v + 1; *c; c++) /* a '#' after a blank starts a trailing comment */
-      if (*c == '#' && (c[-1] == ' ' || c[-1] == '\t')) { *c = 0; break; }
-    for (char *e = v + strlen(v); e > v && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r'); ) *--e = 0;
-    if (!*k || !*v) continue;
-    struct { const char *key; unsigned *dst; } colors[] = {
-      {"bg", &t->bg}, {"fg", &t->fg}, {"accent", &t->accent}, {"border_focus", &t->border_focus},
-      {"border_normal", &t->border_normal}, {"bar_bg", &t->bar_bg}, {"bar_fg", &t->bar_fg}, {"dim", &t->dim},
-      {"desktop", &t->desktop}, {"border_float", &t->border_float}, {"panel", &t->panel},
-    };
-    int done = 0;
-    for (unsigned i = 0; i < sizeof colors / sizeof colors[0]; i++)
-      if (!strcmp(k, colors[i].key)) {
-        parse_color(v, colors[i].dst);
-        if (colors[i].dst == &t->desktop) have_desktop = 1;
-        if (colors[i].dst == &t->panel) have_panel = 1;
-        if (colors[i].dst == &t->border_float) have_float = 1;
-        done = 1;
-      }
-    if (done) continue;
-    if (!strncmp(k, "color", 5) && k[5] >= '0' && k[5] <= '9') {
-      int i = atoi(k + 5);
-      if (i >= 0 && i < 16) parse_color(v, &t->color[i]);
-    } else if (!strcmp(k, "font")) parse_font(v, t->font);
-    else if (!strcmp(k, "font_bold")) parse_font(v, t->font_bold);
-    else if (!strcmp(k, "font_size")) { int n = atoi(v); if (n >= 6 && n <= 72) t->font_size = n; }
-    else if (!strcmp(k, "gap")) { int n = atoi(v); if (n >= 0 && n <= 100) t->gap = n; }
-    else if (!strcmp(k, "border")) { int n = atoi(v); if (n >= 0 && n <= 20) t->border = n; }
-    else if (!strcmp(k, "radius")) { int n = atoi(v); if (n >= 0 && n <= 40) t->radius = n; }
+  strncat(path, nm, sizeof path - strlen(path) - 7);
+  strcat(path, ".uconf");
+  uconf c;
+  if (uconf_load(&c, path) < 0) { uconf_free(&c); return -1; }
+  static const struct { const char *key; size_t off; } colors[] = {
+    {"colors.bg", offsetof(ui_theme, bg)}, {"colors.fg", offsetof(ui_theme, fg)}, {"colors.accent", offsetof(ui_theme, accent)},
+    {"colors.dim", offsetof(ui_theme, dim)}, {"colors.bar.bg", offsetof(ui_theme, bar_bg)}, {"colors.bar.fg", offsetof(ui_theme, bar_fg)},
+    {"colors.border.focus", offsetof(ui_theme, border_focus)}, {"colors.border.normal", offsetof(ui_theme, border_normal)},
+  };
+  for (unsigned i = 0; i < sizeof colors / sizeof colors[0]; i++) color(&c, colors[i].key, (unsigned *)((char *)t + colors[i].off));
+  char key[48];
+  for (int i = 0; i < 16; i++) {
+    snprintf(key, sizeof key, i < 8 ? "terminal.%s" : "terminal.bright.%s", ansi[i & 7]);
+    color(&c, key, &t->color[i]);
   }
-  free(s);
-  /* optional colours not given: derive them from the required ones */
-  if (!have_desktop) t->desktop = gfx_blend_px(t->bg, 0, 40);
-  if (!have_panel) t->panel = t->bar_bg;
-  if (!have_float) t->border_float = t->color[11];
+  /* optional colours not given: derive them from the others */
+  if (uconf_str(&c, "colors.desktop", NULL)) color(&c, "colors.desktop", &t->desktop); else t->desktop = gfx_blend_px(t->bg, 0, 40);
+  if (uconf_str(&c, "colors.panel", NULL)) color(&c, "colors.panel", &t->panel); else t->panel = t->bar_bg;
+  if (uconf_str(&c, "colors.border.float", NULL)) color(&c, "colors.border.float", &t->border_float); else t->border_float = t->color[11];
+  const char *f = uconf_str(&c, "font.regular", NULL);
+  if (f) parse_font(f, t->font);
+  if ((f = uconf_str(&c, "font.bold", NULL))) parse_font(f, t->font_bold);
+  t->font_size = uconf_int(&c, "font.size", t->font_size, 6, 72);
+  t->gap = uconf_int(&c, "geometry.gap", t->gap, 0, 100);
+  t->border = uconf_int(&c, "geometry.border", t->border, 0, 20);
+  t->radius = uconf_int(&c, "geometry.radius", t->radius, 0, 40);
+  uconf_free(&c);
   return 0;
 }
