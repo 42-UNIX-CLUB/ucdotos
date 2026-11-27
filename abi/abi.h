@@ -63,6 +63,11 @@ typedef long ssize;
 #define SYS_shutdown 210
 #define SYS_wait4 260
 #define SYS_getrandom 278
+/* Private call numbers (Linux has none of these). Ranges in use, so that streams do not collide:
+ *   500-503  base: spawn, getargs, procinfo, intr (below)
+ *   504-519  networking (netstat 504, ifinfo 505, ifctl 506 in the network stack; room to grow)
+ *   520-539  processes and memory: pclone 520, sigtake 521, pmigrate 522 (further down)
+ * The ranges are an assumption made at integration, reversible; see docs/DECISIONS.md. */
 /* --- private calls: Linux has no spawn syscall and passes argv on the stack --- */
 #define SYS_spawn 500    /* (path, argv, envp, fdmap[3] or 0) -> pid */
 #define SYS_getargs 501  /* (buf, cap) -> bytes: argc, envc, then NUL-terminated strings */
@@ -438,5 +443,62 @@ struct hn_open { int op, port; char host[256]; };
 #ifndef ENOTSUP
 #define ENOTSUP EOPNOTSUPP
 #endif
+
+/* --- processes and signals (added for fork, exec and signal delivery) --- */
+#define SYS_execve 221
+#define SYS_setitimer 103
+#define SYS_getitimer 102
+#define SYS_tgkill 131
+#define SYS_rt_sigsuspend 133
+#define SYS_rt_sigaction 134
+#define SYS_rt_sigprocmask 135
+#define SYS_rt_sigpending 136
+#define SYS_pclone 520  /* (flags = 0) -> child pid; clones the caller: memory, exported globals, descriptors.
+                         * The child starts at the program's export __fork_child. See ARCHITECTURE.md 5. */
+#define SYS_pmigrate 522 /* (ranges, n, flags = 0): move the caller into a fresh memory holding only these ranges
+                          * (u32 start, u32 length pairs); same pid. Never returns on success: the new instance
+                          * starts at the export __migrate_resume. See ARCHITECTURE.md 5. */
+#define SYS_sigtake 521 /* (struct sigtake *) -> next signal to run a handler for (its bit is cleared), or 0 */
+#define WUNTRACED 2
+#define E2BIG 7
+#define WCONTINUED 8
+/* rt_sigaction's structure, Linux generic layout on a 32-bit machine (sigsetsize must be 8) */
+struct k_sigaction {
+  u32 handler; /* 0 = SIG_DFL, 1 = SIG_IGN, else a function pointer of the program */
+  u32 flags;
+  u32 restorer;
+  u32 pad;
+  u64 mask;    /* bit n-1 = signal n */
+};
+/* what SYS_sigtake reports: the handler to call and the mask to restore after it */
+struct sigtake {
+  u32 handler, flags;
+  u64 oldmask;
+  s32 signo, code, pid, status; /* code: Linux's si_code: 0 kill, 0x80 kernel, CLD_* for SIGCHLD */
+};
+struct k_itimerval {
+  s64 interval_sec;
+  long interval_usec;
+  s64 value_sec;
+  long value_usec;
+};
+#define SIGHUP 1
+#define SIGQUIT 3
+#define SIGPIPE 13
+#define SIGALRM 14
+#define SIGCHLD 17
+#define SIGCONT 18
+#define SIGSTOP 19
+#define SIGTSTP 20
+#define SIGTTIN 21
+#define SIGTTOU 22
+#define SIGWINCH 28
+#define VSUSP 10
+#define SA_NOCLDSTOP 1
+#define SA_NOCLDWAIT 2
+#define SA_SIGINFO 4
+#define SA_RESTART 0x10000000
+#define SA_NODEFER 0x40000000
+#define SA_RESETHAND 0x80000000
 
 #endif

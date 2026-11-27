@@ -152,6 +152,10 @@ Notes that go with these:
 | Any valid revocation by the primary key disables the key, whatever its reason code (stricter than RFC 9580's soft revocations). | Fails safe. | `libsig/pgp.c`. |
 | Self-signatures and signatures made with SHA-1 or MD5 are refused. The Ubuntu 2012 archive key (SHA-1 self-signature only) is unusable; current Ubuntu suites are signed by the 2018 key, which works. | Fails safe. | Accept SHA-1 self-signatures made before a cut-off date. |
 | Only version 4 keys and signatures are checked; version 6 is parsed far enough to say "not supported". | No current Debian or Ubuntu key or signature uses v6 (checked on 10 InRelease files and both keyrings, 2026-11-26). | Add v6 to `libsig/`. |
+| Private system call numbers are kept in ranges: 500-503 base (spawn, getargs, procinfo, intr), 504-519 networking (netstat, ifinfo, ifctl use 504-506), 520-539 processes and memory (pclone 520, sigtake 521, pmigrate 522). | Fork's calls first had 504-506, which the network stack took when it merged. | The comment and numbers in `abi/abi.h`; `bin/lx/host_ucos.c` uses 520 literally. |
+| Fork is opt-in per program: an empty `USE_FORK` file in `bin/NAME/` runs the stack transform after linking; no program but `forktest` has it, and the shell keeps using `spawn`. | The transform makes a program larger and every call that can reach fork a little slower; most programs never fork. | Add or remove the file; `fork_tool` in the `Makefile`. |
+| `vfork()` is `fork()` (a copy of memory, not shared memory). | Memory cannot be shared between instances. | `libc/src/fork.c`. |
+| A session leader whose action for a terminal signal is the default is not killed by Ctrl-C (it gets the `intr()` flag) and is never stopped by Ctrl-Z. | Keeps the shell alive, as before signals existed. | `tty_sig_leader()` in `kernel/tty.c`. |
 
 ## 3. Open: an owner needs to choose
 
