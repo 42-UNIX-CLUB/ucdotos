@@ -54,6 +54,7 @@ export function hostnet(getK, opts = {}) {
   const pcred = platform && platform.cookie ? { headers: { cookie: platform.cookie } } : {};
   const relayOn = !!(platform && platform.member && typeof WebSocket === 'function');
   const proxied = new Set();             // hosts that only answered through the proxy: ask it first
+  const relayWait = (platform && platform.relayWait) || 10000; // ms for the token and for the relay's first packet
   const chans = new Map();
   const enc = new TextEncoder(), dec = new TextDecoder();
   const kmem = () => getK().memory.buffer;
@@ -227,7 +228,7 @@ export function hostnet(getK, opts = {}) {
     };
     R.ready = (async () => {
       const r = await fetch(`${pbase}/api/relay-token`, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
-        headers: pcred.headers ? { ...pcred.headers, origin: pbase } : undefined });
+        headers: pcred.headers ? { ...pcred.headers, origin: pbase } : undefined, signal: AbortSignal.timeout(relayWait) });
       if (!r.ok) throw new Error('relay token: HTTP ' + r.status);
       const { token } = await r.json();
       const at = new URL(`${pbase}/relay`, globalThis.location ? globalThis.location.href : undefined);
@@ -238,13 +239,15 @@ export function hostnet(getK, opts = {}) {
       ws.binaryType = 'arraybuffer';
       R.ws = ws;
       await new Promise((ok, no) => {
+        // a relay that opens and then says nothing must not hold every connection for ever
+        const late = setTimeout(() => { no(new Error('relay: no first packet')); try { ws.close(); } catch { /* already closing */ } }, relayWait);
         ws.onerror = () => no(new Error('relay: cannot open'));
-        ws.onclose = () => { no(new Error('relay closed')); drop(); };
+        ws.onclose = () => { clearTimeout(late); no(new Error('relay closed')); drop(); };
         ws.onmessage = (e) => {
           const p = new Uint8Array(e.data);
           if (p.length < 5) return;
           const id = new DataView(p.buffer).getUint32(1, true);
-          if (p[0] === W_CONTINUE && id === 0) { R.initial = new DataView(p.buffer).getUint32(5, true); ok(); return; }
+          if (p[0] === W_CONTINUE && id === 0) { clearTimeout(late); R.initial = new DataView(p.buffer).getUint32(5, true); ok(); return; }
           const s = R.streams.get(id);
           if (!s) return;
           if (p[0] === W_DATA) { s.inbox.push(p.subarray(5)); relayIn(s); }

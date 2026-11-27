@@ -48,7 +48,7 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
   (`tools/remote-node.mjs`); `--remote-rate=BYTES_PER_SECOND` slows them down and
   `--remote-off` makes every fetch fail, to test progress and errors.
 - `tools/run.mjs --platform=URL --platform-cookie='name=value'` (with `--platform-member`,
-  `--platform-proxy-first`) runs the host layer as a browser would on the platform's origin:
+  `--platform-proxy-first`, `--platform-relay-wait=MS`) runs the host layer as a browser would on the platform's origin:
   no sockets of its own, the platform's proxy and relay instead. `tools/browser.mjs
   --at=http://HOST:PORT` opens a running server (such as the platform) instead of serving
   `dist`. `tools/tests/platform.mjs` (9 checks, needs a running platform and the internet)
@@ -141,7 +141,7 @@ first nine and fails if any check fails. Counts as of 2026-11-27.
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
 | network | `node tools/run.mjs --build=B --init=/bin/nettest` | `nettest: 89 checks, 0 failed` |
 | router (HTTP path, offline) | `node tools/tests/router-http.mjs --build=B` | `routertest: 24 checks, 0 failed` |
-| platform link (offline) | `node tools/tests/platform-local.mjs --build=B` | `platform-local: 26 checks, 0 failed`: a stand-in platform in Node (proxy, relay token, a Wisp relay with a credit of 4) |
+| platform link (offline) | `node tools/tests/platform-local.mjs --build=B` | `platform-local: 27 checks, 0 failed`: a stand-in platform in Node (proxy, relay token, a Wisp relay with a credit of 4) |
 | desktop | `node tools/shot.mjs --build=B --script=tools/tests/desktop.mjs` | six screenshots; look at them |
 | browser | `node tools/browser.mjs --build=B --script=tools/tests/browser-desktop.mjs` | four screenshots; look at them |
 

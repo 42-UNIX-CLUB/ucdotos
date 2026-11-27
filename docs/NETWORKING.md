@@ -59,7 +59,9 @@ not JSON) nothing changes from the table below. With one:
 - **Member:** TCP to ports 80 and 443 through the platform's relay: one WebSocket to
   `/relay` (Wisp version 1), opened at the first connection with a token from
   `POST /api/relay-token`, and again with a new token after it drops (connections open at
-  that moment end with `ECONNRESET`). Each TCP connection is one Wisp stream; data goes
+  that moment end with `ECONNRESET`). The host waits at most 10 s for the token and for the
+  relay's first packet; after that the connection fails with `ENETUNREACH` and the next one
+  tries afresh. Each TCP connection is one Wisp stream; data goes
   in pieces of at most 64 KiB and the host keeps to the credit the relay gives. Another
   port is refused (`EACCES`; `nc` says "Connection reset by peer"). With TCP there, routerd
   sends everything as TCP, so a member's HTTP on port 80 is real HTTP over the relay (no
@@ -115,10 +117,11 @@ content), the upgrade from http to https, and DNS over HTTPS. Those were checked
 answers `200 OK` with its data, example.com gets the 502 with the reason, port 22 is
 refused and `ping 1.1.1.1` reports the host unreachable. Not tried: Firefox, Safari.
 
-The platform link (2026-11-27): `platform-local` (26 checks, in `make test`) runs a
+The platform link (2026-11-27): `platform-local` (27 checks, in `make test`) runs a
 stand-in platform in Node, offline: the proxy, the token, a Wisp relay with a credit of 4;
 it moved 3 MiB down and 1,000,000 bytes up through the relay with identical SHA-256, three
-streams at once, survived a dropped relay, and never saw more data packets than the credit.
+streams at once, survived a dropped relay, never saw more data packets than the credit, and
+failed a connection after the wait when a relay accepted the WebSocket and then said nothing.
 Against a local instance of the platform with its test sign-in: `tools/tests/platform.mjs`
 9 of 9; `tools/tests/browser-platform.mjs` in Chromium 12 of 12 as a member and 10 of 10 as
 a signed-in non-member; Debian's `Release` file (139,311 bytes with headers) came through
@@ -208,6 +211,11 @@ Without any of these, an ordinary tab keeps what section 2 lists.
 - The host does not slow down a sender on its side: data a UC.OS program writes to a
   Node socket is buffered by Node without limit. The same holds for the relay: while it
   gives no credit, what a program sends waits in the host's memory.
+- The other way round, what the relay sends while the kernel has no room for it also waits
+  in the host layer, with no limit: Wisp version 1 gives credit only from the client to the
+  relay, and a page cannot stop reading a WebSocket. A program that does not read a large
+  download lets it pile up in the tab's memory. (With Node's own sockets the host pauses
+  the socket instead.)
 - Wisp has no half-close: `shutdown(SHUT_WR)` on a connection through the relay does
   nothing. The relay carries ports 80 and 443 only (the platform's rule).
 - The relay's close reasons become errors: 0x42 `EHOSTUNREACH`, 0x43 and 0x47

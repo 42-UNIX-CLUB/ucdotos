@@ -112,7 +112,7 @@ The suites that must stay green (counts as of 2026-11-27):
 | Network | `node tools/run.mjs --init=/bin/nettest` | 89 checks, 0 failed |
 | Router | `node tools/tests/router-http.mjs` | 24 checks, 0 failed |
 | Dotfile parser | `node tools/run.mjs --init=/bin/uconftest` | 66 checks, 0 failed |
-| Platform link (offline) | `node tools/tests/platform-local.mjs` | 26 checks, 0 failed |
+| Platform link (offline) | `node tools/tests/platform-local.mjs` | 27 checks, 0 failed |
 | Desktop | `node tools/shot.mjs --script=tools/tests/desktop.mjs` | look at the 6 screenshots |
 
 Component suites (terminal, window manager, editor, htop, fetch, Doom) are listed in

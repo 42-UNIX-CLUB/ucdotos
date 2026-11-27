@@ -26,6 +26,7 @@ const check = (name, cond, info = '') => {
 const COOKIE = 'ucdotweb=the-session', CREDIT = 4, BIG = 3 << 20, UP = 1000000;
 const big = Buffer.alloc(BIG);
 for (let i = 0; i < big.length; i++) big[i] = (i * 7 + (i >> 8) * 13) & 255;
+let silent = false;                             // the relay opens and then says nothing
 const seen = { outside: [], proxy: [], cookies: [], tokens: 0, sockets: 0, connects: [], overCredit: 0, upBytes: 0, programCookie: false, badRelay: [] };
 
 // the site behind the platform: what a relayed TCP stream reaches
@@ -102,7 +103,7 @@ platform.on('upgrade', (req, sock) => {
   const packet = (type, id, payload) => { const p = Buffer.alloc(5 + payload.length); p[0] = type; p.writeUInt32LE(id, 1); payload.copy(p, 5); frame(p); };
   const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
   const streams = new Map();
-  packet(3, 0, u32(CREDIT));
+  if (!silent) packet(3, 0, u32(CREDIT));
   const wisp = (p) => {
     const type = p[0], id = p.readUInt32LE(1), body = p.subarray(5);
     if (type === 1) {
@@ -235,6 +236,13 @@ check('and the next connection opens a new socket with a new token', /hello thro
 check('the relay was given addresses and ports as the program asked', seen.connects.includes('203.0.113.10:80') && seen.connects.includes('203.0.113.10:22'), seen.connects.join(', '));
 check('no relay request was refused by the stand-in (origin, protocols, token)', seen.badRelay.length === 0, seen.badRelay.join(' ; '));
 check('members do not use the proxy', seen.proxy.length === 6, seen.proxy.join(', '));
+
+// ---- a relay that takes the socket and never sends its first packet
+silent = true;
+const t0 = Date.now();
+out = await os(['--platform-member', '--platform-relay-wait=700'], [`${req('site.test', '/hello')}; echo "silent rc=$?"`, 'echo MARK1', `${req('site.test', '/hello')}; echo "again rc=$?"`, 'echo MARK2'].join('\n'));
+p = out.split(/MARK\d/);
+check('a relay that says nothing: the connection fails after the wait instead of hanging', /silent rc=[1-9]/.test(p[0]) && /again rc=[1-9]/.test(p[1] || '') && !/hello through/.test(out) && Date.now() - t0 < 20000, `${Date.now() - t0} ms: ${out.slice(-300)}`);
 
 console.log(`platform-local: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
