@@ -6,7 +6,7 @@ How the system works, layer by layer. Everything here describes the code as it i
 Contents: 1 the big picture, 2 the host, 3 the system call path, 4 blocking and
 scheduling, 5 processes, 6 memory, 7 files and devices, 8 terminals, 9 sockets,
 10 screen and input, 11 the desktop stack, 12 the C library, 13 the toolchain,
-14 limits and what does not exist, 15 sound, 16 networking.
+14 limits and what does not exist, 15 sound, 16 networking, 17 the package manager.
 
 ## 1. The big picture
 
@@ -639,41 +639,67 @@ nonsense, and drops events for a client that stops reading. At most 24 clients.
 **A theme change is delivered as a resize event with the unchanged size.** Every client
 must call `ui_theme_load()` again on every `UI_EV_RESIZE` and redraw.
 
-**wm** (`bin/wm/`): master-and-stack tiling, gaps, rounded anti-aliased borders (2 px
-accent on the focused window, 1 px grey on the others), fullscreen, floating windows
-(`float` toggles, on Mod+y and Mod+Shift+space; Mod + left-button drag moves a floating
-window, and that click never reaches the program), workspaces, damage-based compositing at
-most once per 15 ms, zero work when idle. It keeps no full-screen buffers: damaged
-rectangles are painted a band of rows at a time into a static 256 KiB strip and each band
-is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made rows
-(plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2 MiB
-plus a copy of every window's pixels.
-Commands (bindable keys and `ui_wm_command`): `exec CMD`, `workspace N`, `move N`,
-`focus next|prev`, `swap next|prev|master`, `master grow|shrink`, `fullscreen`, `float`,
-`kill`, `theme next|NAME`, `reload`, `exit`, `stats`, `bench`, `trace on|off` (print, for each
-`PRESENT`, the time from its first byte to the framebuffer write; used by the latency
-probe), `animation MS`,
-`zoom in|out|reset` (sends the zoom event to the focused window; bound by default to
-Ctrl+= with or without Shift, Ctrl+- and Ctrl+0, which therefore no longer reach programs.
-Bindings are by key position, so on a non-US keyboard these are the keys in the US
-positions of = and -, and the numeric keypad cannot be bound).
+**wm** (`bin/wm/`): two tiling layouts per workspace (master and stack, or a split tree),
+gaps, rounded anti-aliased borders (2 px accent on the focused window, 1 px grey on the
+others), fullscreen, floating windows (`float` toggles, on Mod+y and Mod+Shift+space; Mod +
+left-button drag moves a floating window, and that click never reaches the program; a window
+that never takes the focus, such as the cheat sheet, is not moved), workspaces, damage-based
+compositing at most once per 15 ms, zero work when idle. It keeps no full-screen buffers:
+damaged rectangles are painted a band of rows at a time into a static 256 KiB strip and each
+band is written to `/dev/fb0`. The wallpaper is made again for each row from two ready-made
+rows (plain, and with the dot grid) and a small picture of the logo. Its memory is about 1.2
+MiB plus a copy of every window's pixels. Commands (bindable keys and `ui_wm_command`):
+`exec CMD`, `workspace N`, `move N`, `focus next|prev`, `swap next|prev|master`, `master
+grow|shrink`, `fullscreen`, `float`, `layout master|split|toggle`, `open left|right|up|down
+CMD`, `toggle APP` (hide or show every window whose app_id is APP, like i3's scratchpad;
+windows that program opens later start the same way, and shown ones get a CONFIGURE so they
+redraw and re-read their files), `kill`, `theme next|NAME`, `reload`, `exit`, `stats`,
+`bench`, `trace on|off` (print, for each `PRESENT`, the time from its first byte to the
+framebuffer write; used by the latency probe), `animation MS`, `zoom in|out|reset` (sends
+the zoom event to the focused window; bound by default to Ctrl+= with or without Shift,
+Ctrl+- and Ctrl+0, which therefore no longer reach programs. Bindings are by key position,
+so on a non-US keyboard these are the keys in the US positions of = and -, and the numeric
+keypad cannot be bound).
 
-A workspace switch slides: for `animation_ms` milliseconds (160 by default, 0 for none) the
-old and the new workspace pan across the screen, eased out. The slide keeps no pictures of
-either workspace. Every frame, `compose_anim()` in `compose.c` draws the old workspace's
-windows shifted one way and the new one's shifted the other, each clipped to its side of the
-seam, over the wallpaper panned by the same amount, so it needs no extra memory at any
-screen size and windows keep updating while they move. The wallpaper is not copied where a
-window is about to cover it. The bar stays in place, unless one of the two workspaces hides
-it (a fullscreen window): then it travels with the workspace that shows it. Switching back
-to the workspace the slide came from continues from where the picture is. Any other switch
-during a slide cuts the first one short (the picture jumps to its end) and starts a new
-one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms apart).
+A workspace switch slides: for `animation` milliseconds (`[general]` in `wm.uconf`; 160 by
+default, 0 for none) the old and the new workspace pan across the screen, eased out. The
+slide keeps no pictures of either workspace. Every frame, `compose_anim()` in `compose.c`
+draws the old workspace's windows shifted one way and the new one's shifted the other,
+each clipped to its side of the seam, over the wallpaper panned by the same amount, so it
+needs no extra memory at any screen size and windows keep updating while they move. The
+wallpaper is not copied where a window is about to cover it. The bar stays in place,
+unless one of the two workspaces hides it (a fullscreen window): then it travels with the
+workspace that shows it. Sticky windows (the cheat sheet) stay in place, on top. Switching
+back to the workspace the slide came from continues from where the picture is. Any other
+switch during a slide cuts the first one short (the picture jumps to its end) and starts a
+new one. During a slide the whole screen is written to `/dev/fb0` on every frame (15 ms
+apart).
 
-Configuration: `~/.config/wm/config` (in the image: `rootfs/home/user/.config/wm/config`),
-i3 style: `set mod Alt`, `gaps`, `border`, `border_thin`, `radius`, `workspace_count`,
-`animation_ms`, `master_ratio`, `bind Mod+KEY command`, `exec` (autostart). Default
-autostart: `exec bar` and `exec term -e sh /etc/welcome` (runs `fetch`, then a shell).
+Configuration: `~/.config/wm/wm.uconf` (in the image: `rootfs/home/user/.config/wm/wm.uconf`).
+`$mod` is the modifier of the built-in bindings (ALT). `[general]`: `gaps`, `workspaces`,
+`master_ratio`, `animation`, `border { width thin radius colors { focus normal float } }`
+(the colours win over the theme's). `[binds]`: `bind = MODS, key, action, args` (the action is a
+command above), `unbind = MODS, key`, `defaults = false` drops the built-in bindings.
+`[autostart]`: `exec`, `exec_always`. With no file: the built-in bindings and `exec bar`, `exec
+term`. The shipped file autostarts `bar` and `term -e sh /etc/welcome` (`fetch`, then a shell).
+
+**Dotfiles: the .uconf format** (`libuconf/`). Every dotfile in `~/.config` and every theme is
+a `.uconf` file: TOML `[section]` headers, `name { ... }` blocks in JSON-style braces that nest
+(inside braces `, key =` starts the next setting, so one line can hold several), `key = value`,
+hyprlang `$variables` and `bind = MODS, key, action, args` lines; `# ` starts a comment and
+`#rrggbb` is a value. A setting's full name joins section, blocks and key with dots
+(`general.border.width`). Keys may repeat (`bind`, `exec`). Mistakes are reported as
+`file:line: message` on stderr and skipped, and settings nothing read are reported as unknown.
+Every program links `libuconf.a`; `bin/uconftest.c` checks the parser (in `make test`).
+
+| File | Program | Read |
+|---|---|---|
+| `~/.config/wm/wm.uconf` | wm | at start and on `reload` |
+| `~/.config/term/term.uconf` | term: `[font]` size regular bold, `[window]` padding, `[scrollback]` lines, `[cursor]` style, `[zoom]` step min max | at start, and on `reload` or a theme change, which resend every window its size (scrollback: start only) |
+| `~/.config/fetch/fetch.uconf` (or `$FETCH_CONFIG`) | fetch: `[fetch]` logo font, `[info]` `line = NAME[, LABEL]` (which lines, order, labels), `palette` | every run |
+| `~/.config/bar/bar.uconf` | bar: `[bar]` height, `[workspaces]` `[title]` `[clock]` show, `[clock]` format (strftime, UTC), `[stats]` show = mem, procs, sys; with a persistent store, `disk N%` (how full the browser's quota is, from `/proc/ucos-store`) follows the configured stats, yellow from 80%, red from 95%, and a notice takes the title's place for ten seconds when the level rises | at start, and on `reload` or a theme change (height: start only) |
+| `~/.config/launcher/launcher.uconf` | launcher: `[launcher]` width rows | every time it opens |
+| `/usr/share/themes/NAME.uconf` | every graphical program, through `ui_theme_load()` | on every theme change |
 
 **sh** (`bin/sh/`, about 4,500 lines) is a POSIX shell for a system without `fork`.
 External programs are started with `spawn`. Builtins, functions, compound commands and
@@ -695,11 +721,55 @@ with the stack transform: it still starts programs with `spawn` and runs subshel
 own process.
 
 **Themes** (`libui/theme.h`). The active name is the first word of
-`~/.config/ucos/theme`. A theme is `/usr/share/themes/NAME.theme`, lines of
-`key = value`: colours `bg fg accent border_focus border_normal border_float bar_bg
-bar_fg panel dim desktop`, `color0..color15`, `font`, `font_bold`, `font_size`, `gap`,
-`border`, `radius`. Two ship: `deck` (Gruvbox + Fira Code) and `brand` (dark green +
-JetBrains Mono). See BRAND.md.
+`~/.config/ucos/theme`, a one-word file the window manager writes when the theme changes
+(not a `.uconf` file). A theme is `/usr/share/themes/NAME.uconf`: `[colors]` (`bg fg accent dim
+desktop panel`, `bar { bg fg }`, `border { focus normal float }`), `[terminal]` (the eight ANSI
+names and `bright { ... }`), `[font]` (`regular bold size`), `[geometry]` (`gap border radius`).
+Also `[theme] description`, `[colors] surface` and `[font] name` (what fetch shows). Twelve ship:
+`deck` (Gruvbox + Fira Code, the default) and `brand` (dark green + JetBrains Mono), see
+BRAND.md, and ten example themes from the ricing scene: `catppuccin-mocha`, `catppuccin-latte`
+(light), `nord`, `tokyo-night`, `dracula`, `everforest`, `rose-pine`, `kanagawa`, `one-dark`,
+`solarized-dark`, each with its scheme's published colours. fetch, vi, htop and sysbench read
+the same file (`theme_reload` in their `term.h`; deck and brand stay built in for when no file
+can be read), so a theme reaches every program.
+
+**Layouts** (`bin/wm/tree.c`). Each workspace is in `master` (one big window on the left, the
+others stacked on the right) or `split`: a binary tree of splits, like i3 or Hyprland's dwindle,
+where a new window halves the focused one along its longer side, or on the side `open DIR`
+asks for. `layout = master | split` in `wm.uconf` sets the start, `layout toggle` ($mod s)
+switches the workspace in view. Every workspace keeps its tree whatever its layout, so
+switching back restores the arrangement; a fullscreen window keeps its place. In split,
+`master grow|shrink` resizes the focused window in its split and `swap` trades places. The
+nodes come from a static pool of `2 * MAX_CLIENTS`, so the layout never allocates, and
+`tree_sync()` (first thing in `relayout()`) brings the trees in line with the window list
+by comparing pointers, never following one to a window that may have closed.
+`open DIR CMD` starts CMD and remembers its pid for 5 s; the window that pid opens goes on
+side DIR of the window focused at the time (in master: before it for left and up, after it
+for right and down). Defaults: $mod CTRL h j k l or the arrows open a terminal left, below,
+above, right.
+
+**Window roles** (`libui/ui.h`): `UI_NORMAL`, `UI_FLOATING`, `UI_BAR`, `UI_FULLSCREEN`,
+`UI_FLOATING_BOTTOM` (centred at the bottom), `UI_FLOATING_TOPRIGHT` (top-right corner), plus two
+flags: `UI_STICKY` (shown on every workspace, and left in place during the workspace slide) and
+`UI_NOFOCUS` (never takes the keyboard focus, not even on a click). Bottom and top-right windows
+are placed again on every relayout, so they follow the bar and the screen size.
+
+**keys** (`bin/keys/`, autostarted, $mod /): the keybinding cheat sheet. Two sticky, no-focus
+windows with app_id `keys`: the sheet in the top-right corner lists every `bind` line of
+`~/.config/wm/wm.uconf` as written there (`$mod SHIFT, q` and `kill`; the parser keeps each
+value as written next to the expanded one, `uconf_entry.raw`), with later lines replacing earlier
+ones for the same keys and `unbind` removing them, as in the window manager; the hint at the
+bottom shows the key bound to `toggle keys`. `toggle keys` hides and shows both. They re-read
+the file and the theme whenever the window manager asks them to redraw (a reload, a theme change,
+being shown again) and reopen only when what they show needs another size (comparing with the
+size they last asked for, since the window manager shrinks a window that does not fit). A click
+hides both. Static tables (128 bindings); fonts are read again only when the theme's fonts change.
+
+**themes** (`bin/themes/`, $mod SHIFT t): the theme picker, a strip of cards along the bottom
+of the screen (window role `UI_FLOATING_BOTTOM`), each drawn in its theme's colours. Left and
+Right preview on the whole desktop once the keys pause for 140 ms, Enter keeps, Escape goes
+back. Its tables are static (64 themes) and it keeps its fonts while previewing, so it
+allocates nothing as you move.
 
 **bar** (`bin/bar/`), **launcher** (`bin/launcher/`): entries are
 `/usr/share/applications/*.app` files (`name=`, `exec=`, `comment=`), then every other
@@ -773,6 +843,47 @@ time unistd` and `sys/{ioctl,select,stat,syscall,sysinfo,time,types,utsname,wait
 - `libc/crt/crt0.c` is built twice (`crt0_2.o`, `crt0_3.o`) because `main` may take two
   or three parameters and wasm checks signatures.
 - Each program is statically linked. A minimal program is about 1.6 KB; `sh` about 100 KB.
+
+### libarc: compression, archives, checksums (`libarc/`)
+
+A static library like `libgfx` and `libui`; a program opts in with a `USE_ARC` file in
+its directory. The interface is `libarc/arc.h`; the package manager is written against
+it, so its first block of declarations does not change (only additions below it).
+
+- **Decoders** behind one pull stream (`arc_open`, `arc_read`): gzip (with concatenated
+  members), zlib, raw deflate, xz (LZMA2, delta filter, concatenated streams, CRC32,
+  CRC64 and SHA-256 checks), Zstandard (skippable frames, XXH64 checksum). `ARC_AUTO`
+  recognises gzip, xz, zstd and otherwise passes bytes through. The caller supplies
+  compressed bytes through a callback (`arc_src`), so any source works: a file, an `ar`
+  member, a socket later.
+- **Encoder**: deflate with gzip, zlib or raw framing (`arc_wopen`, `arc_write`), levels
+  0 to 9. xz and zstd compression are not written.
+- **Containers**: `ar` reading and writing (GNU and BSD long names), `tar` reading
+  (ustar, GNU, pax) and writing (the GNU format).
+- **Checksums**: CRC32, CRC64, Adler-32, XXH64, MD5, SHA-256, SHA-512.
+- **Memory**: input is buffered 64 KiB at a time. Output goes into a window buffer that
+  holds the format's history (32 KiB for deflate, the dictionary for xz, the window for
+  zstd) plus room for new output; it grows only as data actually arrives, so a short
+  stream that declares a large dictionary stays small. Use does not grow with the length
+  of the data. A header asking for more than the memory limit (`arc_set_memlimit`,
+  128 MiB by default) is refused before anything is allocated.
+- **Hostile input**: every length is checked against its buffer; every integrity check
+  the format carries is verified (gzip CRC32 and length, xz header, block, index and
+  footer checks, zstd checksum and frame size, tar header checksums). The xz index is
+  compared with the blocks through running sums and a hash, so its memory does not grow
+  with the number of blocks.
+- **Not supported**: bzip2, LZMA-alone (`.lzma`), xz BCJ filters, zstd dictionaries,
+  sparse tar members, multi-volume tar. Each gives a clear error.
+
+The tools built on it are `gzip` (also `gunzip zcat xz unxz xzcat zstd unzstd zstdcat`
+through `bin/gzip/ALIASES`), `tar`, `ar`, `sha256sum` (also `sha512sum md5sum`).
+The POSIX calls tar needs to restore files (`symlink`, `link`, `readlink`, `chmod`,
+`fchmodat`, `chown`, `fchownat`, `utimensat`, `mknod`, `mkfifo`, ...) are in
+`libc/src/fs_posix.c`, and the kernel carries them out (section 7). Device nodes are
+refused (`EPERM`): only the kernel makes them. Each alias name in a `bin/NAME/ALIASES` file is a small
+starter program (`tools/alias/stub.c`, about 2.8 KB) that starts `NAME` with the same
+arguments and name, waits, and passes on its status: one extra process per call. The
+kernel now has links, so the names could become links instead; that is not done.
 
 ## 13. The toolchain
 
@@ -907,6 +1018,8 @@ How it maps onto UC.OS:
 | `/dev/hostnet` requests open at once | 32 | `HN_MAX` in `hostnet.c` |
 | window manager clients | 24 | |
 | time slice | 8 ms | `SLICE_MS` |
+| libarc window or dictionary | 128 MiB by default | `ARC_MEMLIMIT_DEFAULT`, `arc_set_memlimit`, `xz -M`, `zstd -M` |
+| tar extended header (pax, GNU long name) | 1 MiB; names up to 4095 bytes | `libarc/tar.c` |
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
 threads, shared memory, networking beyond the machine
@@ -1055,5 +1168,113 @@ must be numeric ports.
 half-close when input ends), `netstat`
 (`-e` shows congestion window, RTT, RTO and retransmits; `-i` the interfaces), `ifconfig`
 (also sets `loss` and `delay`), `tcpdump` (a packet socket; filters `tcp udp icmp port N
-host A`). `bin/nettest.c` is the test suite. `ping` and `tcpdump` install no `SIGINT` handler, so
-Ctrl-C ends them without their closing summary; give them `-c` to get it.
+host A`). `bin/nettest.c` is the test suite. `ping` and `tcpdump` install no `SIGINT`
+handler, so Ctrl-C ends them without their closing summary; give them `-c` to get it.
+
+## 17. The package manager (`libpkg/`, `libarc/`, `bin/dpkg*`, `bin/apt*`)
+
+Debian's package tools, written from the published formats (deb(5), deb-control(5),
+deb-version(7), Debian Policy, the dpkg database files, the repository format on
+wiki.debian.org). No Debian source code. Programs that contain Linux machine code cannot
+run until the binary engine exists; packages can still be unpacked, queried and removed.
+
+```
+bin/dpkg, dpkg-deb, apt    one-line mains (USE_PKG); dpkg-query, apt-get, apt-cache are alias names
+libpkg/cli_dpkg.c  cli_apt.c                               command lines, output formats
+libpkg/dpkg.c      unpack, configure, remove, purge, triggers, conffiles
+libpkg/script.c    maintainer scripts; run_command (spawn on UC.OS, posix_spawn on the host)
+libpkg/db.c        /var/lib/dpkg: status, info/*.list, md5sums, conffiles, arch, dpkg.log
+libpkg/deb.c       .deb reading (ar, control.tar, data.tar) through libarc
+libpkg/control.c   RFC 822 paragraphs, streaming, no per-field allocation
+libpkg/version.c   deb-version(7) comparison;   deps.c   relationship fields
+libpkg/repo.c      sources.list, *.sources, Release, apt update;   fetch.c  pkg_fetch()
+libpkg/index.c     compact in-memory index;     solve.c  CDCL solver and install order
+libpkg/aptconf.c   apt.conf syntax;             conf.c   dpkg.cfg, --root, the architecture
+libpkg/keyring.c   which keys a source trusts; apt-keyring (bin/apt-keyring)
+libsig/            OpenPGP verification: pgp.c packets, keys, policy; clear.c armor and
+                   cleartext; rsa.c bignum and RSA; ed25519.c. USE_PKG links it
+libarc/            archives and compression (section 12, "libarc"); USE_PKG also links it
+```
+
+- **One program, several names.** `apt` runs as `apt-get` or `apt-cache` and `dpkg` as
+  `dpkg-query` when `argv[0]` (its last component) says so. In the image those names are
+  the starter programs of section 12 ("libarc"), which pass `argv[0]` on.
+- **One root for everything.** Every path goes through `root_path()`. The root comes
+  from `--root`/`--instdir`, else `DPKG_ROOT`, else `root` in `/etc/dpkg/dpkg.cfg`
+  (the image sets `/debian`), else `/`. apt's `Dir` defaults to the same
+  root, so its state lives under it too. A host build refuses to run without a root.
+- **The architecture is one value**, `pkg_cfg.arch`: compile-time `PKG_NATIVE_ARCH`
+  (`riscv64`, the guest architecture of `lx`), overridable by `native-architecture` in
+  dpkg.cfg and, for apt, `APT::Architecture`. Foreign architectures are in `ADMINDIR/arch`.
+- **States.** The status file is rewritten whole and atomically (write `status.new`,
+  fsync, rename; the previous one is kept as `status-old`) at every state change, so an
+  interrupted run leaves `half-installed` (with `reinstreq`), `unpacked` or
+  `half-configured`, which `dpkg --configure -a`, a reinstall or `apt -f install`
+  repairs. dpkg's `updates/` journal is not used.
+- **Unpack** extracts every file as `NAME.dpkg-new` first and checks ownership against
+  all `.list` files (refused unless `Replaces` or `--force-overwrite`); on any error the
+  new files are deleted and the old version is untouched. Then everything is renamed
+  into place, files the old version had and the new one does not are removed (deepest
+  first; directories only when empty and not listed by another package), and the info
+  files are replaced. Conffiles stay `.dpkg-new` until configure compares three MD5
+  sums (on disk, recorded, new): keep the user's change (new copy as `.dpkg-dist`), or
+  with `--force-confnew` install the new one (old as `.dpkg-old`).
+- **Maintainer scripts** run with Policy's arguments and dpkg's environment. Root `/`:
+  through the script's interpreter. Another root: through `script-runner` (meant for the
+  binary engine), or with `--force-script-chrootless` through this system's shell and
+  `DPKG_ROOT`. Otherwise the script cannot run: the step fails and the package stays in
+  the matching state, or with `--force-unrunnable-scripts` it is logged to
+  `info/PKG.unrun` and treated as done.
+- **Triggers**: file triggers (`interest PATH`) and named triggers (`activate NAME`) as
+  `triggers/File` and `triggers/NAME`, run as `postinst triggered` at the end of a run.
+  Awaiting is not implemented: every trigger behaves as `-noawait`.
+- **Unsupported system calls.** `chmod`, `chown`, `symlink`, `link`, `fsync` and
+  `utimensat` are tried; where a kernel answers `ENOSYS` (or `EINVAL`), one warning per
+  operation is printed and the work continues (`pkg_unsupported`). With the file system
+  layer the kernel carries them all out. Hard links fall back to copies; symbolic links to
+  a copy of the target when it is a regular file in the same package.
+- **apt update** fetches `InRelease` (else `Release`), checks `Valid-Until`, then each
+  `Packages` index the Release lists (`.xz`, `.gz`, `.zst`, then plain, or
+  `Acquire::CompressionTypes::Order`; by-hash when the Release offers it), checks size and
+  SHA-256 against Release, decompresses and checks the uncompressed sum too, and stores
+  it under `Dir::State::lists` with apt's file names.
+- **Signatures** (apt-secure(8)). `apt update` verifies `InRelease`, or `Release` with
+  `Release.gpg`, against the source's keyring before it reads a byte of it, and parses
+  only the text the signature covers. The keyring is `Signed-By` (files, fingerprints, or
+  a key block in a deb822 field), else `trusted.gpg` and `*.gpg`/`*.asc` in
+  `trusted.gpg.d/` under `Dir`. A file is trusted when at least one signature is good and
+  none is bad; NO_PUBKEY, expired, revoked and unsupported signatures count neither way.
+  Failure prints apt's lines (`W: GPG error: ...`, `E: The repository ... is not signed.`),
+  stores nothing and exits 100. `[trusted=yes]` skips the check with a loud warning;
+  `--allow-insecure-repositories` accepts an unsigned repository and marks its packages
+  unauthenticated, which `install` refuses without `--allow-unauthenticated`. A
+  repository that was signed before and is not now is refused unless
+  `--allow-downgrade-to-insecure-repositories`.
+- **libsig** checks version 4 signatures over SHA-256, SHA-384 or SHA-512 made with RSA
+  (2048 to 8192 bits, PKCS#1 v1.5, checked by building the whole expected encoding and
+  comparing) or Ed25519 (legacy EdDSA and the v4 Ed25519 algorithm; S < L, canonical
+  keys, no small-order keys). Keys need a SHA-2 self-signature, signing flags, and for a
+  subkey a valid binding with its back-signature. The cleartext parser is strict: the
+  file must start with the BEGIN line, only `Hash:` headers, no NUL, no bare CR, nothing
+  after the END line but blank lines. SHA-384 and SHA-1 (fingerprints only) come from
+  `libarc/hash.c`; the kernel keeps its own SHA-256 in `kernel/remote.c`. Written from
+  RFC 4880, RFC 9580, RFC 8017, RFC 8032 and FIPS 180-4.
+- **Fetching** is `pkg_fetch(url, dest, progress)` in `fetch.c` and nowhere else:
+  `file:`/`copy:` copy; `http:`/`https:` run `Acquire::http::Command` entries (default
+  `curl -fsSL -o %o %u`, then `wget -q -O %o %u`) into `DEST.partial`.
+- **The index** (`index.c`) streams every list and keeps per version only what the
+  solver needs (relationship fields, sizes, priority, flags) in an arena, plus the byte
+  offset of the stanza; `apt show` and downloads re-read the stanza. A full Debian `main`
+  index for one architecture (68,829 stanzas, 55 MB) takes 28 MB of arena in UC.OS
+  (32-bit pointers; 35 MB on a 64-bit host) and loads in about 0.5 to 1.1 s under Node.
+  There is no on-disk binary cache like apt's `pkgcache.bin`.
+- **The solver** (`solve.c`) turns versions into boolean variables and Depends,
+  Pre-Depends, Conflicts, Breaks, one-version-per-name, requests and installed Essential
+  packages into clauses, and runs conflict-driven clause learning. Decisions follow
+  apt's preferences (first alternative, installed version, candidate, providers by
+  priority; keep or upgrade installed packages; Recommends last), so a solution looks
+  like apt's, and a problem with no solution is reported as such. `solve_order` gives
+  removals first, then strongly connected components in dependency order: each
+  component is unpacked whole and then configured, which is how dpkg tolerates Depends
+  cycles. Pinning (`preferences`) is not implemented: repositories are 500, the status
+  file 100.

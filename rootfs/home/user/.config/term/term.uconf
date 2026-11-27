@@ -1,0 +1,26 @@
+# ~/.config/term/term.uconf: the terminal.
+#
+# A new terminal reads this when it starts. Every open terminal reads it again
+# when you press Mod+Shift+r (reload) or change the theme (Mod+t), so save,
+# press Mod+Shift+r, and see. Lines starting with # are examples: remove the #
+# to use them. The format is .uconf: see ~/.config/wm/wm.uconf for a summary.
+
+[font]
+# The theme picks the font and its size. These win over the theme's.
+# size    = 15                     # pixels (term --font-size N wins over this)
+# regular = FiraCode-Regular.ttf   # a file in /usr/share/fonts, or a full path
+# bold    = FiraCode-Bold.ttf
+
+[window]
+padding = 8          # pixels between the window border and the text
+
+[scrollback]
+lines = 5000         # how many lines Shift+PageUp can go back (read at start)
+
+[cursor]
+style = block        # block, underline or bar; programs (vi) may set their own
+
+[zoom]               # Ctrl+= and Ctrl+- (window manager keys) change the size
+step = 2             # pixels per press
+min  = 8
+max  = 72

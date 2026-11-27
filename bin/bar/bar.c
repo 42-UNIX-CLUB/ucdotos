@@ -17,6 +17,7 @@
 #include "ui.h"
 #include "theme.h"
 #include "gfx.h"
+#include "uconf.h"
 
 static ui_window *win;
 static ui_theme th;
@@ -30,6 +31,29 @@ static int cell_w, ws_x0;  /* workspace cells, for clicks */
 static char notice[96];    /* storage warning shown in place of the title until notice_until */
 static double notice_until;
 static int disk_level;     /* 0 ok, 1 warning, 2 critical, 3 full: the last level seen */
+
+/* ~/.config/bar/bar.uconf (.uconf, see libuconf/uconf.h). Read at start and on every theme
+ * change (the window manager resends the size then), except the height, read at start.
+ *   [bar]         height (pixels; 0 = from the font size)
+ *   [workspaces]  show      [title] show
+ *   [clock]       show, format (strftime; empty = the built-in "Thu 26 Nov 10:35:54")
+ *   [stats]       show = mem, procs, sys   (any of them, in any order; empty for none) */
+static struct { int height, workspaces, title, clock; char format[64], stats[64]; } conf;
+static void load_conf(void) {
+  const char *home = getenv("HOME");
+  char path[256];
+  snprintf(path, sizeof path, "%s/.config/bar/bar.uconf", home && *home ? home : "/home/user");
+  uconf c;
+  uconf_load(&c, path); /* no file: the defaults */
+  conf.height = uconf_int(&c, "bar.height", 0, 0, 96);
+  conf.workspaces = uconf_bool(&c, "workspaces.show", 1);
+  conf.title = uconf_bool(&c, "title.show", 1);
+  conf.clock = uconf_bool(&c, "clock.show", 1);
+  strlcpy(conf.format, uconf_str(&c, "clock.format", ""), sizeof conf.format);
+  strlcpy(conf.stats, uconf_str(&c, "stats.show", "mem, procs, sys"), sizeof conf.stats);
+  uconf_warn_unused(&c);
+  uconf_free(&c);
+}
 
 static double now_ms(void) {
   struct timespec ts;
@@ -67,6 +91,13 @@ static void format_clock(char *out, int cap) {
   unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
   unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100), mp = (5 * doy + 2) / 153;
   unsigned d = doy - (153 * mp + 2) / 5 + 1, m = mp < 10 ? mp + 3 : mp - 9;
+  if (conf.format[0]) { /* the user's format; times are UTC */
+    time_t tt = (time_t)t;
+    struct tm tm;
+    gmtime_r(&tt, &tm);
+    if (!strftime(out, (size_t)cap, conf.format, &tm)) out[0] = 0;
+    return;
+  }
   snprintf(out, cap, "%s %u %s %02d:%02d:%02d", wd[days % 7], d, mo[m - 1], (int)(sod / 3600), (int)(sod / 60 % 60), (int)(sod % 60));
 }
 
@@ -124,9 +155,21 @@ static void format_stats(char *out, int cap) {
   if (rate >= 1e6) snprintf(r, sizeof r, "%.1fM", rate / 1e6);
   else if (rate >= 1e3) snprintf(r, sizeof r, "%.1fk", rate / 1e3);
   else snprintf(r, sizeof r, "%d", (int)rate);
+  /* the parts bar.uconf asks for, in its order */
+  char want[64], *part[3];
+  strlcpy(want, conf.stats, sizeof want);
+  int nparts = *want ? uconf_split(want, part, 3) : 0, len = 0;
+  out[0] = 0;
+  for (int i = 0; i < nparts && len < cap; i++) {
+    const char *sep = len ? "|" : "";
+    if (!strcmp(part[i], "mem")) len += snprintf(out + len, (size_t)(cap - len), "%smem %luM", sep, used >> 20);
+    else if (!strcmp(part[i], "procs")) len += snprintf(out + len, (size_t)(cap - len), "%sprocs %d", sep, si.procs);
+    else if (!strcmp(part[i], "sys")) len += snprintf(out + len, (size_t)(cap - len), "%ssys %s/s", sep, r);
+  }
+  /* the storage level, when the browser store is on, after the parts (see format_disk) */
   char disk[32];
   format_disk(disk, sizeof disk);
-  snprintf(out, cap, "mem %luM|procs %d|sys %s/s%s", used >> 20, si.procs, r, disk);
+  if (disk[0] && len < cap) snprintf(out + len, (size_t)(cap - len), "%s", len ? disk : disk + 1);
 }
 
 /* Draw "label value" pairs separated by '|', labels dim and values bright. Returns the width. */
@@ -163,7 +206,8 @@ static void draw(int what) {
   /* left: workspaces, current one in an accent block, occupied ones bright */
   cell_w = met.advance * 2 + 6;
   ws_x0 = pad;
-  int x = ws_x0, count = info.workspace_count > 0 ? info.workspace_count : 4;
+  int x = ws_x0, count = !conf.workspaces ? 0 : info.workspace_count > 0 ? info.workspace_count : 4;
+  if (!conf.workspaces) cell_w = 0; /* no cells to click */
   for (int i = 0; i < count; i++) {
     char num[4];
     snprintf(num, sizeof num, "%d", i + 1);
@@ -175,17 +219,17 @@ static void draw(int what) {
       gfx_text(&s, (info.occupied_mask >> i) & 1 ? bld : reg, tx, base, num, -1, (info.occupied_mask >> i) & 1 ? th.bar_fg : th.dim);
     x += cell_w + 2;
   }
-  int title_x = x + 14;
+  int title_x = count ? x + 14 : pad;
   /* centre: date and time */
-  int cw = gfx_text_width(reg, clock_str, -1), cx = (w - cw) / 2;
-  gfx_text(&s, reg, cx, base, clock_str, -1, th.bar_fg);
+  int cw = conf.clock ? gfx_text_width(reg, clock_str, -1) : 0, cx = (w - cw) / 2;
+  if (conf.clock) gfx_text(&s, reg, cx, base, clock_str, -1, th.bar_fg);
   /* right: system numbers */
   int sw = draw_stats(&s, 0, base, stats_str, 1), sx = w - pad - sw;
   draw_stats(&s, sx, base, stats_str, 0);
   /* the focused window title, cut to fit before the clock */
   int room = cx - 24 - title_x;
-  int show_notice = notice[0] && now_ms() < notice_until;
-  if ((show_notice || info.focused_title[0]) && room > met.advance * 4) {
+  int show_notice = notice[0] && now_ms() < notice_until; /* a storage notice shows even when titles are off */
+  if ((show_notice || (conf.title && info.focused_title[0])) && room > met.advance * 4) {
     char t[128];
     strlcpy(t, show_notice ? notice : info.focused_title, sizeof t);
     int len = strlen(t);
@@ -201,8 +245,9 @@ static void draw(int what) {
 }
 
 int main(void) {
+  load_conf();
   load_theme();
-  int h = th.font_size + 13;
+  int h = conf.height ? conf.height : th.font_size + 13;
   win = ui_open("bar", "bar", 800, h, UI_BAR);
   if (!win) { fprintf(stderr, "bar: no window manager\n"); return 1; }
   ui_wm_state(win, &info);
@@ -222,13 +267,18 @@ int main(void) {
       static int noticed;
       int now_notice = notice[0] && now_ms() < notice_until;
       int what = (strcmp(c, clock_str) ? 2 : 0) | (strcmp(st, stats_str) ? 4 : 0) | (now_notice != noticed ? 1 : 0);
+      if (strlen(c) != strlen(clock_str) || strlen(st) != strlen(stats_str)) what = 7; /* widths moved: send it all */
       noticed = now_notice;
       strcpy(clock_str, c); strcpy(stats_str, st);
       if (what) draw(what);
       continue;
     }
     switch (ev.type) {
-    case UI_EV_RESIZE: load_theme(); draw(7); break;
+    case UI_EV_RESIZE: /* also a theme change: bar.uconf may have changed too */
+      load_conf(); load_theme();
+      format_clock(clock_str, sizeof clock_str); format_stats(stats_str, sizeof stats_str);
+      draw(7);
+      break;
     case UI_EV_WM_STATE: ui_wm_state(win, &info); draw(1); break;
     case UI_EV_CLOSE: ui_close(win); return 0;
     case UI_EV_MOUSE_DOWN:

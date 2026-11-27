@@ -110,7 +110,8 @@ static void broadcast_state(void) {
 }
 
 /* ---------- processes ---------- */
-void wm_spawn(const char *cmdline) {
+/* Start a program from a command line; its pid, or -1. */
+int wm_spawn(const char *cmdline) {
   char buf[256], *argv[32];
   int argc = 0;
   strlcpy(buf, cmdline, sizeof buf);
@@ -123,15 +124,84 @@ void wm_spawn(const char *cmdline) {
     if (*p) *p++ = 0;
   }
   argv[argc] = NULL;
-  if (!argc) return;
+  if (!argc) return -1;
   int pid = spawnp(argv[0], argv, NULL);
   if (pid < 0) {
-    for (int i = 0; i < nfailed; i++) if (!strcmp(failed_exec[i], argv[0])) return; /* said it once already */
+    for (int i = 0; i < nfailed; i++) if (!strcmp(failed_exec[i], argv[0])) return -1; /* said it once already */
     fprintf(stderr, "wm: cannot start '%s': %s\n", argv[0], strerror(errno));
     if (nfailed < 8) strlcpy(failed_exec[nfailed++], argv[0], sizeof failed_exec[0]);
-    return;
+    return -1;
   }
   if (nchildren < 64) children[nchildren++] = pid;
+  return pid;
+}
+
+/* toggle APP: hide every window of the program whose app_id is APP, or show them again (like
+ * i3's scratchpad). A window that program opens later starts the same way. Shown windows are
+ * told to redraw (a CONFIGURE with their size), which is also when they re-read their files. */
+static char hidden_apps[8][32];
+static int app_hidden(const char *app) {
+  for (int i = 0; i < 8; i++) if (hidden_apps[i][0] && !strcmp(hidden_apps[i], app)) return i;
+  return -1;
+}
+static int toggle_app(const char *app) {
+  if (!*app || strlen(app) >= sizeof hidden_apps[0]) return -1;
+  int i = app_hidden(app), hide = i < 0;
+  if (hide) {
+    for (i = 0; i < 8 && hidden_apps[i][0]; i++) {}
+    if (i == 8) return -1;
+    strcpy(hidden_apps[i], app);
+  } else hidden_apps[i][0] = 0;
+  for (int k = 0; k < nclients; k++) {
+    client *c = order[k];
+    if (!c->hello || strcmp(c->app_id, app)) continue;
+    c->hidden = hide;
+    if (hide && focus_of[c->ws] == c) set_focus(NULL);
+    if (!hide) send_configure(c);
+  }
+  relayout();
+  return 0;
+}
+
+/* open DIR COMMAND: the window COMMAND opens goes to side DIR of the window focused now.
+ * The pid is how the new window is recognised; one placement waits at a time, for OPEN_MS. */
+#define OPEN_MS 5000
+static struct { int pid, dir; client *target; double t; } pend;
+static int open_beside(const char *arg) {
+  static const char *dirs[4] = {"left", "right", "up", "down"};
+  int d = 0;
+  for (int i = 0; i < 4 && !d; i++) {
+    size_t l = strlen(dirs[i]);
+    if (!strncmp(arg, dirs[i], l) && (arg[l] == ' ' || !arg[l])) { d = "lrud"[i]; arg += l; }
+  }
+  while (*arg == ' ') arg++;
+  if (!d || !*arg) return -1;
+  int pid = wm_spawn(arg);
+  if (pid < 0) return -1;
+  client *f = focused();
+  pend.pid = pid; pend.dir = d; pend.t = now_ms();
+  pend.target = f && f->role == UI_NORMAL && !f->floating ? f : NULL;
+  return 0;
+}
+/* A new window: if it is the one an open DIR is waiting for, say where it goes. In the split
+ * layout tree_sync() places it; in master and stack it goes before (left, up) or after
+ * (right, down) the target in the stack order. */
+static void place_new(client *c) {
+  if (!pend.t || c->pid != pend.pid || now_ms() - pend.t > OPEN_MS || c->role != UI_NORMAL || c->floating) return;
+  client *t = pend.target;
+  int ti = -1, ci = -1;
+  for (int i = 0; i < nclients; i++) { if (order[i] == t) ti = i; if (order[i] == c) ci = i; }
+  pend.t = 0;
+  if (ti < 0) return; /* the target closed meanwhile: an ordinary new window */
+  c->insert_dir = pend.dir;
+  c->insert_target = t;
+  if (layout_of[c->ws] == LAYOUT_MASTER && ci >= 0) {
+    int to = pend.dir == 'l' || pend.dir == 'u' ? ti : ti + 1;
+    if (ci < to) to--;
+    memmove(order + ci, order + ci + 1, (size_t)(nclients - ci - 1) * sizeof order[0]); /* take it out */
+    memmove(order + to + 1, order + to, (size_t)(nclients - 1 - to) * sizeof order[0]); /* and put it back at `to` */
+    order[to] = c;
+  }
 }
 static void reap(void) {
   int st, pid;
@@ -149,7 +219,7 @@ static int theme_names(char names[][32], int cap) {
   int n = 0;
   for (struct dirent *e; d && (e = readdir(d)) && n < cap;) {
     int l = strlen(e->d_name);
-    if (l > 6 && l < 38 && !strcmp(e->d_name + l - 6, ".theme")) {
+    if (l > 6 && l < 38 && !strcmp(e->d_name + l - 6, ".uconf")) {
       memcpy(names[n], e->d_name, l - 6);
       names[n][l - 6] = 0;
       n++;
@@ -172,8 +242,9 @@ static void theme_reload(void) {
   damage_all();
 }
 static int theme_set(const char *arg) {
-  char names[16][32], name[32];
-  int n = theme_names(names, 16);
+  static char names[64][32]; /* static: 2 KiB that need not sit on the stack */
+  char name[32];
+  int n = theme_names(names, 64);
   if (!strcmp(arg, "next") || !strcmp(arg, "prev")) {
     if (!n) return -1;
     int i = 0;
@@ -233,6 +304,8 @@ int run_command(client *src, const char *cmd) {
   while (*cmd == ' ') cmd++;
   strlcpy(arg, cmd, sizeof arg);
   if (!strcmp(verb, "exec")) { if (!*arg) return -1; wm_spawn(arg); return 0; }
+  if (!strcmp(verb, "open")) return open_beside(arg);
+  if (!strcmp(verb, "toggle")) return toggle_app(arg);
   if (!strcmp(verb, "kill")) {
     client *f = focused();
     if (!f) return -1;
@@ -308,8 +381,13 @@ static int handle_hello(client *c) {
   if (c->cur.len < sizeof h) { drop_client(c); return 0; }
   memcpy(&h, c->ctl, sizeof h);
   c->pid = h.pid;
-  c->role = h.role == UI_BAR ? UI_BAR : h.role == UI_FLOATING ? UI_FLOATING : UI_NORMAL;
-  c->fullscreen = h.role == UI_FULLSCREEN;
+  int role = h.role & ~(UI_STICKY | UI_NOFOCUS);
+  c->sticky = !!(h.role & UI_STICKY);
+  c->nofocus = !!(h.role & UI_NOFOCUS);
+  c->role = role == UI_BAR ? UI_BAR : role == UI_FLOATING || role == UI_FLOATING_BOTTOM || role == UI_FLOATING_TOPRIGHT ? UI_FLOATING : UI_NORMAL;
+  c->bottom = role == UI_FLOATING_BOTTOM;
+  c->topright = role == UI_FLOATING_TOPRIGHT;
+  c->fullscreen = role == UI_FULLSCREEN;
   c->floating = c->role == UI_FLOATING;
   c->req_w = h.w < 1 ? 1 : h.w > UIP_MAX_DIM ? UIP_MAX_DIM : h.w;
   c->req_h = h.h < 1 ? 1 : h.h > UIP_MAX_DIM ? UIP_MAX_DIM : h.h;
@@ -320,6 +398,8 @@ static int handle_hello(client *c) {
   memcpy(c->title, c->ctl + sizeof h, tl);
   c->title[tl] = 0;
   c->hello = 1;
+  c->hidden = app_hidden(c->app_id) >= 0; /* its program was toggled off: it stays off */
+  place_new(c);
   client_added(c);
   return 1;
 }
@@ -512,7 +592,8 @@ static void handle_button(int code, int value) {
     return;
   }
   client *c = value ? client_at(ptr_x, ptr_y) : grab;
-  if (value && b == 0 && (mods & cfg.mod) && c && c->floating && !buttons) {
+  /* nofocus overlays (the cheat sheet) are not moved: picking one up would give it the focus */
+  if (value && b == 0 && (mods & cfg.mod) && c && c->floating && !c->nofocus && !buttons) {
     set_focus(c); /* also raises it */
     buttons |= 1;
     drag = c;
@@ -522,7 +603,7 @@ static void handle_button(int code, int value) {
   if (value) {
     buttons |= 1 << b;
     grab = c;
-    if (c && c->role != UI_BAR && c != focused()) set_focus(c); /* focus follows click */
+    if (c && c->role != UI_BAR && !c->nofocus && c != focused()) set_focus(c); /* focus follows click */
   } else {
     buttons &= ~(1 << b);
     if (!buttons) grab = NULL;

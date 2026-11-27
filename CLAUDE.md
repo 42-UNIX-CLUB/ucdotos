@@ -94,7 +94,7 @@ Chromium is needed only for `tools/browser.mjs`.
 make B=build-NAME                 # kernel, libc, every program, initrd. ALWAYS pass your own B=
 make B=build-NAME PROGS="sh ls"   # only these programs go in the image (others may be mid-edit)
 make B=build-NAME dist            # build-NAME/dist: static folder for any web server
-make B=build-NAME test            # kernel, C library, shell, sound, network and router suites; fails if any check fails
+make B=build-NAME test            # kernel, C library, uconf, shell, sound, network and router suites; fails if any check fails
 
 node tools/run.mjs  --build=build-NAME --init=/bin/ktest            # console only, for tests
 node tools/shot.mjs --build=build-NAME --script=tools/tests/desktop.mjs   # headless, PNG screenshots
@@ -127,7 +127,11 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 | `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 5,440 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
 | `libui/` | `ui.c` window protocol client, `theme.c`, `uiproto.h` wire format | 600 |
+| `libuconf/` | the `.uconf` dotfile parser every program links | 440 |
 | `bin/` | programs: single files `bin/NAME.c` or directories `bin/NAME/` | 48,000 + Doom (without tests) |
+| `libarc/` | gzip, xz and zstd decoders, a deflate encoder, tar and ar, checksums; programs opt in with `USE_ARC` | 3,500 |
+| `libpkg/` | the package manager (dpkg and apt work-alikes): .deb files, the dpkg database, repositories, a dependency solver; programs opt in with `USE_PKG` | 6,400 |
+| `libsig/` | OpenPGP signature checks (RSA, Ed25519, keyrings, cleartext) for apt; `keyrings/` holds Debian's archive keys for the image | 1,660 |
 | `rootfs/` | files copied into the image: dotfiles, themes, fonts, man pages, club pages | |
 | `tools/` | `run.mjs`, `shot.mjs`, `browser.mjs`, `tests/`, `ttftest.c`, `wasmfork.c` (the fork stack transform, about 970 lines) | 1,120 (plus the suites under `tests/`) |
 | `docs/` | the detailed context files listed below | |

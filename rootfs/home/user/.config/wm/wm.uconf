@@ -1,0 +1,135 @@
+# ~/.config/wm/wm.uconf: how the window manager behaves.
+#
+# This is a dotfile: a plain text file in your home directory that a program
+# reads when it starts. Ricing is mostly editing files like this one.
+# Change something, save, then press Mod+Shift+r to reload without restarting.
+#
+# The format is .uconf, the same for every dotfile in ~/.config:
+#   [section]           a TOML-style header: the settings below belong to it
+#   name { ... }        a block inside a section, JSON-style braces; blocks nest
+#   key = value         one setting; "# " starts a comment
+#   $name = value       a variable (hyprlang-style); write $name to use it
+#   bind = MODS, key, action, arguments    a key binding, as in hyprlang
+#
+# Colours and fonts live in the theme (/usr/share/themes/*.uconf, chosen by
+# ~/.config/ucos/theme). Mod+t cycles themes.
+
+# --- the modifier key ---------------------------------------------------------
+# Most shortcuts below start with $mod, and the built-in ones use it too.
+# i3 and Hyprland users pick SUPER (the Windows key), but in a browser the host
+# system usually takes it, so UC.OS uses ALT. Possible values: ALT, SUPER, CTRL.
+$mod = ALT
+
+[general]
+layout       = master # master: one big window on the left, the rest stacked on the right
+                      # split: every new window halves the focused one (like i3, Hyprland)
+                      # ($mod s switches the workspace you are on between the two)
+gaps         = 12     # pixels between windows and around the screen edge
+workspaces   = 4      # how many workspaces the bar shows (at most 9)
+master_ratio = 0.55   # share of the screen width for the master (left) window
+animation    = 160    # how long a workspace switch slides, in ms; 0 for no slide
+
+# These override the theme's values. Delete a line to use the theme's.
+border {
+    width  = 2   # the focused window's border
+    thin   = 1   # the other windows get a thin grey line this wide
+    radius = 8   # rounded corners; 0 for sharp ones
+    # colors { focus = #fe8019, normal = #665c54, float = #fabd2f }
+}
+
+# --- key bindings ---------------------------------------------------------------
+# bind = MODS, key, action, arguments
+#   MODS     $mod, ALT, SUPER, CTRL, SHIFT, joined by spaces (or nothing: ", F1")
+#   key      a letter or digit, F1..F12, Return, space, Tab, Escape, minus,
+#            equal, Up/Down/Left/Right, Home, End, PageUp, PageDown, Delete...
+#   action   what the window manager does; arguments follow it:
+#     exec PROGRAM ARGS     start a program
+#     kill                  ask the focused window to close (twice: force it)
+#     focus next|prev       move the keyboard focus through the windows
+#     swap next|prev|master move the focused window in the stack
+#     master grow|shrink    resize the master area (split layout: the focused window)
+#     open DIR PROGRAM      start a program beside the focused window: DIR is left,
+#                           right, up or down (in the master layout: before or after it)
+#     layout master|split|toggle   the layout of the workspace you are on
+#     fullscreen  float     toggle the focused window's state
+#     workspace N  move N   switch workspace / send the window to workspace N
+#     zoom in|out|reset     make the focused window's text bigger, smaller, normal
+#     theme next|NAME       switch theme (writes ~/.config/ucos/theme)
+#     toggle APP            hide or show every window of a program (keys: the cheat sheet)
+#     reload  exit          re-read this file / leave the desktop
+# unbind = MODS, key        removes a binding (also a built-in one)
+#
+# Every binding below is also built in, so deleting a line changes nothing:
+# use unbind for that, or set defaults = false to start from no bindings.
+[binds]
+defaults = true
+
+bind = $mod, Return, exec, term
+bind = $mod, d, exec, launcher
+bind = $mod SHIFT, q, kill
+
+# vim keys and arrows move the focus; with SHIFT they move the window
+bind = $mod, j, focus, next
+bind = $mod, k, focus, prev
+bind = $mod, Down, focus, next
+bind = $mod, Up, focus, prev
+bind = $mod SHIFT, j, swap, next
+bind = $mod SHIFT, k, swap, prev
+bind = $mod SHIFT, Down, swap, next
+bind = $mod SHIFT, Up, swap, prev
+bind = $mod SHIFT, Return, swap, master
+
+# h and l make the master area narrower or wider
+bind = $mod, h, master, shrink
+bind = $mod, l, master, grow
+
+bind = $mod, f, fullscreen
+# float: the window leaves the tiling and the others fill its place.
+# Hold $mod and drag a floating window with the left button to move it.
+bind = $mod SHIFT, space, float
+bind = $mod, y, float
+
+# layouts, and new terminals beside the focused window ($mod CTRL and a direction)
+bind = $mod, s, layout, toggle
+bind = $mod CTRL, h, open, left term
+bind = $mod CTRL, l, open, right term
+bind = $mod CTRL, k, open, up term
+bind = $mod CTRL, j, open, down term
+bind = $mod CTRL, Left, open, left term
+bind = $mod CTRL, Right, open, right term
+bind = $mod CTRL, Up, open, up term
+bind = $mod CTRL, Down, open, down term
+
+# the keybinding cheat sheet (top right) and its hint (bottom): both hide and come back
+bind = $mod, slash, toggle, keys
+
+bind = $mod, t, theme, next
+bind = $mod SHIFT, t, exec, themes      # the theme picker
+bind = $mod SHIFT, r, reload
+bind = $mod SHIFT, e, exit
+
+# zoom, like a browser: CTRL and + or -, CTRL 0 for the normal size.
+# These keys no longer reach the programs themselves.
+bind = CTRL, equal, zoom, in
+bind = CTRL SHIFT, equal, zoom, in
+bind = CTRL, minus, zoom, out
+bind = CTRL, 0, zoom, reset
+
+# workspaces: $mod N goes there, $mod SHIFT N sends the focused window there
+bind = $mod, 1, workspace, 1
+bind = $mod, 2, workspace, 2
+bind = $mod, 3, workspace, 3
+bind = $mod, 4, workspace, 4
+bind = $mod SHIFT, 1, move, 1
+bind = $mod SHIFT, 2, move, 2
+bind = $mod SHIFT, 3, move, 3
+bind = $mod SHIFT, 4, move, 4
+
+# --- autostart -------------------------------------------------------------------
+# exec lines run once when the window manager starts; exec_always lines run
+# again on every reload. This is what you see after boot: the bar on top and a
+# terminal that greets you with fetch.
+[autostart]
+exec = bar
+exec = term -e sh /etc/welcome
+exec = keys          # the keybinding cheat sheet; $mod / hides it

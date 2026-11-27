@@ -1,0 +1,57 @@
+# nord: Nord. An arctic, north-bluish palette: polar night greys and frost blues.
+#
+# One of the example themes that ship with UC.OS. Pick it with the theme picker
+# ($mod SHIFT t), cycle with $mod t, or write its name into ~/.config/ucos/theme.
+# Copy it under a new name to make your own. The format is .uconf: see deck.uconf.
+
+[theme]
+description = nord
+
+[colors]
+bg      = #2e3440
+fg      = #d8dee9
+accent  = #88c0d0
+dim     = #616e88
+desktop = #242933
+panel   = #3b4252
+surface = #434c5e
+bar {
+    bg = #3b4252
+    fg = #e5e9f0
+}
+border {
+    focus  = #88c0d0
+    normal = #4c566a
+    float  = #ebcb8b
+}
+
+[terminal]
+black   = #3b4252
+red     = #bf616a
+green   = #a3be8c
+yellow  = #ebcb8b
+blue    = #81a1c1
+magenta = #b48ead
+cyan    = #88c0d0
+white   = #e5e9f0
+bright {
+    black   = #4c566a
+    red     = #bf616a
+    green   = #a3be8c
+    yellow  = #ebcb8b
+    blue    = #81a1c1
+    magenta = #b48ead
+    cyan    = #8fbcbb
+    white   = #eceff4
+}
+
+[font]
+name    = Fira Code
+regular = FiraCode-Regular.ttf
+bold    = FiraCode-Bold.ttf
+size    = 15
+
+[geometry]
+gap    = 12
+border = 2
+radius = 6
