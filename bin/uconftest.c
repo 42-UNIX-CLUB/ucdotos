@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "uconf.h"
 
 static int fails, checks;
@@ -143,6 +144,20 @@ int main(void) {
   CHECK("the file name is kept for messages", is(c.name, path));
   uconf_free(&c);
   CHECK("a missing file is -1", uconf_load(&c, "/tmp/no-such-file.uconf") == -1 && c.n == 0);
+  uconf_free(&c);
+
+  /* themes by name: the user's own folder first, then the system's */
+  setenv("HOME", "/tmp/uconftest-home", 1);
+  mkdir("/tmp/uconftest-home", 0755);
+  mkdir("/tmp/uconftest-home/.config", 0755);
+  mkdir("/tmp/uconftest-home/.config/themes", 0755);
+  w = fopen("/tmp/uconftest-home/.config/themes/deck.uconf", "w");
+  if (w) { fputs("[colors]\nbg = #010203\n", w); fclose(w); }
+  CHECK("a user's own theme is read before the system's of that name", uconf_load_theme(&c, "deck") == 0 && is(uconf_str(&c, "colors.bg", NULL), "#010203"));
+  uconf_free(&c);
+  CHECK("a theme nobody has is -1", uconf_load_theme(&c, "no-such-theme") == -1 && c.n == 0);
+  uconf_free(&c);
+  CHECK("a theme name with a slash is refused", uconf_load_theme(&c, "../themes/deck") == -1 && c.n == 0);
   uconf_free(&c);
 
   printf("uconftest: %d checks, %d failed\n", checks, fails);

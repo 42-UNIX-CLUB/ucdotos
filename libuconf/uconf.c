@@ -250,6 +250,16 @@ int uconf_load(uconf *c, const char *path) {
   return 0;
 }
 
+int uconf_load_theme(uconf *c, const char *name) {
+  char path[320];
+  const char *home = getenv("HOME");
+  memset(c, 0, sizeof *c);
+  if (!name || !*name || strchr(name, '/') || strlen(name) > 63) return -1;
+  snprintf(path, sizeof path, "%s/.config/themes/%s.uconf", home && *home ? home : "/home/user", name);
+  if (uconf_load(c, path) == 0) return 0; /* a user's own theme comes first */
+  snprintf(path, sizeof path, "/usr/share/themes/%s.uconf", name);
+  return uconf_load(c, path);
+}
 void uconf_free(uconf *c) {
   for (int i = 0; i < c->nblocks; i++) free(c->blocks[i]);
   free(c->blocks); free(c->e); free(c->vars);

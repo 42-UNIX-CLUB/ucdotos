@@ -214,25 +214,7 @@ static int is_child(int pid) {
 }
 
 /* ---------- theme ---------- */
-static int theme_names(char names[][32], int cap) {
-  DIR *d = opendir("/usr/share/themes");
-  int n = 0;
-  for (struct dirent *e; d && (e = readdir(d)) && n < cap;) {
-    int l = strlen(e->d_name);
-    if (l > 6 && l < 38 && !strcmp(e->d_name + l - 6, ".uconf")) {
-      memcpy(names[n], e->d_name, l - 6);
-      names[n][l - 6] = 0;
-      n++;
-    }
-  }
-  if (d) closedir(d);
-  for (int i = 1; i < n; i++) /* sort by name so "theme next" cycles in a stable order */
-    for (int j = i; j > 0 && strcmp(names[j - 1], names[j]) > 0; j--) {
-      char t[32];
-      strcpy(t, names[j]); strcpy(names[j], names[j - 1]); strcpy(names[j - 1], t);
-    }
-  return n;
-}
+static int theme_names(char names[][32], int cap) { return ui_theme_names(names, cap); } /* the user's own and the system's, sorted */
 static void theme_reload(void) {
   ui_theme_load(&theme, NULL);
   apply_geometry();

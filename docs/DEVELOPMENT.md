@@ -126,11 +126,11 @@ first seven and fails if any check fails. Counts as of 2026-11-26.
 
 | Suite | Command | Passes at |
 |---|---|---|
-| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 332 checks, 0 failed` |
+| kernel | `node tools/run.mjs --build=B --init=/bin/ktest` | `ktest: 333 checks, 0 failed` |
 | kernel, in a session entitled to administration | `node tools/run.mjs --build=B --init=/bin/ktest --args=users --admin` | `ktest: 61 checks, 0 failed` |
 | C library | `node tools/run.mjs --build=B --init=/bin/libctest` | `libctest: 335 checks, 0 failed` |
 | shell and tools | `node tools/run.mjs --build=B --init=/bin/sh --input='sh /usr/share/tests/sh-tests.sh\nexit\n'` | `sh-tests: 250 checks, 250 passed, 0 failed` |
-| .uconf parser | `node tools/run.mjs --build=B --init=/bin/uconftest` (part of `make test`); natively: `cc -Ilibuconf bin/uconftest.c libuconf/uconf.c` | `uconftest: 63 checks, 0 failed` |
+| .uconf parser | `node tools/run.mjs --build=B --init=/bin/uconftest` (part of `make test`); natively: `cc -Ilibuconf bin/uconftest.c libuconf/uconf.c` | `uconftest: 66 checks, 0 failed` |
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
 | network | `node tools/run.mjs --build=B --init=/bin/nettest` | `nettest: 89 checks, 0 failed` |
 | router (HTTP path, offline) | `node tools/tests/router-http.mjs --build=B` | `routertest: 24 checks, 0 failed` |
@@ -248,7 +248,9 @@ from `dev_open()` in `kernel/main.c`, and implement `struct fops`.
 **Add a launcher entry.** `rootfs/usr/share/applications/NAME.app` with `name=`, `exec=`,
 `comment=`. Use `exec=term -e PROGRAM` for terminal programs.
 
-**Add a theme.** `rootfs/usr/share/themes/NAME.uconf` (format in `libui/theme.h`; copy `deck.uconf`).
+**Add a theme.** A theme for everyone goes in `rootfs/usr/share/themes/NAME.uconf`; a user's
+own goes in `~/.config/themes/NAME.uconf` and wins over a system theme of the same name
+(format in `libui/theme.h`; copy `deck.uconf`).
 `Alt+t` cycles through the themes that exist.
 
 **Change a default dotfile.** They are in `rootfs/etc/` and `rootfs/home/user/`. They are

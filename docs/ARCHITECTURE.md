@@ -422,9 +422,8 @@ The full reference for the file system is `docs/VFS-NOTES.md`; persistence is
   image belongs to root and only root may write to it, except `/home/user` (uid and gid
   1000); `/root` is 0700, `/var/tmp` 1777; `/tmp` is 1777. Devices: `/dev/fb0` root:video
   0660, `/dev/input/event0` root:input 0660, `/dev/dsp` root:audio 0660, `/dev/console`
-  root:tty 0622, `/dev/hostnet` root 0600 (only the router uses it), `/dev/hostclip` 0666
-  (an open question for the owners: any user can read the browser's clipboard through
-  it).
+  root:tty 0622, `/dev/hostnet` root 0600 (only the router uses it), `/dev/hostclip`
+  user:user 0600 (the desktop user's alone; root passes).
 - **Locks**, advisory: `flock` (owned by the open file), POSIX record locks with byte ranges
   (owned by the process; a wait that would close a circle of waiting processes is
   `EDEADLK`), OFD locks.
@@ -699,7 +698,7 @@ Every program links `libuconf.a`; `bin/uconftest.c` checks the parser (in `make 
 | `~/.config/fetch/fetch.uconf` (or `$FETCH_CONFIG`) | fetch: `[fetch]` logo font, `[info]` `line = NAME[, LABEL]` (which lines, order, labels), `palette` | every run |
 | `~/.config/bar/bar.uconf` | bar: `[bar]` height, `[workspaces]` `[title]` `[clock]` show, `[clock]` format (strftime, UTC), `[stats]` show = mem, procs, sys; with a persistent store, `disk N%` (how full the browser's quota is, from `/proc/ucos-store`) follows the configured stats, yellow from 80%, red from 95%, and a notice takes the title's place for ten seconds when the level rises | at start, and on `reload` or a theme change (height: start only) |
 | `~/.config/launcher/launcher.uconf` | launcher: `[launcher]` width rows | every time it opens |
-| `/usr/share/themes/NAME.uconf` | every graphical program, through `ui_theme_load()` | on every theme change |
+| `~/.config/themes/NAME.uconf`, else `/usr/share/themes/NAME.uconf` | every graphical program, through `ui_theme_load()` | on every theme change |
 
 **sh** (`bin/sh/`, about 4,500 lines) is a POSIX shell for a system without `fork`.
 External programs are started with `spawn`. Builtins, functions, compound commands and
@@ -722,7 +721,11 @@ own process.
 
 **Themes** (`libui/theme.h`). The active name is the first word of
 `~/.config/ucos/theme`, a one-word file the window manager writes when the theme changes
-(not a `.uconf` file). A theme is `/usr/share/themes/NAME.uconf`: `[colors]` (`bg fg accent dim
+(not a `.uconf` file). A theme NAME is `~/.config/themes/NAME.uconf` when that file can be
+read, else `/usr/share/themes/NAME.uconf` (root's): a user's theme with a system theme's
+name replaces it for that user, and a name with a slash is refused (`uconf_load_theme` in
+`libuconf`). Mod+t and the theme picker list both folders, each name once, sorted
+(`ui_theme_names` in `libui`). A theme file has `[colors]` (`bg fg accent dim
 desktop panel`, `bar { bg fg }`, `border { focus normal float }`), `[terminal]` (the eight ANSI
 names and `bright { ... }`), `[font]` (`regular bold size`), `[geometry]` (`gap border radius`).
 Also `[theme] description`, `[colors] surface` and `[font] name` (what fetch shows). Twelve ship:
@@ -879,11 +882,11 @@ The tools built on it are `gzip` (also `gunzip zcat xz unxz xzcat zstd unzstd zs
 through `bin/gzip/ALIASES`), `tar`, `ar`, `sha256sum` (also `sha512sum md5sum`).
 The POSIX calls tar needs to restore files (`symlink`, `link`, `readlink`, `chmod`,
 `fchmodat`, `chown`, `fchownat`, `utimensat`, `mknod`, `mkfifo`, ...) are in
-`libc/src/fs_posix.c`, and the kernel carries them out (section 7). Device nodes are
-refused (`EPERM`): only the kernel makes them. Each alias name in a `bin/NAME/ALIASES` file is a small
-starter program (`tools/alias/stub.c`, about 2.8 KB) that starts `NAME` with the same
-arguments and name, waits, and passes on its status: one extra process per call. The
-kernel now has links, so the names could become links instead; that is not done.
+`libc/src/fs_posix.c`, and the kernel carries them out (section 7). Device nodes are refused
+(`EPERM`): only the kernel makes them. Each alias name in a `bin/NAME/ALIASES` file is a
+small starter program (`tools/alias/stub.c`, about 2.8 KB) that starts `NAME` with the same
+arguments and name, waits, and passes on its status: one extra process per call. The kernel
+now has links, so the names could become links instead; that is not done.
 
 ## 13. The toolchain
 
@@ -1023,7 +1026,7 @@ How it maps onto UC.OS:
 
 Not built: the Worker half of the hybrid process model (true preemption, multi-core),
 threads, shared memory, networking beyond the machine
-itself (section 16), sound input (recording), passwords and logins, time zones, a clipboard, dynamic linking for UC.OS
+itself (section 16), sound input (recording), passwords and logins, time zones, dynamic linking for UC.OS
 programs. Unmodified Linux binaries run through an ordinary program,
 `bin/lx/` (a riscv64 user-mode engine: interpreter, ELF loader, Linux system call layer
 on top of this kernel); its design is in `docs/LINUX-BINARIES.md`. It needs nothing from

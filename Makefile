@@ -176,7 +176,7 @@ $(B)/alias/%: tools/alias/stub.c $(B)/libc.a $(CRT)
 	@$(CC) $(UCFLAGS) $(ULDFLAGS) -DTARGET='"/bin/$*"' -o $@ $(B)/obj/crt0_3.o $< $(B)/libc.a
 SETUID_PROGS := su sudo
 $(B)/initrd.tar: $(addprefix $(B)/bin/,$(PROGS)) $(shell find rootfs -type f 2>/dev/null) $(CC_SYSROOT) $(B)/root/etc/remote-files $(wildcard bin/*/ALIASES) $(addprefix $(B)/alias/,$(ALIASED)) $(KEYRING_FILES)
-	@mkdir -p $(B)/root/bin $(B)/root/root $(B)/root/var/tmp $(B)/root/var/lib $(B)/root/var/cache $(B)/root/var/log
+	@mkdir -p $(B)/root/bin $(B)/root/root $(B)/root/var/tmp $(B)/root/var/lib $(B)/root/var/cache $(B)/root/var/log $(B)/root/home/user/.config/themes
 	@cp -r rootfs/. $(B)/root/
 	@if [ -n "$(KEYRING_FILES)" ]; then mkdir -p $(B)/root/debian/etc/apt/trusted.gpg.d && cp $(KEYRING_FILES) $(B)/root/debian/etc/apt/trusted.gpg.d/ && echo "  KEYS  $(notdir $(KEYRING_FILES))"; fi
 	@cp $(addprefix $(B)/bin/,$(PROGS)) $(B)/root/bin/

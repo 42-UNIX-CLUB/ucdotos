@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-/* Theme loader: ~/.config/ucos/theme names the theme, /usr/share/themes/NAME.uconf describes it. */
+/* Theme loader: ~/.config/ucos/theme names the theme; ~/.config/themes/NAME.uconf (a user's
+ * own) or /usr/share/themes/NAME.uconf describes it. */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -10,6 +11,7 @@
 #include "uconf.h"
 #include <stddef.h>
 #include <stdio.h>
+#include <dirent.h>
 
 unsigned char *ui_read_file(const char *path, unsigned *len) {
   int fd = open(path, O_RDONLY);
@@ -70,7 +72,7 @@ static void active_name(char *name, int cap) {
   if (!n) strlcpy(name, "deck", cap);
 }
 
-/* A theme is /usr/share/themes/NAME.uconf (the format: libuconf/uconf.h):
+/* A theme is NAME.uconf in ~/.config/themes or /usr/share/themes (the format: libuconf/uconf.h):
  *   [colors]    bg fg accent dim desktop panel, bar { bg fg }, border { focus normal float }
  *   [terminal]  black red green yellow blue magenta cyan white, bright { the same eight }
  *   [font]      regular bold (a path, or a file in /usr/share/fonts) size
@@ -81,16 +83,13 @@ static void color(uconf *c, const char *key, unsigned *dst) {
   *dst = GFX_HEX(uconf_color(c, key, def));
 }
 int ui_theme_load(ui_theme *t, const char *name) {
-  char nm[32], path[96];
+  char nm[32];
   defaults(t);
   if (name && *name && !strchr(name, '/')) strlcpy(nm, name, sizeof nm);
   else active_name(nm, sizeof nm);
   strlcpy(t->name, nm, sizeof t->name);
-  strcpy(path, "/usr/share/themes/");
-  strncat(path, nm, sizeof path - strlen(path) - 7);
-  strcat(path, ".uconf");
   uconf c;
-  if (uconf_load(&c, path) < 0) { uconf_free(&c); return -1; }
+  if (uconf_load_theme(&c, nm) < 0) { uconf_free(&c); return -1; }
   static const struct { const char *key; size_t off; } colors[] = {
     {"colors.bg", offsetof(ui_theme, bg)}, {"colors.fg", offsetof(ui_theme, fg)}, {"colors.accent", offsetof(ui_theme, accent)},
     {"colors.dim", offsetof(ui_theme, dim)}, {"colors.bar.bg", offsetof(ui_theme, bar_bg)}, {"colors.bar.fg", offsetof(ui_theme, bar_fg)},
@@ -115,4 +114,33 @@ int ui_theme_load(ui_theme *t, const char *name) {
   t->radius = uconf_int(&c, "geometry.radius", t->radius, 0, 40);
   uconf_free(&c);
   return 0;
+}
+
+/* The themes there are: the user's own (~/.config/themes) and the system's
+ * (/usr/share/themes), each name once, sorted by name. Returns how many. */
+int ui_theme_names(char names[][32], int cap) {
+  char own[288];
+  const char *home = getenv("HOME");
+  snprintf(own, sizeof own, "%s/.config/themes", home && *home ? home : "/home/user");
+  const char *dirs[2] = {own, "/usr/share/themes"};
+  int n = 0;
+  for (int k = 0; k < 2; k++) {
+    DIR *d = opendir(dirs[k]);
+    for (struct dirent *e; d && n < cap && (e = readdir(d));) {
+      size_t l = strlen(e->d_name);
+      if (l <= 6 || l >= 32 + 6 || strcmp(e->d_name + l - 6, ".uconf")) continue;
+      memcpy(names[n], e->d_name, l - 6);
+      names[n][l - 6] = 0;
+      int dup = 0;
+      for (int i = 0; i < n && !dup; i++) dup = !strcmp(names[i], names[n]);
+      if (!dup) n++;
+    }
+    if (d) closedir(d);
+  }
+  for (int i = 1; i < n; i++) /* sorted, so that cycling through them has a stable order */
+    for (int j = i; j > 0 && strcmp(names[j - 1], names[j]) > 0; j--) {
+      char t[32];
+      strcpy(t, names[j]); strcpy(names[j], names[j - 1]); strcpy(names[j - 1], t);
+    }
+  return n;
 }

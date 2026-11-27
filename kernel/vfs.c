@@ -741,7 +741,9 @@ void vfs_init(void) {
   vfs_mkdev_mode("/dev/console", DEV_CONSOLE, 0622, 0, GID_TTY);
   vfs_mkdev("/dev/urandom", DEV_RANDOM);
   vfs_mkdev("/dev/random", DEV_RANDOM);
-  vfs_mkdev("/dev/hostclip", DEV_HOSTCLIP);
+  /* the browser's clipboard is the desktop user's alone (uid 1000; root passes as always):
+   * what is pasted into the page is not for every account to read */
+  vfs_mkdev_mode("/dev/hostclip", DEV_HOSTCLIP, 0600, 1000, 1000);
   procfs_init();
 }
 

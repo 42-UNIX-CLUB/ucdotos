@@ -888,6 +888,8 @@ static int user_child(int argc, char **argv) {
     CHECK("user: /dev/input/event0 refuses a non-member of input", open("/dev/input/event0", O_RDONLY) == -1 && errno == EACCES);
     CHECK("user: /dev/null and /dev/tty modes are 0666, /dev/console 0622 root:tty", stat("/dev/null", &st) == 0 && (st.st_mode & 0777) == 0666 &&
           stat("/dev/console", &st) == 0 && (st.st_mode & 0777) == 0622 && st.st_gid == 5);
+    CHECK("user: /dev/hostclip is the desktop user's alone (0600, uid 1000) and opens for it",
+          stat("/dev/hostclip", &st) == 0 && (st.st_mode & 0777) == 0600 && st.st_uid == 1000 && (fd = open("/dev/hostclip", O_RDWR)) >= 0 && close(fd) == 0);
     CHECK("user: the slave of a pty this user opens belongs to the user (group tty, 0620)",
           (fd = open("/dev/ptmx", O_RDWR)) >= 0 && ({ int n = -1; __syscall3(SYS_ioctl, fd, TIOCGPTN, &n); snprintf(buf, sizeof buf, "/dev/pts/%d", n); stat(buf, &st) == 0; }) &&
           st.st_uid == 1000 && st.st_gid == 5 && (st.st_mode & 0777) == 0620 && close(fd) == 0);
