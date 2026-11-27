@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /* theme_fallback.c - weak stand-ins for ui_theme_load() and ui_read_file()
- * (libui/theme.h). They implement the documented file format with the
- * built-in themes `deck` and `brand`, so the terminal is themed before
- * libui/theme.c exists. The real libui definitions replace these at link time.
- * REMOVE this file once libui/theme.c has landed. */
+ * (libui/theme.h), with the built-in themes `deck` and `brand`. They serve the
+ * native tests (bin/term/tests), which build the renderer without libui and have
+ * no /usr/share/themes. In the system, libui's real definitions replace these at
+ * link time and read the .uconf theme files. */
 #include "theme.h"
 #include <fcntl.h>
 #include <stdlib.h>
@@ -54,59 +54,6 @@ WEAK unsigned char *ui_read_file(const char *path, unsigned *len) {
   return b;
 }
 
-static int hexval(const char *s, unsigned *out) {
-  unsigned v = 0; int n = 0;
-  if (*s == '#') s++;
-  for (; n < 6; n++, s++) {
-    int c = *s, d = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
-    if (d < 0) return -1;
-    v = v * 16 + (unsigned)d;
-  }
-  *out = RGB(v);
-  return 0;
-}
-
-/* Parse `key = value` lines over t (keys not present keep their value). */
-static void parse(ui_theme *t, char *text) {
-  for (char *line = text; line && *line;) {
-    char *next = strchr(line, '\n');
-    if (next) *next++ = 0;
-    char *hash = strchr(line, '#');
-    char *eq = strchr(line, '=');
-    if (hash && (!eq || hash < eq)) { line = next; continue; } /* comment line */
-    if (eq) {
-      *eq = 0;
-      char *k = line, *v = eq + 1;
-      while (*k == ' ' || *k == '\t') k++;
-      for (char *e = k + strlen(k); e > k && (e[-1] == ' ' || e[-1] == '\t'); ) *--e = 0;
-      while (*v == ' ' || *v == '\t') v++;
-      for (char *e = v + strlen(v); e > v && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r'); ) *--e = 0;
-      if (*v != '#') { char *h = strchr(v, '#'); if (h) { *h = 0; for (char *e = h; e > v && (e[-1] == ' ' || e[-1] == '\t'); ) *--e = 0; } }
-      unsigned *col = NULL;
-      if (!strcmp(k, "bg")) col = &t->bg;
-      else if (!strcmp(k, "fg")) col = &t->fg;
-      else if (!strcmp(k, "accent")) col = &t->accent;
-      else if (!strcmp(k, "border_focus")) col = &t->border_focus;
-      else if (!strcmp(k, "border_normal")) col = &t->border_normal;
-      else if (!strcmp(k, "bar_bg")) col = &t->bar_bg;
-      else if (!strcmp(k, "bar_fg")) col = &t->bar_fg;
-      else if (!strcmp(k, "dim")) col = &t->dim;
-      else if (!strncmp(k, "color", 5) && k[5] >= '0' && k[5] <= '9') {
-        int i = atoi(k + 5);
-        if (i >= 0 && i < 16) col = &t->color[i];
-      }
-      if (col) hexval(v, col);
-      else if (!strcmp(k, "font")) { strncpy(t->font, v, sizeof t->font - 1); t->font[sizeof t->font - 1] = 0; }
-      else if (!strcmp(k, "font_bold")) { strncpy(t->font_bold, v, sizeof t->font_bold - 1); t->font_bold[sizeof t->font_bold - 1] = 0; }
-      else if (!strcmp(k, "font_size")) t->font_size = atoi(v);
-      else if (!strcmp(k, "gap")) t->gap = atoi(v);
-      else if (!strcmp(k, "border")) t->border = atoi(v);
-      else if (!strcmp(k, "radius")) t->radius = atoi(v);
-    }
-    line = next;
-  }
-}
-
 WEAK int ui_theme_load(ui_theme *t, const char *name) {
   char nm[32] = "deck";
   if (!name) { /* active theme: first word of ~/.config/ucos/theme */
@@ -130,19 +77,5 @@ WEAK int ui_theme_load(ui_theme *t, const char *name) {
   size_t nl = strlen(name) < sizeof t->name - 1 ? strlen(name) : sizeof t->name - 1;
   memcpy(t->name, name, nl);
   t->name[nl] = 0;
-  char path[160];
-  strcpy(path, "/usr/share/themes/");
-  strncat(path, name, 100);
-  strcat(path, ".theme");
-  unsigned len;
-  unsigned char *s = ui_read_file(path, &len);
-  if (!s) return -1;
-  char *text = malloc(len + 1);
-  if (!text) { free(s); return -1; }
-  memcpy(text, s, len);
-  text[len] = 0;
-  free(s);
-  parse(t, text);
-  free(text);
   return 0;
 }
