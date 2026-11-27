@@ -16,6 +16,9 @@ routerd (bin/routerd.c, a normal program)  transparent listener, DNS on 127.0.0.
    |  /dev/hostnet: one descriptor per request
 host (boot/hostnet.mjs)
    browser: DNS over HTTPS, fetch()          Node: system resolver, fetch(), real TCP sockets
+   on the platform's origin, also:
+     signed in: the platform's proxy (/proxy/HOST/...) for the hosts on its list
+     member:    TCP to ports 80 and 443 through the platform's relay (Wisp over /relay)
 ```
 
 Nothing about the router is special to the kernel. The kernel offers three general
@@ -40,13 +43,44 @@ test suites) has no router until one is started by hand.
 
 ## 2. What works today
 
+In a browser tab what a program reaches depends on the web platform (the `ucdotweb`
+service) that serves the page from the same origin, and on who is signed in to it. At boot
+the page asks `/api/me`. Without a platform (any static host, a 404 or an answer that is
+not JSON) nothing changes from the table below. With one:
+
+- **Nobody signed in:** as the table says.
+- **Signed in:** HTTP as before, and when the direct `fetch()` fails (usually CORS), the
+  request goes again through the platform's proxy, if the host is on the platform's list
+  (GET, HEAD and POST). A host that answered through the proxy is asked there first for
+  the rest of the boot. The reply says so: `x-ucos-fetched: URL (through the platform's
+  proxy)`. A host the proxy does not carry ("signed-out", "not-listed") gives the program
+  the direct request's failure (the 502 as before); any other refusal of the proxy (quota,
+  busy, too large, the upstream failing) reaches the program as the HTTP answer it is.
+- **Member:** TCP to ports 80 and 443 through the platform's relay: one WebSocket to
+  `/relay` (Wisp version 1), opened at the first connection with a token from
+  `POST /api/relay-token`, and again with a new token after it drops (connections open at
+  that moment end with `ECONNRESET`). Each TCP connection is one Wisp stream; data goes
+  in pieces of at most 64 KiB and the host keeps to the credit the relay gives. Another
+  port is refused (`EACCES`; `nc` says "Connection reset by peer"). With TCP there, routerd
+  sends everything as TCP, so a member's HTTP on port 80 is real HTTP over the relay (no
+  rewrite to https, no proxy, no `x-ucos-fetched`). routerd's start-up line says which way
+  out it has.
+
+The session cookie and the relay token stay in the host layer: they go only to `/proxy/`
+and `/api/relay-token` (`credentials: 'same-origin'`), never with a program's own request.
+The proxy address is built from the Host header a program sends, so only a plain host name
+passes (labels of letters, digits, `-` and `_`) and the finished address must still start
+with `/proxy/HOST/`; without that check, a Host of `..` would have reached the platform's
+own pages with the session. `/dev/hostnet` reports these ways out in its capability bits
+(`HNCAP_RELAY`, `HNCAP_PROXY` in `abi/abi.h`).
+
 | | In a browser tab | Under Node (`tools/run.mjs`, `tools/shot.mjs`) |
 |---|---|---|
 | Address for the machine | 10.0.2.15/24 on gw0, set by routerd | same |
 | DNS (`getaddrinfo`, `ping name`, `nc name`) | yes: routerd asks Cloudflare's DNS over HTTPS (Google's as a fallback); both allow any page to ask | yes: the system resolver |
-| TCP to any port | no: refused at once | **yes**: each connection becomes a real socket on the computer running Node |
-| HTTP on port 80 | yes, one request per connection, sent with `fetch()` **as https**. Works when the site allows cross-origin reads (CORS): many APIs and CDNs do (checked: Wikipedia's API, GitHub's raw files, jsDelivr). Most ordinary web pages do not (checked: example.com, google.com); the client then gets `502 Bad Gateway` with the reason in the body | yes, as a real TCP connection (see above) |
-| HTTPS (port 443) from a UC.OS program | no: there is no TLS in UC.OS | the bytes pass through, but no UC.OS program speaks TLS yet |
+| TCP to any port | no: refused at once (a member of the platform: ports 80 and 443 through its relay, see above) | **yes**: each connection becomes a real socket on the computer running Node |
+| HTTP on port 80 | yes, one request per connection, sent with `fetch()` **as https**. Works when the site allows cross-origin reads (CORS): many APIs and CDNs do (checked: Wikipedia's API, GitHub's raw files, jsDelivr). Most ordinary web pages do not (checked: example.com, google.com); the client then gets `502 Bad Gateway` with the reason in the body, unless someone signed in to the platform and the host is on its proxy's list (see above) | yes, as a real TCP connection (see above) |
+| HTTPS (port 443) from a UC.OS program | no: there is no TLS in UC.OS (a member's connection to port 443 is opened through the relay, but no UC.OS program speaks TLS yet) | the bytes pass through, but no UC.OS program speaks TLS yet |
 | UDP to outside addresses | no: `EHOSTUNREACH` | no (only DNS, through routerd) |
 | ping to outside addresses | no: "Destination Host Unreachable" | no (Node has no ICMP) |
 | Connections from outside into UC.OS | no | no |
@@ -81,6 +115,19 @@ content), the upgrade from http to https, and DNS over HTTPS. Those were checked
 answers `200 OK` with its data, example.com gets the 502 with the reason, port 22 is
 refused and `ping 1.1.1.1` reports the host unreachable. Not tried: Firefox, Safari.
 
+The platform link (2026-11-27): `platform-local` (26 checks, in `make test`) runs a
+stand-in platform in Node, offline: the proxy, the token, a Wisp relay with a credit of 4;
+it moved 3 MiB down and 1,000,000 bytes up through the relay with identical SHA-256, three
+streams at once, survived a dropped relay, and never saw more data packets than the credit.
+Against a local instance of the platform with its test sign-in: `tools/tests/platform.mjs`
+9 of 9; `tools/tests/browser-platform.mjs` in Chromium 12 of 12 as a member and 10 of 10 as
+a signed-in non-member; Debian's `Release` file (139,311 bytes with headers) came through
+the relay and the signed `InRelease` through the proxy. Not tested: the deployed site, TLS
+on port 443 from inside UC.OS (there is no TLS client), UDP (the relay carries TCP only),
+Firefox and Safari, and a session that expires while UC.OS runs (by the code: the proxy
+then answers "signed-out", so the program gets the direct failure, and new relay
+connections get `ENETUNREACH`).
+
 There is no web client program yet: requests above were typed by hand with `printf ... | nc`.
 
 ## 3. What is still needed for a full TCP/IP connection
@@ -99,7 +146,7 @@ ordinary tab, one of these must exist (all of them plug into routerd as another 
 | Uplink | Gives | Needs |
 |---|---|---|
 | Relay server, Ethernet frames over WebSocket (websockproxy or wsnic style, or our own in C) | everything, including ping and DHCP | someone runs a server; abuse policy; per-visitor isolation |
-| Relay server, Wisp (TCP and UDP streams over one WebSocket) | TCP and UDP, no ICMP | someone runs a server |
+| Relay server, Wisp (TCP and UDP streams over one WebSocket) | TCP and UDP, no ICMP. **Built** for members of the platform, TCP only, ports 80 and 443 (section 2) | someone runs a server: the platform does |
 | Web Serial to a device (a Raspberry Pi in USB gadget mode running `pppd`, or an ESP32) | a real IP link with PPP or SLIP, no server | the device on the visitor's computer; Chromium-based desktop browsers only |
 | Chrome Isolated Web App with Direct Sockets | real TCP and UDP from the browser | UC.OS packaged as a signed app; today a developer flag or managed ChromeOS |
 | A helper program on the visitor's computer | everything | an install, which the owners have ruled out for now |
@@ -150,14 +197,20 @@ Without any of these, an ordinary tab keeps what section 2 lists.
   and names fail with "temporary failure". `routerd -d` puts things back.
 - `fetch()` in a browser follows redirects itself, drops `Set-Cookie` and most response
   headers, and decompresses bodies; routerd's answer is what the browser lets it see.
+  Under Node, redirects are passed to the client as they are.
 - Both fetches the host makes for programs, the HTTP request and the DNS-over-HTTPS
   lookup, pass `credentials: 'omit'` (`boot/hostnet.mjs`): a program's request never
   carries the browser's cookies or HTTP authentication, not even to the page's own host.
   Checked under Node (every request of the router suite records `omit`); not checked in a
-  browser, where it follows from the Fetch standard. The site sets no cookies today. This is
-  the first half of decision 30; the admin program's own channel is not built.
-  Under Node, redirects are passed to the client as they are.
+  browser, where it follows from the Fetch standard. This is the first half of decision 30;
+  the admin program's own channel is not built. The host's own requests to the platform
+  (`/proxy/`, `/api/relay-token`) do carry the session (section 2).
 - The host does not slow down a sender on its side: data a UC.OS program writes to a
-  Node socket is buffered by Node without limit.
+  Node socket is buffered by Node without limit. The same holds for the relay: while it
+  gives no credit, what a program sends waits in the host's memory.
+- Wisp has no half-close: `shutdown(SHUT_WR)` on a connection through the relay does
+  nothing. The relay carries ports 80 and 443 only (the platform's rule).
+- The relay's close reasons become errors: 0x42 `EHOSTUNREACH`, 0x43 and 0x47
+  `ETIMEDOUT`, 0x44 `ECONNREFUSED`, 0x48 `EACCES`, 0x49 `EAGAIN`, 0x03 `ECONNRESET`.
 - A program that keeps the CPU busy without blocking delays the host's network
   callbacks too (the browser and Node run them on the same thread).

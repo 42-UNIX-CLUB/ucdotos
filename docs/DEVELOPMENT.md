@@ -47,6 +47,13 @@ make B=build-NAME WADS=DIR           # take Doom's data files from DIR (default 
 - `tools/run.mjs` and `tools/shot.mjs` serve remote files from the build directory
   (`tools/remote-node.mjs`); `--remote-rate=BYTES_PER_SECOND` slows them down and
   `--remote-off` makes every fetch fail, to test progress and errors.
+- `tools/run.mjs --platform=URL --platform-cookie='name=value'` (with `--platform-member`,
+  `--platform-proxy-first`) runs the host layer as a browser would on the platform's origin:
+  no sockets of its own, the platform's proxy and relay instead. `tools/browser.mjs
+  --at=http://HOST:PORT` opens a running server (such as the platform) instead of serving
+  `dist`. `tools/tests/platform.mjs` (9 checks, needs a running platform and the internet)
+  and `tools/tests/browser-platform.mjs` (Chromium on the platform's origin: 12 checks as a
+  member, 10 as a signed-in non-member) are not in `make test`.
 - There is no `clean` target on purpose. Use a new `B=` name. Do not `rm -rf`.
 - The initrd is `rootfs/` plus the programs under `/bin`, as a plain ustar archive.
   The staging directory `root/` is only added to, never emptied: a file you removed from
@@ -122,7 +129,7 @@ parameters: `?scale=1` (one framebuffer pixel per CSS pixel), `?cmdline=init=/bi
 ## 4. Tests
 
 Run the system suites before you say something works: `make B=build-NAME test` runs the
-first seven and fails if any check fails. Counts as of 2026-11-26.
+first nine and fails if any check fails. Counts as of 2026-11-27.
 
 | Suite | Command | Passes at |
 |---|---|---|
@@ -134,6 +141,7 @@ first seven and fails if any check fails. Counts as of 2026-11-26.
 | sound | `node tools/tests/audio.mjs --build=B` | `audiotest: 37 checks, 0 failed` |
 | network | `node tools/run.mjs --build=B --init=/bin/nettest` | `nettest: 89 checks, 0 failed` |
 | router (HTTP path, offline) | `node tools/tests/router-http.mjs --build=B` | `routertest: 24 checks, 0 failed` |
+| platform link (offline) | `node tools/tests/platform-local.mjs --build=B` | `platform-local: 26 checks, 0 failed`: a stand-in platform in Node (proxy, relay token, a Wisp relay with a credit of 4) |
 | desktop | `node tools/shot.mjs --build=B --script=tools/tests/desktop.mjs` | six screenshots; look at them |
 | browser | `node tools/browser.mjs --build=B --script=tools/tests/browser-desktop.mjs` | four screenshots; look at them |
 
@@ -319,7 +327,10 @@ an `fdmap`, close your copies, `waitpid`. `bin/ktest.c` and `bin/sh/exec.c` show
     the width with `TIOCGWINSZ` and adapt.
 11. **Themes at run time.** Programs must not cache the theme from `$THEME`; the file
     `~/.config/ucos/theme` is the source of truth and can change while they run.
-12. **The safety check on shell commands** (Claude Code specific): commands with complex
+12. **The console holds 1,024 bytes of input.** `kernel/dev.c` drops what does not fit, so a
+    longer `--input` to `tools/run.mjs` lost its end and made a test fail for no reason.
+    `run.mjs` now refuses an `--input` over 1,024 bytes; put long scripts in a file.
+13. **The safety check on shell commands** (Claude Code specific): commands with complex
     here-documents, or `rm -rf` on a variable path, are blocked. Write files with the
     file tools and run plain commands.
 

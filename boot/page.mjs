@@ -86,8 +86,20 @@ async function main() {
     say(`  loaded ${base}/initrd.tar.gz (${(packed / 1024).toFixed(0)} KiB, ${(b.length / 1024).toFixed(0)} KiB unpacked)\n`);
     return b;
   };
-  const [kernel, initrd] = await Promise.all([get(`${base}/kernel.wasm`), image()]);
+  // The platform (the ucdotweb service), when it runs on this origin: who is signed in.
+  // A plain file server answers 404 or something that is not JSON: then there is none.
+  const whoami = async () => {
+    try {
+      const r = await fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' });
+      if (!r.ok || !/json/.test(r.headers.get('content-type') || '')) return null;
+      const me = await r.json();
+      return me && typeof me.signed_in === 'boolean' ? me : null;
+    } catch { return null; }
+  };
+  const [kernel, initrd, me] = await Promise.all([get(`${base}/kernel.wasm`), image(), whoami()]);
   marks.fetched = performance.now();
+  window.ucosPlatform = me;
+  if (me) say(me.signed_in ? `  platform: signed in as ${me.login}${me.member ? ', member' : ''}${me.admin ? ', administrator' : ''}\n` : '  platform: not signed in (/auth/login signs in)\n');
 
   // ---- persistence (boot/store.mjs). This tab holds the "ucos-store" lock (oneTab above),
   // so no other tab has the database open: ?reset (empty the store first) is safe here too.
@@ -134,8 +146,12 @@ async function main() {
     },
     kernel, initrd,
     // ucos.admin (may this session become root?) is not for the address bar: it comes from
-    // the server that serves the page, as <meta name="ucos-admin" content="1">. Default: no.
-    cmdline: [(params.get('cmdline') || '').replace(/(^|\s)ucos\.admin=\S*/g, ' ').trim(), document.querySelector('meta[name="ucos-admin"]')?.content === '1' ? 'ucos.admin=1' : ''].filter(Boolean).join(' '),
+    // the server that serves the page, as <meta name="ucos-admin" content="1">, or from the
+    // platform on this origin saying that an administrator is signed in. Default: no.
+    cmdline: [(params.get('cmdline') || '').replace(/(^|\s)ucos\.admin=\S*/g, ' ').trim(),
+      document.querySelector('meta[name="ucos-admin"]')?.content === '1' || (me && me.signed_in && me.admin === true) ? 'ucos.admin=1' : ''].filter(Boolean).join(' '),
+    // the router's ways out through the platform (boot/hostnet.mjs): the proxy when signed in, the relay for members
+    net: me && me.signed_in ? { platform: { signedIn: true, member: me.member === true } } : {},
     screen: s,
     log: (text) => { say(text); console.log(text.replace(/\n$/, '')); },
     onFrame: () => { dirty = true; },

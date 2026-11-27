@@ -94,14 +94,14 @@ Chromium is needed only for `tools/browser.mjs`.
 make B=build-NAME                 # kernel, libc, every program, initrd. ALWAYS pass your own B=
 make B=build-NAME PROGS="sh ls"   # only these programs go in the image (others may be mid-edit)
 make B=build-NAME dist            # build-NAME/dist: static folder for any web server
-make B=build-NAME test            # kernel, C library, uconf, shell, sound, network and router suites; fails if any check fails
+make B=build-NAME test            # kernel, C library, uconf, shell, sound, network, router and platform suites; fails if any check fails
 
 node tools/run.mjs  --build=build-NAME --init=/bin/ktest            # console only, for tests
 node tools/shot.mjs --build=build-NAME --script=tools/tests/desktop.mjs   # headless, PNG screenshots
 node tools/browser.mjs --build=build-NAME --script=tools/tests/browser-desktop.mjs  # real Chromium
 ```
 
-The seven suites that must stay green (counts as of 2026-11-26):
+The suites that must stay green (counts as of 2026-11-27):
 
 | Suite | Command (add `--build=...`) | Result |
 |---|---|---|
@@ -111,6 +111,8 @@ The seven suites that must stay green (counts as of 2026-11-26):
 | Sound | `node tools/tests/audio.mjs` | 37 checks, 0 failed |
 | Network | `node tools/run.mjs --init=/bin/nettest` | 89 checks, 0 failed |
 | Router | `node tools/tests/router-http.mjs` | 24 checks, 0 failed |
+| Dotfile parser | `node tools/run.mjs --init=/bin/uconftest` | 66 checks, 0 failed |
+| Platform link (offline) | `node tools/tests/platform-local.mjs` | 26 checks, 0 failed |
 | Desktop | `node tools/shot.mjs --script=tools/tests/desktop.mjs` | look at the 6 screenshots |
 
 Component suites (terminal, window manager, editor, htop, fetch, Doom) are listed in
@@ -122,7 +124,7 @@ Component suites (terminal, window manager, editor, htop, fetch, Doom) are liste
 |---|---|---|
 | `abi/abi.h` | syscall numbers, errno, structs shared by kernel and programs | 230 |
 | `kernel/` | the kernel: `syscall.c proc.c fork.c signal.c vfs.c fs_sys.c procfs.c store.c pipe.c tty.c sock.c fb.c dev.c klib.c main.c audio.c remote.c`, and the network stack `net.h timer.c netif.c ip.c udp.c tcp.c inet.c hostnet.c` | 7,530 |
-| `boot/` | `host.mjs` (the machine), `audio.mjs` + `audio-worklet.js` (sound), `hostnet.mjs` (the router's way out), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes), `store.mjs` (persistence) | 1,590 |
+| `boot/` | `host.mjs` (the machine), `audio.mjs` + `audio-worklet.js` (sound), `hostnet.mjs` (the router's way out), `page.mjs` + `index.html` (the page), `keys.mjs` (key codes), `store.mjs` (persistence) | 1,780 |
 | `lib/` | `string.c`, `fmt.c` (vsnprintf): shared by kernel and libc; `mem.s` (kernel) and `umem.s` (libc): memcpy, memmove, memset | 530 |
 | `libc/` | our C library: `include/`, `src/`, `crt/crt0.c` | 5,440 |
 | `libgfx/` | `ttf.c` TrueType rasterizer, `gfx.c` 2D drawing | 1,830 |
